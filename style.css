@@ -1863,11 +1863,11 @@ tbody tr:hover { background: var(--surface2); }
   line-height: 1;
 }
 .dazura-stat-label {
-  font-size: 11px;
+  font-size: 16px;
   opacity: 0.6;
   letter-spacing: 0.3px;
 }
-.dazura-stat-icon { font-size: 16px; }
+.dazura-stat-icon { font-size: 26px; }
 @keyframes dazSpin { to { transform: rotate(360deg); } }
 @keyframes dazPulse {
   0%   { opacity: 0.88; transform: scale(1); }
