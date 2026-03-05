@@ -5303,6 +5303,7 @@ async function initFirebase() {
     if (!window.firebase) {
       await loadScript('https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js');
       await loadScript('https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js');
+      await loadScript('https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js');
     }
     if (!firebase.apps?.length) firebase.initializeApp(FIREBASE_CONFIG);
     firebaseDB = firebase.firestore();

@@ -520,7 +520,7 @@
       <div class="ms-hero">
         <div class="ms-hero-card">
           <div class="ms-hero-text">
-            <div id="moduleCompanyName" class="ms-hero-company">Dazura</div>
+            <div id="moduleCompanyName" class="ms-hero-company"></div>
             <div id="moduleWelcome" class="ms-hero-welcome">👋 שלום, </div>
           </div>
           <div id="moduleBrandIcon" class="ms-hero-icon">🏖️</div>
@@ -1515,21 +1515,9 @@
 
 
 <div class="toast-container" id="toastContainer"></div>
-<!-- Firebase SDKs -->
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-check-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
-
-<script>
-  // App Check — מגן על Firestore מפני גישה מחוץ לדומיין
-  document.addEventListener('DOMContentLoaded', function() {
-    if (window.firebase && firebase.apps?.length) {
-      const appCheck = firebase.appCheck();
-      appCheck.activate('6LdEvIAsAAAAACwYLpeNtiNpUyeH7hvUT3AN-RVx', true);
-    }
-  });
-</script>
-
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
 <script src="script.js"></script>
 </body>
 </html>
