@@ -3689,30 +3689,23 @@ async function sendCeoAiQuery(query) {
     container.scrollTop = container.scrollHeight;
   }
 
-  // Always get local data answer first
-  const localAnswer = buildCeoAiAnswer(q);
-
-  // Try Gemini if API key set and question seems to need NLP
   const apiKey = localStorage.getItem('dazura_gemini_key');
-  const needsGemini = apiKey && (q.length > 15 || q.includes('?'));
 
-  let finalAnswer = localAnswer;
-
-  if (needsGemini && !localAnswer.startsWith('🔒') && !localAnswer.startsWith('❓')) {
+  let finalAnswer = '';
+  if (apiKey) {
     try {
-      finalAnswer = await askGeminiWithContext(q, localAnswer, apiKey);
+      finalAnswer = await askGeminiWithContext(q, apiKey);
     } catch(e) {
-      // Silently fall back to local answer
-      finalAnswer = localAnswer;
+      finalAnswer = '⚠️ שגיאת Gemini: ' + e.message + '\n\nמשיב מהמנוע המקומי:\n' + buildCeoAiAnswer(q);
     }
+  } else {
+    finalAnswer = buildCeoAiAnswer(q);
   }
 
-  setTimeout(() => {
-    const typing = document.getElementById('ceoTyping');
-    if (typing) typing.remove();
-    ceoAiHistory.push({ role: 'assistant', content: finalAnswer });
-    renderCeoAiMessages();
-  }, needsGemini ? 0 : 700);
+  const typingEl = document.getElementById('ceoTyping');
+  if (typingEl) typingEl.remove();
+  ceoAiHistory.push({ role: 'assistant', content: finalAnswer });
+  renderCeoAiMessages();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -3725,56 +3718,151 @@ function sanitizeForGemini(text) {
              .replace(/[A-Za-z]{3,} [A-Za-z]{3,}/g, 'Employee');
 }
 
-async function askGeminiWithContext(userQ, localData, apiKey) {
-  try {
-    const db  = getDB();
-    const s   = getSettings();
-    const companyName = (s && s.companyName) ? s.companyName : 'החברה';
-    const today = new Date().toISOString().split('T')[0];
-    const allUsers = Object.values(db.users || {}).filter(u => isUserActive(u) && u.role !== 'admin');
-    const vacs = db.vacations || {};
-    const onVac  = allUsers.filter(u=>{const t=(vacs[u.username]||{})[today];return t==='full'||t==='half';}).length;
-    const onWfh  = allUsers.filter(u=>(vacs[u.username]||{})[today]==='wfh').length;
-    const onSick = allUsers.filter(u=>(vacs[u.username]||{})[today]==='sick').length;
-    const role   = currentUser ? (isCeoUser() ? 'מנכ"ל' : currentUser.role === 'manager' ? 'מנהל' : 'עובד') : 'אנונימי';
-    const systemPrompt = [
-      'אתה מנוע ה-AI הרשמי של מערכת Dazura לניהול חופשות.',
-      'תפקיד המשתמש: ' + role,
-      'חברה: ' + companyName,
-      'תאריך היום: ' + today,
-      'נתונים כלליים: עובדים: ' + allUsers.length + ' | חופשה: ' + onVac + ' | WFH: ' + onWfh + ' | מחלה: ' + onSick,
-      'מידע ממנוע מקומי: ' + sanitizeForGemini(localData),
-      '',
-      'חוקים:',
-      '- ענה תמיד בעברית מקצועית וקצרה.',
-      '- אל תמציא נתונים שאינם בהקשר.',
-      '- אל תענה על שאלות שאינן קשורות למערכת.',
-      '- אם שואלים על סיבת מחלה/חופשה של אחר - השב: לא יכול לענות על כך.',
-      '- שפר ניסוח של המידע המקומי בלבד, אל תוסיף עובדות חדשות.'
-    ].join('\n');
-    const resp = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + apiKey,
-      {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          system_instruction: {parts: [{text: systemPrompt}]},
-          contents: [{role: 'user', parts: [{text: userQ}]}],
-          generationConfig: {maxOutputTokens: 500, temperature: 0.3}
-        })
-      }
-    );
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const data = await resp.json();
-    const text = data && data.candidates && data.candidates[0] &&
-                 data.candidates[0].content && data.candidates[0].content.parts &&
-                 data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
-    if (!text) throw new Error('empty');
-    return text.trim();
-  } catch(e) {
-    throw e;
+async function askGeminiWithContext(userQ, apiKey) {
+  const db          = getDB();
+  const s           = getSettings();
+  const companyName = (s && s.companyName) ? s.companyName : 'החברה';
+  const today       = new Date().toISOString().split('T')[0];
+  const cu          = currentUser;
+  if (!cu) throw new Error('no user');
+
+  const isAdmin   = isCeoUser() || cu.role === 'admin';
+  const isMgr     = isAdmin || cu.role === 'manager';
+  const isAcct    = cu.role === 'accountant';
+  const userDept  = Array.isArray(cu.dept) ? cu.dept[0] : (cu.dept || '');
+  const roleLabel = isAdmin ? 'מנכ"ל/אדמין' : cu.role === 'manager' ? 'מנהל מחלקה' : isAcct ? 'חשבת' : 'עובד';
+
+  const allUsers  = Object.values(db.users || {}).filter(u => isUserActive(u) && u.role !== 'admin');
+  const vacs      = db.vacations || {};
+  const now       = new Date();
+
+  // ── Build sanitized employee data ──────────────────────
+  function sanitizeName(fullName) {
+    // Keep first name only — remove last name (PII)
+    return (fullName || '').split(' ')[0];
   }
+
+  // Filter users by permission
+  const visibleUsers = isAdmin ? allUsers :
+    isMgr ? allUsers.filter(u => {
+      const d = Array.isArray(u.dept) ? u.dept[0] : u.dept;
+      return d === userDept;
+    }) :
+    allUsers.filter(u => u.username === cu.username);
+
+  // Today status
+  const todayRows = visibleUsers.map(u => {
+    const t    = (vacs[u.username] || {})[today];
+    const stat = t === 'full' ? 'חופשה' : t === 'half' ? 'חופשה חצי-יום' : t === 'wfh' ? 'WFH' : t === 'sick' ? 'מחלה' : 'נוכח';
+    const dept = Array.isArray(u.dept) ? u.dept[0] : (u.dept || '');
+    return sanitizeName(u.fullName) + ' [' + dept + ']: ' + stat;
+  }).join('\n');
+
+  // Quotas (for accountant and managers)
+  const quotaRows = (isMgr || isAcct) ? visibleUsers.map(u => {
+    const q    = (u.quotas || {})[now.getFullYear()] || {};
+    const used = Object.values(vacs[u.username] || {}).filter(t => t === 'full' || t === 'half').length;
+    return sanitizeName(u.fullName) + ': מכסה=' + (q.annual||0) + ', ניצל=' + used + ', יתרה=' + ((q.annual||0) - used);
+  }).join('\n') : '';
+
+  // Pending approvals
+  const pending = (db.approvalRequests || []).filter(r => r.status === 'pending');
+  const pendingRows = isMgr ? pending.map(r =>
+    sanitizeName(r.employeeName || r.username) + ': ' + r.startDate + ' עד ' + r.endDate + ' (הוגש: ' + (r.submittedAt||'').slice(0,10) + ')'
+  ).join('\n') : '';
+
+  // Burnout — 90+ days no vacation
+  const burnoutRows = isMgr ? visibleUsers.filter(u => {
+    const userVacs = vacs[u.username] || {};
+    const last = Object.keys(userVacs).filter(d => userVacs[d]==='full'||userVacs[d]==='half').sort().pop();
+    if (!last) return true;
+    return (now - new Date(last)) / 86400000 > 90;
+  }).map(u => sanitizeName(u.fullName) + ' [' + (Array.isArray(u.dept)?u.dept[0]:u.dept) + ']').join(', ') : '';
+
+  // Audit log (admin only)
+  const auditRows = isAdmin ? (db.auditLog || []).slice(-20).map(e =>
+    (e.ts||'').slice(0,16) + ' | ' + (e.action||'') + ' | ' + (e.details||'')
+  ).join('\n') : '';
+
+  // Personal data for regular employee
+  const myVacs  = vacs[cu.username] || {};
+  const myUsed  = Object.values(myVacs).filter(t=>t==='full'||t==='half').length;
+  const myQ     = ((cu.quotas||{})[now.getFullYear()]||{}).annual || 0;
+  const myReqs  = (db.approvalRequests||[]).filter(r=>r.username===cu.username);
+
+  // ── Build system prompt ─────────────────────────────────
+  const lines = [
+    '## זהות ותפקיד',
+    'אתה מנוע ה-AI הרשמי של מערכת Dazura (גרסה 3.0). תפקידך לסייע בניהול וניתוח נתוני חופשות, מחלות ו-WFH. עבוד בעברית מקצועית בלבד.',
+    '',
+    '## פרטי משתמש מחובר',
+    'שם: ' + sanitizeName(cu.fullName) + ' | תפקיד: ' + roleLabel + ' | מחלקה: ' + userDept + ' | תאריך: ' + today + ' | חברה: ' + companyName,
+    '',
+    '## הרשאות',
+    isAdmin ? 'גישה מלאה לכל המידע. חובה להתריע על עומס מחלקתי אם >30% חסרים.' :
+    isMgr   ? 'גישה למחלקה שלך בלבד (' + userDept + '). עובד ממחלקה אחרת — השב: "אין לי הרשאה להציג מידע מחוץ למחלקת ' + userDept + '".' :
+    isAcct  ? 'גישה ליתרות וצבירה. WFH — רק אם נשאל במפורש.' :
+    'גישה למידע אישי בלבד. מותר לשאול מי חסר מהצוות (לצרכי עבודה), אסור לחשוף סיבת חיסור.',
+    '',
+    '## נתוני נוכחות היום',
+    todayRows || 'אין נתונים',
+  ];
+
+  if (isMgr || isAcct) {
+    lines.push('', '## יתרות חופשה', quotaRows || 'אין נתונים');
+  }
+  if (isMgr && pendingRows) {
+    lines.push('', '## בקשות ממתינות לאישור', pendingRows);
+  }
+  if (isMgr && burnoutRows) {
+    lines.push('', '## עובדים בסיכון שחיקה (90+ יום ללא חופשה)', burnoutRows);
+  }
+  if (isAdmin && auditRows) {
+    lines.push('', '## יומן ביקורת (20 פעולות אחרונות)', auditRows);
+  }
+  if (!isMgr && !isAcct) {
+    lines.push('', '## הנתונים שלך',
+      'ימי חופשה שנוצלו: ' + myUsed + ' | מכסה שנתית: ' + myQ + ' | יתרה: ' + (myQ - myUsed),
+      'בקשות שלי: ' + myReqs.length + ' (מאושרות: ' + myReqs.filter(r=>r.status==='approved').length + ', ממתינות: ' + myReqs.filter(r=>r.status==='pending').length + ')'
+    );
+  }
+
+  lines.push(
+    '',
+    '## מגבלות חובה',
+    '- אל תמציא נתונים. אם נתון חסר — אמור "לא נמצא דיווח".',
+    '- סיבת מחלה/חופשה של אחר — "לא יכול לענות על כך".',
+    '- אל תענה על שאלות שאינן קשורות למערכת (מזג אוויר, קוד, ויקיפדיה).',
+    '- אל תחשוף סיסמאות, מיילים, או פרטים מזהים.',
+    '- תמיד ענה בעברית ברורה ומקצועית.'
+  );
+
+  const systemPrompt = lines.join('\n');
+
+  const resp = await fetch(
+    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + apiKey,
+    {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        system_instruction: {parts: [{text: systemPrompt}]},
+        contents: [{role: 'user', parts: [{text: userQ}]}],
+        generationConfig: {maxOutputTokens: 700, temperature: 0.4}
+      })
+    }
+  );
+  if (!resp.ok) {
+    const errText = await resp.text().catch(()=>'');
+    throw new Error('Gemini ' + resp.status + ': ' + errText.slice(0,120));
+  }
+  const data = await resp.json();
+  const text = data && data.candidates && data.candidates[0] &&
+               data.candidates[0].content && data.candidates[0].content.parts &&
+               data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
+  if (!text) throw new Error('תשובה ריקה מ-Gemini');
+  return text.trim();
 }
+
 
 
 function buildCeoAiAnswer(q) {
@@ -5376,29 +5464,19 @@ function sendModuleAiQuery(query) {
     container.scrollTop = container.scrollHeight;
   }
 
-  const localAnswer = buildCeoAiAnswer(q);
   const apiKey = localStorage.getItem('dazura_gemini_key');
-  const needsGemini = apiKey && q.length > 15 && !localAnswer.startsWith('🔒');
-
-  if (needsGemini) {
-    askGeminiWithContext(q, localAnswer, apiKey).then(answer => {
-      const typing = document.getElementById('modTyping');
-      if (typing) typing.remove();
-      moduleAiHistory.push({ role: 'assistant', content: answer });
-      renderModuleAiMessages();
-    }).catch(() => {
-      const typing = document.getElementById('modTyping');
-      if (typing) typing.remove();
-      moduleAiHistory.push({ role: 'assistant', content: localAnswer });
-      renderModuleAiMessages();
+  const finish = (ans) => {
+    const typing = document.getElementById('modTyping');
+    if (typing) typing.remove();
+    moduleAiHistory.push({ role: 'assistant', content: ans });
+    renderModuleAiMessages();
+  };
+  if (apiKey) {
+    askGeminiWithContext(q, apiKey).then(finish).catch(e => {
+      finish('⚠️ שגיאת Gemini: ' + e.message + '\n\n' + buildCeoAiAnswer(q));
     });
   } else {
-    setTimeout(() => {
-      const typing = document.getElementById('modTyping');
-      if (typing) typing.remove();
-      moduleAiHistory.push({ role: 'assistant', content: localAnswer });
-      renderModuleAiMessages();
-    }, 600);
+    setTimeout(() => finish(buildCeoAiAnswer(q)), 600);
   }
 }
 
