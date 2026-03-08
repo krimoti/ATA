@@ -3611,11 +3611,6 @@ function populateCeoDashboard() {
 
 
 function initCeoAiChat() {
-  const chatEl = document.getElementById('ceoAiChat');
-  if (!chatEl) return;
-  // Already initialized
-  if (chatEl.dataset.initialized) return;
-  chatEl.dataset.initialized = '1';
   renderCeoAiMessages();
 }
 
@@ -3677,225 +3672,368 @@ function sendCeoAiQuery(query) {
 }
 
 function buildCeoAiAnswer(q) {
-  if (!q || !q.trim()) return '❓ לא הבנתי את השאלה — נסה שוב.';
-  const db = getDB();
-  const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
-  const allUsers = Object.values(db.users || {}).filter(u => isUserActive(u) && u.role !== 'admin');
-  const vacs = db.vacations || {};
-  const months = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
-  const days7 = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
-  const ql = (q + '').toLowerCase();
+  if (!q || !q.trim()) return '❓ לא הבנתי את השאלה.';
+  try {
+    const db        = getDB();
+    const today     = new Date();
+    const todayStr  = today.toISOString().split('T')[0];
+    const thisYear  = today.getFullYear();
+    const allUsers  = Object.values(db.users || {}).filter(u => isUserActive(u) && u.role !== 'admin');
+    const vacs      = db.vacations || {};
+    const approvals = db.approvalRequests || [];
+    const months    = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+    const ql        = (q + '').toLowerCase();
 
-  // ---- Role ----
-  const isMgr = currentUser && (isCeoUser() || currentUser.role === 'admin' || currentUser.role === 'manager');
-
-  // ---- Helpers ----
-  function getUserStatus(u, dt) {
-    const t = (vacs[u.username] || {})[dt];
-    return t || 'present';
-  }
-  function fmt(dt) {
-    const d = new Date(dt + 'T00:00:00');
-    return d.getDate() + '/' + (d.getMonth()+1);
-  }
-
-  // ---- 1. PERSONAL STATUS (any user) ----
-  if (ql.includes('שלי') || ql.includes('אני') || ql.includes('הסטטוס שלי') || ql.includes('יתרה') || ql.includes('נותרו לי') || ql.includes('כמה ימים נותרו') || ql.includes('מצבי')) {
-    if (!currentUser) return 'לא מחובר.';
-    const myV = vacs[currentUser.username] || {};
-    const ts = myV[todayStr];
-    const statusLabel = ts === 'full' ? '🏖️ בחופשה' : ts === 'half' ? '🌓 חצי יום חופשה' : ts === 'wfh' ? '🏠 עובד מהבית' : ts === 'sick' ? '🤒 מחלה' : '🏢 במשרד';
-    const quota = currentUser.vacationQuota || 14;
-    const usedFull = Object.values(myV).filter(t => t === 'full').length;
-    const usedHalf = Object.values(myV).filter(t => t === 'half').length;
-    const used = usedFull + usedHalf * 0.5;
-    const remaining = Math.max(0, quota - used);
-    const upcoming = Object.entries(myV).filter(([dt,t]) => dt > todayStr && (t==='full'||t==='half')).sort(([a],[b]) => a<b?-1:1);
-    return '👤 הסטטוס שלך:\n' +
-      '• היום: ' + statusLabel + '\n' +
-      '• מכסה שנתית: ' + quota + ' ימים\n' +
-      '• נוצלו: ' + used + ' | נותרו: ' + remaining + '\n' +
-      (upcoming.length ? '• תוכניות קדימה: ' + upcoming.slice(0,5).map(([dt])=>fmt(dt)).join(', ') : '• אין חופשות מתוכננות קדימה');
-  }
-
-  // ---- 2. CONFLICT CHECK (any user — own dept only) ----
-  if (ql.includes('מתנגש') || ql.includes('חופף') || ql.includes('אותה מחלקה') || ql.includes('צוות שלי') || ql.includes('כולם ביחד') || ql.includes('ביחד בחופשה')) {
-    if (!currentUser) return 'לא מחובר.';
-    const myDept = Array.isArray(currentUser.dept) ? currentUser.dept[0] : (currentUser.dept || '');
-    const myVacs = vacs[currentUser.username] || {};
-    const myUpcoming = Object.entries(myVacs).filter(([dt,t]) => dt >= todayStr && (t==='full'||t==='half')).map(([dt])=>dt);
-    if (!myUpcoming.length) return '📅 אין לך ימי חופשה מתוכננים — אין מה לבדוק.';
-    const peers = allUsers.filter(u => {
-      const d = Array.isArray(u.dept) ? u.dept[0] : (u.dept||'');
-      return d === myDept && u.username !== currentUser.username;
-    });
-    const conflicts = {};
-    myUpcoming.forEach(dt => {
-      peers.forEach(u => {
-        const t = (vacs[u.username]||{})[dt];
-        if (t==='full'||t==='half') { if(!conflicts[dt]) conflicts[dt]=[]; conflicts[dt].push(u.fullName); }
-      });
-    });
-    const dates = Object.keys(conflicts).sort();
-    if (!dates.length) return '✅ אין התנגשויות!\nאף אחד ממחלקת ' + myDept + ' לא בחופשה באותם ימים שלך.';
-    return '⚠️ התנגשויות במחלקת ' + myDept + ':\n' +
-      dates.map(dt => '• ' + fmt(dt) + ' — ' + conflicts[dt].join(', ')).join('\n');
-  }
-
-  // ---- 3. FINANCIAL — CEO/Manager only ----
-  const isFinancial = ql.includes('עלות') || ql.includes('עלויות') || ql.includes('חיסכון') ||
-                      ql.includes('שכר') || ql.includes('כסף') || ql.includes('תקציב') ||
-                      ql.includes('רבעון') || ql.includes('שנתי') || ql.includes('פיננס');
-  if (isFinancial) {
-    if (!isMgr) return '🔒 נתונים פיננסיים זמינים למנהלים בלבד.';
-    // Determine period
-    let year = today.getFullYear(), fromM = today.getMonth()+1, toM = fromM, label = 'חודש ' + months[today.getMonth()];
-    if (ql.includes('שנ')) { fromM=1; toM=12; label='שנת ' + year; }
-    else if (ql.includes('רבעון')) {
-      const qn = Math.floor(today.getMonth()/3);
-      fromM = qn*3+1; toM = Math.min(qn*3+3,12);
-      label = 'רבעון ' + (qn+1);
-    }
-    let vacDays=0, vacCost=0, wfhDays=0, wfhSave=0;
-    allUsers.forEach(u => {
-      const sal = u.dailySalary || 850;
-      Object.entries(vacs[u.username]||{}).forEach(([dt,t]) => {
-        const d = new Date(dt+'T00:00:00');
-        if (d.getFullYear()!==year) return;
-        const m = d.getMonth()+1;
-        if (m < fromM || m > toM) return;
-        if (t==='full')  { vacDays++; vacCost+=sal; }
-        else if (t==='half') { vacDays+=0.5; vacCost+=sal*0.5; }
-        else if (t==='wfh') { wfhDays++; wfhSave+=sal*0.3; }
-      });
-    });
-    return '💰 ניתוח כספי — ' + label + ':\n\n' +
-      '🏖️ ימי חופשה: ' + vacDays + '\n' +
-      '   עלות ישירה: ₪' + Math.round(vacCost).toLocaleString() + '\n\n' +
-      '🏠 ימי WFH: ' + wfhDays + '\n' +
-      '   חיסכון משוער: ₪' + Math.round(wfhSave).toLocaleString() + '\n\n' +
-      '📊 מאזן: ' + (wfhSave >= vacCost ? '✅ ' : '⚠️ ') +
-      '₪' + Math.abs(Math.round(wfhSave - vacCost)).toLocaleString() +
-      (wfhSave >= vacCost ? ' לטובת החברה' : ' לחובת החברה');
-  }
-
-  // ---- 4. WHO IS ON VACATION/WFH/SICK TODAY ----
-  const isWho = ql.includes('מי') || ql.includes('רשימה') || ql.includes('כולם');
-  const isToday = ql.includes('היום') || ql.includes('עכשיו');
-  const isWeek  = ql.includes('השבוע') || ql.includes('שבוע');
-
-  if (isWho || isToday || isWeek) {
-    if (!isMgr) return '🔒 מידע על עובדים אחרים זמין למנהלים בלבד.\n\nאני יכול לעזור לך:\n• לבדוק את הסטטוס שלך\n• לבדוק אם יש התנגשות במחלקה שלך';
-
-    // Which status are we asking about?
-    const wantWfh  = ql.includes('מהבית') || ql.includes('wfh');
-    const wantSick = ql.includes('חול') || ql.includes('מחלה');
-    const wantVac  = ql.includes('חופשה') || ql.includes('חופש') || (!wantWfh && !wantSick);
-
-    if (isWeek && !isToday) {
-      // Weekly WFH list
-      const weekDates = Array.from({length:7},(_,i)=>{const d=new Date(today);d.setDate(today.getDate()+i);return d.toISOString().slice(0,10);});
-      const wfhSet = new Set();
-      allUsers.forEach(u => weekDates.forEach(dt => { if((vacs[u.username]||{})[dt]==='wfh') wfhSet.add(u.fullName); }));
-      return wfhSet.size
-        ? '🏠 WFH השבוע (' + wfhSet.size + '):\n' + [...wfhSet].join('\n')
-        : '🏠 אין דיווחי WFH השבוע.';
+    // Helpers
+    function fmt(dt) { const d = new Date(dt+'T00:00:00'); return d.getDate()+'/'+(d.getMonth()+1); }
+    function getYear(s) { const m = s.match(/20\d\d/); return m ? parseInt(m[0]) : thisYear; }
+    function getDept(u) { return Array.isArray(u.dept) ? u.dept[0] : (u.dept || ''); }
+    function vacDays(entries) {
+      return entries.reduce((s,[,t]) => s + (t==='full' ? 1 : t==='half' ? 0.5 : 0), 0);
     }
 
-    // Today
-    const dt = todayStr;
-    const onVac=[], onWfh=[], onSick=[], present=[];
-    allUsers.forEach(u => {
-      const t = getUserStatus(u, dt);
-      const dept = Array.isArray(u.dept)?u.dept[0]:(u.dept||'');
-      const label = u.fullName + (dept ? ' (' + dept + ')' : '');
-      if (t==='full'||t==='half') onVac.push(label);
-      else if (t==='wfh') onWfh.push(label);
-      else if (t==='sick') onSick.push(label);
-      else present.push(u.fullName);
-    });
+    // Role
+    const isMgr = currentUser && (isCeoUser() || currentUser.role === 'admin' || currentUser.role === 'manager');
 
-    if (wantWfh && !wantVac && !wantSick) return onWfh.length ? '🏠 WFH היום (' + onWfh.length + '):\n' + onWfh.join('\n') : '🏠 אין עובדים שדיווחו WFH היום.';
-    if (wantSick && !wantVac && !wantWfh) return onSick.length ? '🤒 מחלה היום (' + onSick.length + '):\n' + onSick.join('\n') : '🤒 אין דיווחי מחלה היום.';
-    if (wantVac && !wantWfh && !wantSick) return onVac.length ? '🏖️ בחופשה היום (' + onVac.length + '):\n' + onVac.join('\n') : '✅ אין עובדים בחופשה היום.';
-    // Summary
-    return '📊 סטטוס צוות — היום:\n' +
-      '🏖️ חופשה: ' + onVac.length + (onVac.length ? '\n   ' + onVac.join('\n   ') : '') + '\n' +
-      '🏠 WFH: ' + onWfh.length + (onWfh.length ? '\n   ' + onWfh.join('\n   ') : '') + '\n' +
-      '🤒 מחלה: ' + onSick.length + (onSick.length ? '\n   ' + onSick.join('\n   ') : '') + '\n' +
-      '✅ במשרד: ' + present.length;
+    // ══════════════════════════════════════════════════════
+    // ████  EMPLOYEE ZONE  ████
+    // ══════════════════════════════════════════════════════
+
+    // ── 1. PERSONAL VACATION BALANCE & USAGE ──────────────
+    // triggers: יתרה / נותרו / חופשה שלי / כמה ימים / צברתי / ניצלתי / קצב / מומלץ
+    const isPersonalVac = ql.includes('יתרה') || ql.includes('נותרו') || ql.includes('צברתי') ||
+      ql.includes('ניצלתי') || ql.includes('קצב') || ql.includes('מומלץ') ||
+      ((ql.includes('כמה') || ql.includes('כמה ימים')) && (ql.includes('חופשה') || ql.includes('ימים'))) ||
+      (ql.includes('חופשה') && (ql.includes('שלי') || ql.includes('אני') || ql.includes('לקחתי')));
+
+    if (isPersonalVac) {
+      if (!currentUser) return 'לא מחובר.';
+      const year   = getYear(ql);
+      const myV    = vacs[currentUser.username] || {};
+      const yEntries = Object.entries(myV).filter(([dt]) => new Date(dt+'T00:00:00').getFullYear() === year);
+      const used   = vacDays(yEntries);
+      const quota  = currentUser.vacationQuota || 14;
+      const remaining = Math.max(0, quota - used);
+      const monthsLeft = 12 - today.getMonth(); // months left in year
+      const ideal  = monthsLeft > 0 ? (remaining / monthsLeft).toFixed(1) : 0;
+      const upcoming = yEntries.filter(([dt,t]) => dt > todayStr && (t==='full'||t==='half')).sort(([a],[b])=>a<b?-1:1);
+      const wfhCount = yEntries.filter(([,t])=>t==='wfh').length;
+
+      let ans = `🏖️ יתרת חופשה שלך — ${year}:\n`;
+      ans += `• מכסה שנתית: ${quota} ימים\n`;
+      ans += `• נוצלו: ${used} ימים\n`;
+      ans += `• נותרו: ${remaining} ימים\n`;
+      ans += `• ימי WFH השנה: ${wfhCount}\n`;
+
+      if (year === thisYear) {
+        ans += `\n📊 תחזית ניצול:\n`;
+        const totalByYearEnd = used + upcoming.length; // rough estimate
+        if (remaining > 0 && monthsLeft > 0) {
+          ans += `• מומלץ: ${ideal} ימים/חודש לסיום מאוזן\n`;
+          if (remaining > monthsLeft * 2) ans += `⚠️ יתרה גבוהה — כדאי לתכנן חופשות מוקדם\n`;
+          else if (remaining <= monthsLeft) ans += `✅ קצב ניצול תקין\n`;
+        }
+      }
+
+      if (upcoming.length) ans += `\n• חופשות מתוכננות: ${upcoming.slice(0,6).map(([dt])=>fmt(dt)).join(', ')}`;
+      else ans += `\n• אין חופשות מתוכננות קדימה`;
+      return ans;
+    }
+
+    // ── 2. REQUEST STATUS ─────────────────────────────────
+    // triggers: בקשה / בקשת חופשה / מצב הבקשה / ממתינה / אושרה / נדחתה
+    if (ql.includes('בקשה') || ql.includes('ממתינה') || ql.includes('אושרה') || ql.includes('נדחתה') || ql.includes('מצב הבקשה') || ql.includes('שלחתי למנהל')) {
+      if (!currentUser) return 'לא מחובר.';
+      const myRequests = approvals
+        .filter(r => r.username === currentUser.username)
+        .sort((a,b) => (b.submittedAt||'') > (a.submittedAt||'') ? 1 : -1);
+      if (!myRequests.length) return '📋 לא נמצאו בקשות חופשה שמורות במערכת.';
+      const last = myRequests[0];
+      const statusLabel = last.status === 'pending' ? '⏳ ממתינה לאישור' : last.status === 'approved' ? '✅ אושרה' : '❌ נדחתה';
+      let ans = `📋 בקשת החופשה האחרונה שלך:\n• תאריך הגשה: ${last.submittedAt ? last.submittedAt.slice(0,10) : 'לא ידוע'}\n• תאריכים: ${last.from||'?'} עד ${last.to||'?'}\n• סטטוס: ${statusLabel}`;
+      if (last.note) ans += `\n• הערה: ${last.note}`;
+      if (myRequests.length > 1) ans += `\n\n📌 סה"כ ${myRequests.length} בקשות בהיסטוריה`;
+      return ans;
+    }
+
+    // ── 3. MY SICK DAYS ────────────────────────────────────
+    if ((ql.includes('מחלה') || ql.includes('חולה') || ql.includes('sick')) &&
+        (ql.includes('שלי') || ql.includes('אני') || ql.includes('לקחתי') || ql.includes('כמה'))) {
+      if (!currentUser) return 'לא מחובר.';
+      const year = getYear(ql);
+      const myV  = vacs[currentUser.username] || {};
+      const sickV = Object.entries(myV).filter(([dt,t]) => t==='sick' && new Date(dt+'T00:00:00').getFullYear()===year).length;
+      const sickDB = Object.values(db.sick||{}).filter(s => s.username===currentUser.username && s.date && s.date.startsWith(year+'')).length;
+      return `🤒 ימי מחלה שלך — ${year}:\n• ימי מחלה מדווחים: ${Math.max(sickV, sickDB)}`;
+    }
+
+    // ── 4. MY WFH ──────────────────────────────────────────
+    if ((ql.includes('wfh') || ql.includes('מהבית') || ql.includes('עבדתי מהבית')) &&
+        (ql.includes('שלי') || ql.includes('אני') || ql.includes('כמה'))) {
+      if (!currentUser) return 'לא מחובר.';
+      const year = getYear(ql);
+      const myV  = vacs[currentUser.username] || {};
+      const count = Object.entries(myV).filter(([dt,t]) => t==='wfh' && new Date(dt+'T00:00:00').getFullYear()===year).length;
+      return `🏠 ימי WFH שלך — ${year}: ${count} ימים`;
+    }
+
+    // ── 5. MY HOURS / TIMECLOCK ────────────────────────────
+    if (ql.includes('שעות') && (ql.includes('שלי') || ql.includes('אני') || ql.includes('דיווחתי'))) {
+      if (!currentUser) return 'לא מחובר.';
+      const year = getYear(ql);
+      const tc   = (db.timeclock || {})[currentUser.username] || {};
+      const entries = Object.entries(tc).filter(([dt]) => dt.startsWith(year+''));
+      if (!entries.length) return `⏱️ אין דיווחי שעות בשנת ${year}.`;
+      let totalMins = 0;
+      entries.forEach(([,v]) => {
+        if (v.in && v.out) {
+          const [ih,im] = v.in.split(':').map(Number);
+          const [oh,om] = v.out.split(':').map(Number);
+          totalMins += (oh*60+om) - (ih*60+im);
+        }
+      });
+      return `⏱️ דיווחי שעות — ${year}:\n• ימים: ${entries.length}\n• סה"כ: ${Math.floor(totalMins/60)}:${String(totalMins%60).padStart(2,'0')} שעות`;
+    }
+
+    // ── 6. MY STATUS TODAY ────────────────────────────────
+    if (ql.includes('הסטטוס שלי') || ql.includes('מצבי') || ql.includes('מה אני') || (ql.includes('היום') && (ql.includes('שלי')||ql.includes('אני')))) {
+      if (!currentUser) return 'לא מחובר.';
+      const myV  = vacs[currentUser.username] || {};
+      const ts   = myV[todayStr];
+      const lbl  = ts==='full'?'🏖️ בחופשה':ts==='half'?'🌓 חצי יום':ts==='wfh'?'🏠 WFH':ts==='sick'?'🤒 מחלה':'🏢 במשרד';
+      return `👤 הסטטוס שלך היום: ${lbl}`;
+    }
+
+    // ── 7. JEWISH HOLIDAYS ────────────────────────────────
+    if (ql.includes('חג') || ql.includes('חגים') || ql.includes('פסח') || ql.includes('ראש השנה') ||
+        ql.includes('סוכות') || ql.includes('שבועות') || ql.includes('יום כיפור') || ql.includes('עצמאות') ||
+        ql.includes('ערב') || ql.includes('יום קצר') || ql.includes('חגי')) {
+      const year = getYear(ql);
+      const holidays2025 = [
+        { name:'ראש השנה', date:'02/10/2025', short:'01/10/2025', note:'יום קצר ב-01/10' },
+        { name:'יום כיפור', date:'12/10/2025', short:'11/10/2025', note:'יום קצר ב-11/10' },
+        { name:'סוכות', date:'16/10/2025', short:'15/10/2025', note:'יום קצר ב-15/10' },
+        { name:'שמחת תורה', date:'23/10/2025', short:'22/10/2025', note:'יום קצר ב-22/10' },
+        { name:'חנוכה', date:'14/12/2025', note:'ללא יום קצר' },
+        { name:'פורים', date:'13/03/2025', note:'ללא יום קצר' },
+        { name:'ערב פסח', date:'12/04/2025', short:'12/04/2025', note:'יום קצר' },
+        { name:'פסח (א\')', date:'13/04/2025', note:'חג' },
+        { name:'שביעי של פסח', date:'19/04/2025', note:'חג' },
+        { name:'יום העצמאות', date:'01/05/2025', short:'30/04/2025', note:'יום קצר ב-30/04' },
+        { name:'שבועות', date:'02/06/2025', short:'01/06/2025', note:'יום קצר ב-01/06' },
+      ];
+      const holidays2026 = [
+        { name:'ראש השנה', date:'11/09/2026', short:'10/09/2026', note:'יום קצר ב-10/09' },
+        { name:'יום כיפור', date:'20/09/2026', short:'19/09/2026', note:'יום קצר ב-19/09' },
+        { name:'סוכות', date:'25/09/2026', short:'24/09/2026', note:'יום קצר ב-24/09' },
+        { name:'שמחת תורה', date:'02/10/2026', short:'01/10/2026', note:'יום קצר ב-01/10' },
+        { name:'חנוכה', date:'05/12/2026', note:'ללא יום קצר' },
+        { name:'פורים', date:'03/03/2026', note:'ללא יום קצר' },
+        { name:'ערב פסח', date:'01/04/2026', short:'01/04/2026', note:'יום קצר' },
+        { name:'פסח (א\')', date:'02/04/2026', note:'חג' },
+        { name:'שביעי של פסח', date:'08/04/2026', note:'חג' },
+        { name:'יום העצמאות', date:'20/04/2026', short:'19/04/2026', note:'יום קצר ב-19/04' },
+        { name:'שבועות', date:'22/05/2026', short:'21/05/2026', note:'יום קצר ב-21/05' },
+      ];
+      const list = year === 2026 ? holidays2026 : holidays2025;
+      // Filter to relevant holiday if specific one mentioned
+      const specific = list.find(h => ql.includes(h.name.toLowerCase().split(' ')[0]));
+      if (specific) {
+        return `📅 ${specific.name} ${year}:\n• תאריך: ${specific.date}\n• ${specific.note}`;
+      }
+      return `📅 חגי ${year}:\n` + list.map(h => `• ${h.name}: ${h.date}${h.short?' ('+h.note+')':''}`).join('\n');
+    }
+
+    // ── 8. DEPT STATUS — names OK (team coordination) ─────
+    // "מי מהמחלקה שלי / הצוות / בחופשה היום" — names exposed for work coordination
+    const isDeptQuery = (ql.includes('מחלקה') || ql.includes('הצוות') || ql.includes('עמיתים') || ql.includes('הצוות שלי')) &&
+      !ql.includes('כל ה') && !ql.includes('חברה') && !ql.includes('כלל');
+    if (isDeptQuery || (ql.includes('מי') && !isMgr && (ql.includes('חופשה')||ql.includes('wfh')||ql.includes('מהבית')||ql.includes('מחלה')||ql.includes('משרד')))) {
+      if (!currentUser) return 'לא מחובר.';
+      const myDept = getDept(currentUser);
+      const peers  = allUsers.filter(u => getDept(u) === myDept && u.username !== currentUser.username);
+      if (!peers.length) return `👥 אין עמיתים נוספים במחלקת ${myDept}.`;
+      const onVac  = peers.filter(u=>{const t=(vacs[u.username]||{})[todayStr];return t==='full'||t==='half';});
+      const onWfh  = peers.filter(u=>(vacs[u.username]||{})[todayStr]==='wfh');
+      const onSick = peers.filter(u=>(vacs[u.username]||{})[todayStr]==='sick');
+      const present= peers.filter(u=>!['full','half','wfh','sick'].includes((vacs[u.username]||{})[todayStr]));
+
+      if (ql.includes('wfh')||ql.includes('מהבית')) return onWfh.length?`🏠 WFH היום — ${myDept}:\n${onWfh.map(u=>u.fullName).join('\n')}`:`🏠 אף אחד מ${myDept} לא עובד מהבית היום.`;
+      if (ql.includes('חולה')||ql.includes('מחלה')) return onSick.length?`🤒 מחלה היום — ${myDept}:\n${onSick.map(u=>u.fullName).join('\n')}`:`🤒 אין דיווחי מחלה מ${myDept} היום.`;
+      if (ql.includes('חופשה')) return onVac.length?`🏖️ בחופשה היום — ${myDept}:\n${onVac.map(u=>u.fullName).join('\n')}`:`✅ אף אחד מ${myDept} לא בחופשה היום.`;
+      // Full summary with names
+      return `👥 סטטוס צוות ${myDept} — היום:\n` +
+        (onVac.length  ? `🏖️ בחופשה: ${onVac.map(u=>u.fullName).join(', ')}\n` : '') +
+        (onWfh.length  ? `🏠 WFH: ${onWfh.map(u=>u.fullName).join(', ')}\n` : '') +
+        (onSick.length ? `🤒 מחלה: ${onSick.map(u=>u.fullName).join(', ')}\n` : '') +
+        (present.length? `✅ במשרד: ${present.map(u=>u.fullName).join(', ')}` : '');
+    }
+
+    // ── 9. CONFLICT CHECK (own dept) ──────────────────────
+    if (ql.includes('מתנגש') || ql.includes('חופף') || ql.includes('אותה מחלקה') || ql.includes('ביחד בחופשה')) {
+      if (!currentUser) return 'לא מחובר.';
+      const myDept    = getDept(currentUser);
+      const myV       = vacs[currentUser.username] || {};
+      const myUpcoming= Object.entries(myV).filter(([dt,t])=>dt>=todayStr&&(t==='full'||t==='half')).map(([dt])=>dt);
+      if (!myUpcoming.length) return '📅 אין לך ימי חופשה מתוכננים קדימה — אין מה לבדוק.';
+      const peers = allUsers.filter(u => getDept(u)===myDept && u.username!==currentUser.username);
+      const conflicts = {};
+      myUpcoming.forEach(dt => {
+        peers.forEach(u => {
+          const t=(vacs[u.username]||{})[dt];
+          if(t==='full'||t==='half'){if(!conflicts[dt])conflicts[dt]=[];conflicts[dt].push(u.fullName);}
+        });
+      });
+      const dates=Object.keys(conflicts).sort();
+      if(!dates.length) return `✅ אין התנגשויות!\nאף אחד ממחלקת ${myDept} לא בחופשה באותם ימים שלך.`;
+      return `⚠️ התנגשויות במחלקת ${myDept}:\n`+dates.map(dt=>`• ${fmt(dt)} — ${conflicts[dt].join(', ')}`).join('\n');
+    }
+
+    // ══════════════════════════════════════════════════════
+    // ████  MANAGER / CEO ZONE  ████
+    // ══════════════════════════════════════════════════════
+    if (!isMgr) {
+      return `🔒 מידע זה אינו זמין לעובד רגיל.\n\nאני יכול לעזור לך ב:\n• יתרת החופשה שלי\n• כמה ימים לקחתי השנה\n• מצב בקשת החופשה שלי\n• מי מהצוות בחופשה היום\n• האם החופשה שלי מתנגשת\n• לוח חגים`;
+    }
+
+    // ── M1. REAL-TIME STATS ───────────────────────────────
+    const isStats = ql.includes('כמה עובדים') || ql.includes('סטטיסטיקה') || ql.includes('סטטיסטיק') || ql.includes('בזמן אמת') || ql.includes('כלל החברה') || ql.includes('כל החברה') || (ql.includes('היום') && !ql.includes('שלי') && !ql.includes('אני'));
+    const isWho   = ql.includes('מי') || ql.includes('רשימה');
+    const wantWfh = ql.includes('מהבית')||ql.includes('wfh');
+    const wantSick= ql.includes('חולה')||ql.includes('מחלה');
+    const wantVac = ql.includes('חופשה')||ql.includes('חופש');
+
+    if (isStats || isWho) {
+      const onVac=[], onWfh=[], onSick=[], present=[];
+      allUsers.forEach(u => {
+        const t=(vacs[u.username]||{})[todayStr];
+        const dept=getDept(u);
+        const lbl=`${u.fullName} (${dept})`;
+        if(t==='full'||t==='half') onVac.push(lbl);
+        else if(t==='wfh') onWfh.push(lbl);
+        else if(t==='sick') onSick.push(lbl);
+        else present.push(u.fullName);
+      });
+      if(wantWfh&&!wantVac&&!wantSick) return onWfh.length?`🏠 WFH היום (${onWfh.length}):\n${onWfh.join('\n')}`:'🏠 אין WFH היום.';
+      if(wantSick&&!wantVac&&!wantWfh) return onSick.length?`🤒 מחלה היום (${onSick.length}):\n${onSick.join('\n')}`:'🤒 אין מחלה היום.';
+      if(wantVac&&!wantWfh&&!wantSick) return onVac.length?`🏖️ חופשה היום (${onVac.length}):\n${onVac.join('\n')}`:'✅ אין חופשות היום.';
+      return `📊 כל החברה — היום:\n🏖️ חופשה: ${onVac.length}${onVac.length?'\n   '+onVac.join('\n   '):''}\n🏠 WFH: ${onWfh.length}${onWfh.length?'\n   '+onWfh.join('\n   '):''}\n🤒 מחלה: ${onSick.length}${onSick.length?'\n   '+onSick.join('\n   '):''}\n✅ במשרד: ${present.length}`;
+    }
+
+    // ── M2. BURNOUT / לא לקח חופשה ───────────────────────
+    if (ql.includes('שחיקה')||ql.includes('burnout')||ql.includes('לא לקח')||ql.includes('סכנת שחיקה')||ql.includes('90 יום')) {
+      const ninetyAgo=new Date(today); ninetyAgo.setDate(ninetyAgo.getDate()-90);
+      const at=allUsers.filter(u=>!Object.entries(vacs[u.username]||{}).some(([dt,t])=>new Date(dt+'T00:00:00')>=ninetyAgo&&(t==='full'||t==='half')));
+      return at.length
+        ?`🚨 ${at.length} עובדים ללא חופשה ב-90 יום האחרונים:\n${at.map(u=>`• ${u.fullName} (${getDept(u)})`).join('\n')}\n\n💡 מומלץ: שיחה אישית ותזמון חופשה`
+        :'✅ כל העובדים לקחו חופשה ב-90 הימים האחרונים.';
+    }
+
+    // ── M3. FINANCIAL / COST ──────────────────────────────
+    if (ql.includes('עלות')||ql.includes('עלויות')||ql.includes('חיסכון')||ql.includes('שכר')||ql.includes('כסף')||ql.includes('תקציב')||ql.includes('פיננס')||ql.includes('צבורים')) {
+      const year=getYear(ql);
+      let fromM=1,toM=12,label='שנת '+year;
+      if(!ql.includes('שנ')&&!ql.includes('שנתי')&&!ql.includes('שנה')) {
+        if(ql.includes('רבעון')){const qn=Math.floor(today.getMonth()/3);fromM=qn*3+1;toM=Math.min(qn*3+3,12);label=`רבעון ${qn+1} ${year}`;}
+        else{fromM=today.getMonth()+1;toM=fromM;label=`${months[today.getMonth()]} ${year}`;}
+      }
+      let vacD=0,vacC=0,wfhD=0,wfhS=0,accumulated=0;
+      allUsers.forEach(u=>{
+        const sal=u.dailySalary||850;
+        const quota=u.vacationQuota||14;
+        const allYearV=Object.entries(vacs[u.username]||{}).filter(([dt])=>new Date(dt+'T00:00:00').getFullYear()===year);
+        const usedYear=vacDays(allYearV);
+        accumulated+=Math.max(0,quota-usedYear)*sal;
+        Object.entries(vacs[u.username]||{}).forEach(([dt,t])=>{
+          const d=new Date(dt+'T00:00:00');
+          if(d.getFullYear()!==year) return;
+          const m=d.getMonth()+1;
+          if(m<fromM||m>toM) return;
+          if(t==='full'){vacD++;vacC+=sal;}else if(t==='half'){vacD+=0.5;vacC+=sal*0.5;}else if(t==='wfh'){wfhD++;wfhS+=sal*0.3;}
+        });
+      });
+      let ans=`💰 ניתוח כספי — ${label}:\n\n🏖️ ימי חופשה: ${vacD}\n   עלות ישירה: ₪${Math.round(vacC).toLocaleString()}\n\n🏠 ימי WFH: ${wfhD}\n   חיסכון: ₪${Math.round(wfhS).toLocaleString()}\n\n📊 מאזן: ${wfhS>=vacC?'✅':'⚠️'} ₪${Math.abs(Math.round(wfhS-vacC)).toLocaleString()} ${wfhS>=vacC?'לטובת החברה':'לחובת החברה'}`;
+      if(ql.includes('צבורים')||ql.includes('חובה')) ans+=`\n\n💼 ימי חופשה צבורים (כל עובדים):\n   עלות פוטנציאלית: ₪${Math.round(accumulated).toLocaleString()}`;
+      return ans;
+    }
+
+    // ── M4. PENDING APPROVALS ─────────────────────────────
+    if (ql.includes('ממתינות')||ql.includes('אישור')||ql.includes('ממתין')||ql.includes('48 שעות')||ql.includes('בקשות חופשה')) {
+      const pending=approvals.filter(r=>r.status==='pending');
+      if(!pending.length) return '✅ אין בקשות חופשה ממתינות לאישור.';
+      const now=Date.now();
+      const over48=pending.filter(r=>r.submittedAt&&(now-new Date(r.submittedAt).getTime())>48*3600*1000);
+      let ans=`📋 בקשות חופשה ממתינות: ${pending.length}\n`;
+      if(over48.length) ans+=`⚠️ מעל 48 שעות: ${over48.length}\n\n${over48.map(r=>`• ${r.fullName} — הוגש ${r.submittedAt?r.submittedAt.slice(0,10):'?'}`).join('\n')}`;
+      else ans+=`✅ כל הבקשות הוגשו בפחות מ-48 שעות`;
+      return ans;
+    }
+
+    // ── M5. DEPT LOAD ANALYSIS ────────────────────────────
+    if (ql.includes('מחלקה')||ql.includes('עומס')||ql.includes('ניתוח מחלקתי')) {
+      const depts={};
+      allUsers.forEach(u=>{
+        const dept=getDept(u);
+        if(!depts[dept]) depts[dept]={total:0,absent:0};
+        depts[dept].total++;
+        const t=(vacs[u.username]||{})[todayStr];
+        if(t==='full'||t==='half') depts[dept].absent++;
+      });
+      const sorted=Object.entries(depts).sort(([,a],[,b])=>(b.absent/b.total)-(a.absent/a.total));
+      return `🏢 עומס חופשות לפי מחלקה — היום:\n\n`+
+        sorted.map(([d,v])=>{
+          const pct=v.total?Math.round((v.absent/v.total)*100):0;
+          const bar='█'.repeat(Math.round(pct/10))+'░'.repeat(10-Math.round(pct/10));
+          return `${pct>=50?'🔴':pct>=25?'🟡':'🟢'} ${d}: ${bar} ${pct}% (${v.absent}/${v.total})`;
+        }).join('\n');
+    }
+
+    // ── M6. FORECAST ──────────────────────────────────────
+    if (ql.includes('חזה')||ql.includes('חיזוי')||ql.includes('עמוס')||ql.includes('ניבוי')||ql.includes('קדימה')) {
+      const weeks=Array.from({length:4},(_,w)=>{
+        const ws=new Date(today);ws.setDate(today.getDate()+w*7+(1-((today.getDay()||7)-1)));
+        const dates=Array.from({length:5},(_,i)=>{const d=new Date(ws);d.setDate(ws.getDate()+i);return d.toISOString().slice(0,10);});
+        let abs=0,wfh=0;
+        allUsers.forEach(u=>dates.forEach(dt=>{const t=(vacs[u.username]||{})[dt];if(t==='full'||t==='half')abs++;else if(t==='wfh')wfh++;}));
+        const pct=allUsers.length>0?Math.round((abs/(allUsers.length*5))*100):0;
+        const d0=new Date(dates[0]+'T00:00:00');
+        return{label:d0.getDate()+'/'+(d0.getMonth()+1),pct,abs,wfh};
+      });
+      const sorted=[...weeks].sort((a,b)=>b.pct-a.pct);
+      return `📅 חיזוי עומס — 4 שבועות:\n\n`+
+        weeks.map(w=>`${w.pct>=40?'🔴':w.pct>=20?'🟡':'🟢'} שבוע ${w.label}\n   ${'█'.repeat(Math.round(w.pct/10))}${'░'.repeat(10-Math.round(w.pct/10))} ${w.pct}% (${w.abs} חופשות, ${w.wfh} WFH)`).join('\n\n')+
+        `\n\n💡 עמוס: שבוע ${sorted[0].label}\n💡 שקט: שבוע ${sorted[sorted.length-1].label}`;
+    }
+
+    // ── M7. SPECIFIC EMPLOYEE ─────────────────────────────
+    const nameMatch=allUsers.find(u=>ql.includes(u.fullName.toLowerCase())||(u.username&&ql.includes(u.username.toLowerCase())));
+    if(nameMatch){
+      const year=getYear(ql);
+      const empV=vacs[nameMatch.username]||{};
+      const yE=Object.entries(empV).filter(([dt])=>new Date(dt+'T00:00:00').getFullYear()===year);
+      const used=vacDays(yE);
+      const quota=nameMatch.vacationQuota||14;
+      const wfhC=yE.filter(([,t])=>t==='wfh').length;
+      const ts=(empV[todayStr]);
+      const statusNow=ts==='full'?'🏖️ בחופשה':ts==='half'?'🌓 חצי יום':ts==='wfh'?'🏠 WFH':ts==='sick'?'🤒 מחלה':'🏢 במשרד';
+      const sickC=Object.values(db.sick||{}).filter(s=>s.username===nameMatch.username&&s.date&&s.date.startsWith(year+'')).length;
+      return `👤 ${nameMatch.fullName} — ${year}:\n• מחלקה: ${getDept(nameMatch)}\n• היום: ${statusNow}\n• חופשה: ${used}/${quota} ימים (נותרו: ${Math.max(0,quota-used)})\n• WFH: ${wfhC} ימים\n• מחלה: ${sickC} ימים`;
+    }
+
+    // ── DEFAULT FALLBACK ──────────────────────────────────
+    const onV=allUsers.filter(u=>{const t=(vacs[u.username]||{})[todayStr];return t==='full'||t==='half';}).length;
+    const onW=allUsers.filter(u=>(vacs[u.username]||{})[todayStr]==='wfh').length;
+    const onS=allUsers.filter(u=>(vacs[u.username]||{})[todayStr]==='sick').length;
+    return `📊 סיכום — היום:\n• עובדים: ${allUsers.length} | חופשה: ${onV} | WFH: ${onW} | מחלה: ${onS} | במשרד: ${allUsers.length-onV-onW-onS}\n\nנסה שאלה ספציפית יותר.`;
+
+  } catch(err) {
+    console.error('AI error:', err);
+    return '⚠️ שגיאה בעיבוד השאלה. נסה שוב.';
   }
-
-  // ---- 5. FORECAST ----
-  if (ql.includes('חזה') || ql.includes('חיזוי') || ql.includes('עמוס') || ql.includes('ניבוי') || ql.includes('קדימה')) {
-    if (!isMgr) return '🔒 חיזוי כוח אדם זמין למנהלים בלבד.';
-    const weeks = Array.from({length:4}, (_,w) => {
-      const ws = new Date(today);
-      ws.setDate(today.getDate() + w*7 + (1 - ((today.getDay()||7)-1)));
-      const dates = Array.from({length:5}, (_,i) => { const d=new Date(ws); d.setDate(ws.getDate()+i); return d.toISOString().slice(0,10); });
-      let abs=0, wfh=0;
-      allUsers.forEach(u => dates.forEach(dt => {
-        const t=(vacs[u.username]||{})[dt];
-        if(t==='full'||t==='half') abs++;
-        else if(t==='wfh') wfh++;
-      }));
-      const total = allUsers.length * 5 || 1;
-      const pct = Math.round((abs/total)*100);
-      const d0 = new Date(dates[0]+'T00:00:00');
-      return { label: d0.getDate()+'/'+(d0.getMonth()+1), pct, abs, wfh };
-    });
-    const busiest = [...weeks].sort((a,b)=>b.pct-a.pct)[0];
-    const quietest = [...weeks].sort((a,b)=>a.pct-b.pct)[0];
-    return '📅 חיזוי עומס — 4 שבועות קדימה:\n\n' +
-      weeks.map(w => {
-        const e = w.pct>=40?'🔴':w.pct>=20?'🟡':'🟢';
-        const bar = '█'.repeat(Math.round(w.pct/10)) + '░'.repeat(10-Math.round(w.pct/10));
-        return e + ' שבוע ' + w.label + '\n   ' + bar + ' ' + w.pct + '% היעדרות (' + w.abs + ' ימים, ' + w.wfh + ' WFH)';
-      }).join('\n\n') +
-      '\n\n💡 עמוס ביותר: שבוע ' + busiest.label + ' (' + busiest.pct + '%)' +
-      '\n💡 שקט ביותר: שבוע ' + quietest.label + ' (' + quietest.pct + '%)';
-  }
-
-  // ---- 6. BURNOUT ----
-  if (ql.includes('שחיקה') || ql.includes('burnout') || ql.includes('לא לקח') || ql.includes('סיכון')) {
-    if (!isMgr) return '🔒 מידע זה זמין למנהלים בלבד.';
-    const ninetyAgo = new Date(today); ninetyAgo.setDate(ninetyAgo.getDate()-90);
-    const at = allUsers.filter(u => !Object.entries(vacs[u.username]||{}).some(([dt,t])=>new Date(dt)>=ninetyAgo&&(t==='full'||t==='half')));
-    return at.length
-      ? '🚨 ' + at.length + ' עובדים ללא חופשה ב-90 יום האחרונים:\n' +
-        at.map(u=>'• '+u.fullName+' ('+(Array.isArray(u.dept)?u.dept[0]:(u.dept||''))+')').join('\n') +
-        '\n\n💡 מומלץ: שיחה אישית ותזמון חופשה'
-      : '✅ כל העובדים לקחו חופשה ב-90 הימים האחרונים — אין סיכון שחיקה.';
-  }
-
-  // ---- 7. DEFAULT (out of scope) ----
-  const toolKw = ['חופשה','חופש','חולה','מחלה','wfh','מהבית','עובד','היום','שבוע','חודש','רבעון','שנה','עלות','חיסכון','שכר','שחיקה','חיזוי','עמוס','יתרה','מחלקה','צוות','כמה','מי ','סטטוס','ימים'];
-  const isRelevant = toolKw.some(kw => ql.includes(kw));
-  if (!isRelevant) {
-    return '🤖 אני מתמחה בנתוני מערכת Dazura בלבד.\n\n' +
-      'אני יכול לענות על:\n' +
-      '• מי בחופשה / WFH / חולה היום?\n' +
-      '• יתרת החופשה שלך\n' +
-      '• התנגשות חופשות במחלקה שלך\n' +
-      (isMgr ? '• עלויות ותקציב חופשות\n• חיזוי עומס ושחיקה\n' : '');
-  }
-
-  // Default summary
-  const onV = allUsers.filter(u=>{const t=(vacs[u.username]||{})[todayStr];return t==='full'||t==='half';}).length;
-  const onW = allUsers.filter(u=>(vacs[u.username]||{})[todayStr]==='wfh').length;
-  return '📊 סיכום מהיר:\n' +
-    '• עובדים פעילים: ' + allUsers.length + '\n' +
-    '• בחופשה היום: ' + onV + '\n' +
-    '• WFH היום: ' + onW + '\n' +
-    '• במשרד: ' + (allUsers.length - onV - onW) + '\n\n' +
-    'נסה לשאול שאלה ספציפית יותר.';
 }
 
 function clearCeoAiChat() {
   ceoAiHistory.length = 0;
-  const chatEl = document.getElementById('ceoAiChat');
-  if (chatEl) chatEl.dataset.initialized = '';
   renderCeoAiMessages();
 }
 

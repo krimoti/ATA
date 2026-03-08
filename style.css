@@ -245,6 +245,8 @@ body {
   animation: cardSlideUp 0.55s var(--ease-spring);
   max-height: 96dvh;
   overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 @keyframes cardSlideUp {
   from { opacity:0; transform: translateY(60px) scale(0.92); }
@@ -289,6 +291,11 @@ body {
   margin-bottom: 8px;
   letter-spacing: 0.2px;
 }
+.form-group {
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
 .form-input {
   width: 100%;
   padding: 14px 16px;
@@ -302,7 +309,10 @@ body {
   direction: rtl;
   -webkit-appearance: none;
   box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
   max-width: 100%;
+  display: block;
 }
 .form-input:focus {
   outline: none;
@@ -2082,7 +2092,10 @@ tbody tr:hover { background: var(--surface2); }
   color: #fff !important;
   backdrop-filter: blur(8px) !important;
   box-sizing: border-box !important;
+  width: 100% !important;
   max-width: 100% !important;
+  min-width: 0 !important;
+  display: block !important;
 }
 .form-input:focus {
   border-color: rgba(0,150,255,0.6) !important;
