@@ -3726,59 +3726,54 @@ function sanitizeForGemini(text) {
 }
 
 async function askGeminiWithContext(userQ, localData, apiKey) {
-  const db  = getDB();
-  const s   = getSettings();
-  const companyName = (s && s.companyName) ? s.companyName : 'החברה';
-  const today = new Date().toISOString().split('T')[0];
-  const allUsers = Object.values(db.users || {}).filter(u => isUserActive(u) && u.role !== 'admin');
-  const vacs = db.vacations || {};
-  const onVac  = allUsers.filter(u=>{const t=(vacs[u.username]||{})[today];return t==='full'||t==='half';}).length;
-  const onWfh  = allUsers.filter(u=>(vacs[u.username]||{})[today]==='wfh').length;
-  const onSick = allUsers.filter(u=>(vacs[u.username]||{})[today]==='sick').length;
-  const role   = currentUser ? (isCeoUser() ? 'מנכ"ל' : currentUser.role === 'manager' ? 'מנהל' : 'עובד') : 'אנונימי';
-
-  const systemPrompt = 'אתה מנוע ה-AI הרשמי של מערכת Dazura לניהול חופשות.
-' +
-    'תפקיד המשתמש: ' + role + '
-' +
-    'חברה: ' + companyName + '
-' +
-    'תאריך היום: ' + today + '
-' +
-    'נתונים כלליים: עובדים: ' + allUsers.length + ' | חופשה: ' + onVac + ' | WFH: ' + onWfh + ' | מחלה: ' + onSick + '
-' +
-    'מידע ממנוע מקומי: ' + sanitizeForGemini(localData) + '
-
-' +
-    'חוקים:
-' +
-    '- ענה תמיד בעברית מקצועית וקצרה.
-' +
-    '- אל תמציא נתונים שאינם בהקשר.
-' +
-    '- אל תענה על שאלות שאינן קשורות למערכת.
-' +
-    '- אם שואלים על סיבת מחלה/חופשה של אחר — השב: "לא יכול לענות על כך".
-' +
-    '- שפר ניסוח של המידע המקומי בלבד, אל תוסיף עובדות חדשות.';
-
-  const resp = await fetch(
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + apiKey,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: systemPrompt }] },
-        contents: [{ role: 'user', parts: [{ text: userQ }] }],
-        generationConfig: { maxOutputTokens: 500, temperature: 0.3 }
-      })
-    }
-  );
-  if (!resp.ok) throw new Error('Gemini ' + resp.status);
-  const data = await resp.json();
-  const text = data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
-  if (!text) throw new Error('empty');
-  return text.trim();
+  try {
+    const db  = getDB();
+    const s   = getSettings();
+    const companyName = (s && s.companyName) ? s.companyName : 'החברה';
+    const today = new Date().toISOString().split('T')[0];
+    const allUsers = Object.values(db.users || {}).filter(u => isUserActive(u) && u.role !== 'admin');
+    const vacs = db.vacations || {};
+    const onVac  = allUsers.filter(u=>{const t=(vacs[u.username]||{})[today];return t==='full'||t==='half';}).length;
+    const onWfh  = allUsers.filter(u=>(vacs[u.username]||{})[today]==='wfh').length;
+    const onSick = allUsers.filter(u=>(vacs[u.username]||{})[today]==='sick').length;
+    const role   = currentUser ? (isCeoUser() ? 'מנכ"ל' : currentUser.role === 'manager' ? 'מנהל' : 'עובד') : 'אנונימי';
+    const systemPrompt = [
+      'אתה מנוע ה-AI הרשמי של מערכת Dazura לניהול חופשות.',
+      'תפקיד המשתמש: ' + role,
+      'חברה: ' + companyName,
+      'תאריך היום: ' + today,
+      'נתונים כלליים: עובדים: ' + allUsers.length + ' | חופשה: ' + onVac + ' | WFH: ' + onWfh + ' | מחלה: ' + onSick,
+      'מידע ממנוע מקומי: ' + sanitizeForGemini(localData),
+      '',
+      'חוקים:',
+      '- ענה תמיד בעברית מקצועית וקצרה.',
+      '- אל תמציא נתונים שאינם בהקשר.',
+      '- אל תענה על שאלות שאינן קשורות למערכת.',
+      '- אם שואלים על סיבת מחלה/חופשה של אחר - השב: לא יכול לענות על כך.',
+      '- שפר ניסוח של המידע המקומי בלבד, אל תוסיף עובדות חדשות.'
+    ].join('\n');
+    const resp = await fetch(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + apiKey,
+      {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          system_instruction: {parts: [{text: systemPrompt}]},
+          contents: [{role: 'user', parts: [{text: userQ}]}],
+          generationConfig: {maxOutputTokens: 500, temperature: 0.3}
+        })
+      }
+    );
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    const text = data && data.candidates && data.candidates[0] &&
+                 data.candidates[0].content && data.candidates[0].content.parts &&
+                 data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
+    if (!text) throw new Error('empty');
+    return text.trim();
+  } catch(e) {
+    throw e;
+  }
 }
 
 
@@ -6681,3 +6676,11 @@ function savePermissionsForUser(username) {
   setTimeout(dismissSplash, 3500);
 })();
 
+// Signal that script is ready — flush any queued onclick calls
+window._scriptReady = true;
+if (window._pendingCalls) {
+  window._pendingCalls.forEach(function(c) {
+    if (typeof window[c.fn] === 'function') window[c.fn].apply(null, c.args);
+  });
+  window._pendingCalls = [];
+}

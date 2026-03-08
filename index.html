@@ -1,22 +1,6 @@
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
-<script>
-(function(){
-  var _sd=false;
-  function _ks(){
-    if(_sd)return;_sd=true;
-    var s=document.getElementById('dazura-splash');
-    if(!s)return;
-    s.style.transition='opacity 0.5s ease';
-    s.style.opacity='0';
-    setTimeout(function(){if(s&&s.parentNode)s.parentNode.removeChild(s);},520);
-  }
-  document.addEventListener('DOMContentLoaded',function(){setTimeout(_ks,2500);});
-  setTimeout(_ks,5000);
-  window._killSplash=_ks;
-})();
-</script>
 <link rel="stylesheet" href="style.css">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -29,6 +13,36 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 
+<script>
+(function(){
+  var done=false;
+  function kill(){
+    if(done)return;done=true;
+    var s=document.getElementById('dazura-splash');
+    if(!s)return;
+    s.style.pointerEvents='none';
+    s.style.opacity='0';
+    s.style.transition='opacity 0.5s ease';
+    setTimeout(function(){if(s&&s.parentNode)s.parentNode.removeChild(s);},550);
+  }
+  document.addEventListener('DOMContentLoaded',function(){setTimeout(kill,2000);});
+  setTimeout(kill,4500);
+  window._killSplash=kill;
+})();
+</script>
+<script>
+// Guard: queue onclick calls until script.js is ready
+window._scriptReady = false;
+window._pendingCalls = [];
+function _safeCall(fn, args) {
+  if (window._scriptReady && typeof window[fn] === 'function') {
+    window[fn].apply(null, args||[]);
+  } else {
+    window._pendingCalls.push({fn:fn, args:args||[]});
+  }
+}
+</script>
+<script src="script.js" defer></script>
 </head>
 <body>
 <!-- ===== DAZURA SPLASH SCREEN 2030 ===== -->
@@ -83,9 +97,9 @@
     </div>
     <div class="form-group">
       <label class="form-label">סיסמה</label>
-      <input type="password" id="loginPassword" class="form-input" placeholder="••••" autocomplete="current-password" dir="ltr" onkeydown="if(event.key==='Enter')doLogin()">
+      <input type="password" id="loginPassword" class="form-input" placeholder="••••" autocomplete="current-password" dir="ltr" onkeydown="if(event.key==='Enter')_safeCall('doLogin')">
     </div>
-    <button class="btn-primary" onclick="doLogin()">
+    <button class="btn-primary" onclick="_safeCall('doLogin')">
       <span>כניסה למערכת</span>
       <span>←</span>
     </button>
@@ -108,9 +122,9 @@
     </div>
 
     <div class="login-first-time">
-      כניסה ראשונה? <button class="link-btn" onclick="showRegister()">הירשם כאן</button>
+      כניסה ראשונה? <button class="link-btn" onclick="_safeCall('showRegister')">הירשם כאן</button>
       &nbsp;·&nbsp;
-      <button class="link-btn" onclick="showForgotPassword()">שכחתי סיסמה</button>
+      <button class="link-btn" onclick="_safeCall('showForgotPassword')">שכחתי סיסמה</button>
     </div>
   </div>
 </div>
@@ -1653,9 +1667,8 @@
 
 
 <div class="toast-container" id="toastContainer"></div>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
-<script src="script.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js" defer></script>
 </body>
 </html>
