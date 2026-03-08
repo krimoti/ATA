@@ -1622,5 +1622,20 @@
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
 <script src="script.js"></script>
+<div id="ai-chat-widget" class="glass-card" style="position:fixed; bottom:20px; left:20px; width:350px; height:450px; display:none; flex-direction:column; z-index:9999; border:1px solid rgba(0,150,255,0.3); overflow:hidden;">
+  <div style="background:var(--primary); color:white; padding:12px; display:flex; justify-content:space-between; align-items:center;">
+    <span>🤖 Dazura AI Assistant</span>
+    <button onclick="toggleAIChat()" style="background:none; border:none; color:white; cursor:pointer; font-size:18px;">✕</button>
+  </div>
+  <div id="ai-messages" style="flex:1; padding:15px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; background:rgba(255,255,255,0.05);">
+    <div class="ai-bubble-bot">שלום! אני העוזר של Dazura. איך אוכל לעזור היום?</div>
+  </div>
+  <div style="padding:10px; display:flex; gap:5px; background:var(--surface);">
+    <input type="text" id="ai-input" placeholder="שאל אותי משהו..." style="flex:1; padding:8px; border-radius:5px; border:1px solid var(--border);">
+    <button class="btn btn-primary" onclick="handleAISend()" style="padding:8px 15px;">שלח</button>
+  </div>
+</div>
+
+<button onclick="toggleAIChat()" style="position:fixed; bottom:20px; left:20px; width:60px; height:60px; border-radius:50%; background:var(--primary); color:white; border:none; box-shadow:0 4px 15px rgba(0,0,0,0.3); cursor:pointer; z-index:9998; font-size:24px;">🤖</button>
 </body>
 </html>

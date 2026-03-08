@@ -6537,5 +6537,86 @@ window.addEventListener('load', function() {
     splash.style.opacity = '0';
     setTimeout(() => splash.remove(), 600);
   }, 2200);
+function toggleAIChat() {
+  const widget = document.getElementById('ai-chat-widget');
+  widget.style.display = (widget.style.display === 'none' || widget.style.display === '') ? 'flex' : 'none';
+}
+
+async function handleAISend() {
+  const inputEl = document.getElementById('ai-input');
+  const query = inputEl.value.trim();
+  if (!query) return;
+
+  appendAIMessage(query, 'user');
+  inputEl.value = '';
+
+  const db = getDB();
+  const currentRole = currentUser?.role || 'user';
+  
+  // הכנת הנתונים ל-AI בהתאם להרשאה
+  let restrictedData = { ...db };
+  
+  if (currentRole === 'user') {
+    // עובד רגיל רואה רק את שלו (סינון אקטיבי לפני השליחה ל-AI)
+    restrictedData.users = { [currentUser.username]: db.users[currentUser.username] };
+    restrictedData.vacations = { [currentUser.username]: db.vacations[currentUser.username] };
+  } else if (currentRole === 'manager') {
+    // מנהל רואה רק את המחלקה שלו
+    const myDepts = currentUser.department || [];
+    const filteredUsers = {};
+    for (const u in db.users) {
+      if (db.users[u].department.some(d => myDepts.includes(d))) {
+        filteredUsers[u] = db.users[u];
+      }
+    }
+    restrictedData.users = filteredUsers;
+  }
+
+  const systemInstructions = `
+    אתה מנוע ה-AI של Dazura. 
+    תפקיד המשתמש הנוכחי: ${currentRole}. 
+    המשתמש המחובר: ${currentUser?.displayName}.
+    תאריך היום: ${new Date().toISOString().split('T')[0]}.
+    
+    חוקי פרטיות:
+    1. מנכ"ל/ADMIN: גישה מלאה להכל.
+    2. מנהל: גישה רק למחלקות שלו.
+    3. עובד: גישה רק לנתונים שלו. מותר לשאול "מי חסר בצוות" לצורך תיאום, אך ללא סיבת היעדרות (חופשה/מחלה).
+    
+    ענה תמיד בעברית על בסיס נתוני ה-JSON שקיבלת בלבד.
+  `;
+
+  try {
+    // כאן מתבצעת הקריאה ל-API (למשל Gemini או OpenAI)
+    // הערה: עליך להטמיע כאן את ה-API Key שלך בצד השרת
+    const response = "זוהי תשובת דוגמה. כדי להפעיל באמת, יש לחבר API Key."; 
+    appendAIMessage(response, 'bot');
+  } catch (error) {
+    appendAIMessage("שגיאה בחיבור ל-AI", 'bot');
+  }
+}
+
+function appendAIMessage(text, side) {
+  const container = document.getElementById('ai-messages');
+  const div = document.createElement('div');
+  div.style.padding = "8px 12px";
+  div.style.borderRadius = "10px";
+  div.style.maxWidth = "80%";
+  div.style.marginBottom = "5px";
+  
+  if (side === 'user') {
+    div.style.alignSelf = "flex-start";
+    div.style.background = "rgba(255,255,255,0.1)";
+  } else {
+    div.style.alignSelf = "flex-end";
+    div.style.background = "var(--primary)";
+    div.style.color = "white";
+  }
+  
+  div.textContent = text;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
 });
+
 
