@@ -6620,53 +6620,64 @@ function savePermissionsForUser(username) {
 // ============================================================
 // DAZURA SPLASH SCREEN
 // ============================================================
-function dismissSplash() {
-  const splash = document.getElementById('dazura-splash');
-  if (!splash) return;
-  splash.style.transition = 'opacity 0.5s ease';
-  splash.style.opacity = '0';
-  setTimeout(function() {
-    if (splash.parentNode) splash.parentNode.removeChild(splash);
-  }, 550);
-}
+// ── SPLASH SCREEN ──────────────────────────────────────────
+// Uses DOMContentLoaded (not window.load) so Firebase/network
+// delays never block it. Hard timeout = 2.5s no matter what.
+(function() {
+  var _splashDone = false;
+  function dismissSplash() {
+    if (_splashDone) return;
+    _splashDone = true;
+    var splash = document.getElementById('dazura-splash');
+    if (!splash) return;
+    splash.style.transition = 'opacity 0.5s ease';
+    splash.style.opacity = '0';
+    setTimeout(function() {
+      if (splash.parentNode) splash.parentNode.removeChild(splash);
+    }, 520);
+  }
 
-window.addEventListener('load', function() {
-  const splash = document.getElementById('dazura-splash');
-  if (!splash) return;
-
-  try {
-    const raw = localStorage.getItem('vacSystem_v3');
-    if (raw) {
-      const db = JSON.parse(raw);
-      const sysName = (db.settings && db.settings.systemName) ? db.settings.systemName.trim() : 'Dazura';
-      const titleEl = document.getElementById('dazuraTitle');
+  function populateSplash() {
+    try {
+      var raw = localStorage.getItem('vacSystem_v3');
+      if (!raw) return;
+      var db = JSON.parse(raw);
+      var sysName = (db.settings && db.settings.systemName) ? db.settings.systemName.trim() : 'Dazura';
+      var titleEl = document.getElementById('dazuraTitle');
       if (titleEl) titleEl.textContent = sysName;
-      const company = (db.settings && db.settings.companyName && db.settings.companyName !== 'החברה שלי')
+      var company = (db.settings && db.settings.companyName && db.settings.companyName !== 'החברה שלי')
         ? db.settings.companyName : '';
-      const compEl = document.getElementById('dazuraCompany');
+      var compEl = document.getElementById('dazuraCompany');
       if (compEl) compEl.textContent = company;
-      const now = new Date();
-      const todayKey = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
-      let vacation = 0, wfh = 0, sick = 0;
-      for (const uname of Object.keys(db.users || {})) {
-        const type = ((db.vacations || {})[uname] || {})[todayKey];
-        if (type === 'full' || type === 'half') vacation++;
-        else if (type === 'wfh') wfh++;
-        else if (type === 'sick') sick++;
-      }
-      const n0 = document.getElementById('dazNum0'); if (n0) n0.textContent = vacation;
-      const n1 = document.getElementById('dazNum1'); if (n1) n1.textContent = wfh;
-      const n2 = document.getElementById('dazNum2'); if (n2) n2.textContent = sick;
-    }
-  } catch(e) {}
+      var now = new Date();
+      var todayKey = now.getFullYear() + '-' +
+        String(now.getMonth()+1).padStart(2,'0') + '-' +
+        String(now.getDate()).padStart(2,'0');
+      var vacation=0, wfh=0, sick=0;
+      Object.keys(db.users || {}).forEach(function(u) {
+        var t = ((db.vacations || {})[u] || {})[todayKey];
+        if (t==='full'||t==='half') vacation++;
+        else if (t==='wfh') wfh++;
+        else if (t==='sick') sick++;
+      });
+      var n0=document.getElementById('dazNum0'); if(n0) n0.textContent=vacation;
+      var n1=document.getElementById('dazNum1'); if(n1) n1.textContent=wfh;
+      var n2=document.getElementById('dazNum2'); if(n2) n2.textContent=sick;
+    } catch(e) {}
+  }
 
-  // Dismiss after 2s — with absolute safety fallback at 4s
-  setTimeout(dismissSplash, 2000);
-  setTimeout(dismissSplash, 4000); // safety net
-});
+  // Run immediately if DOM ready, else wait for it
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+      populateSplash();
+      setTimeout(dismissSplash, 2200);
+    });
+  } else {
+    populateSplash();
+    setTimeout(dismissSplash, 2200);
+  }
 
-// Extra safety: if page is already loaded when script runs
-if (document.readyState === 'complete') {
-  setTimeout(dismissSplash, 2000);
-}
+  // Absolute hard kill — no matter what, splash is gone at 3.5s
+  setTimeout(dismissSplash, 3500);
+})();
 
