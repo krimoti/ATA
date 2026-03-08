@@ -6620,51 +6620,53 @@ function savePermissionsForUser(username) {
 // ============================================================
 // DAZURA SPLASH SCREEN
 // ============================================================
+function dismissSplash() {
+  const splash = document.getElementById('dazura-splash');
+  if (!splash) return;
+  splash.style.transition = 'opacity 0.5s ease';
+  splash.style.opacity = '0';
+  setTimeout(function() {
+    if (splash.parentNode) splash.parentNode.removeChild(splash);
+  }, 550);
+}
+
 window.addEventListener('load', function() {
   const splash = document.getElementById('dazura-splash');
   if (!splash) return;
 
-  // Read live data from DB
   try {
     const raw = localStorage.getItem('vacSystem_v3');
     if (raw) {
       const db = JSON.parse(raw);
-
-      // System name
-      const sysName = db.settings?.systemName?.trim() || 'Dazura';
+      const sysName = (db.settings && db.settings.systemName) ? db.settings.systemName.trim() : 'Dazura';
       const titleEl = document.getElementById('dazuraTitle');
       if (titleEl) titleEl.textContent = sysName;
-
-      // Company name
-      const company = (db.settings?.companyName && db.settings.companyName !== 'החברה שלי')
+      const company = (db.settings && db.settings.companyName && db.settings.companyName !== 'החברה שלי')
         ? db.settings.companyName : '';
       const compEl = document.getElementById('dazuraCompany');
       if (compEl) compEl.textContent = company;
-
-      // Live stats — today
       const now = new Date();
-      const yyyy = now.getFullYear();
-      const mm = String(now.getMonth() + 1).padStart(2, '0');
-      const dd = String(now.getDate()).padStart(2, '0');
-      const todayKey = `${yyyy}-${mm}-${dd}`;
-
+      const todayKey = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
       let vacation = 0, wfh = 0, sick = 0;
       for (const uname of Object.keys(db.users || {})) {
-        const type = (db.vacations?.[uname] || {})[todayKey];
+        const type = ((db.vacations || {})[uname] || {})[todayKey];
         if (type === 'full' || type === 'half') vacation++;
         else if (type === 'wfh') wfh++;
         else if (type === 'sick') sick++;
       }
-      document.getElementById('dazNum0').textContent = vacation;
-      document.getElementById('dazNum1').textContent = wfh;
-      document.getElementById('dazNum2').textContent = sick;
+      const n0 = document.getElementById('dazNum0'); if (n0) n0.textContent = vacation;
+      const n1 = document.getElementById('dazNum1'); if (n1) n1.textContent = wfh;
+      const n2 = document.getElementById('dazNum2'); if (n2) n2.textContent = sick;
     }
   } catch(e) {}
 
-  // Dismiss after 2.2s
-  setTimeout(function() {
-    splash.style.opacity = '0';
-    setTimeout(() => splash.remove(), 600);
-  }, 2200);
+  // Dismiss after 2s — with absolute safety fallback at 4s
+  setTimeout(dismissSplash, 2000);
+  setTimeout(dismissSplash, 4000); // safety net
 });
+
+// Extra safety: if page is already loaded when script runs
+if (document.readyState === 'complete') {
+  setTimeout(dismissSplash, 2000);
+}
 
