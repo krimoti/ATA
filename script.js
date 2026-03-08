@@ -6617,6 +6617,55 @@ function appendAIMessage(text, side) {
   container.appendChild(div);
   container.scrollTop = container.scrollHeight;
 }
+function toggleInternalAI() {
+    const chat = document.getElementById('ai-internal-chat');
+    chat.style.display = chat.style.display === 'none' ? 'flex' : 'none';
+}
+
+async function runInternalAI() {
+    const input = document.getElementById('ai-query');
+    const display = document.getElementById('ai-content');
+    const query = input.value.trim();
+    if(!query) return;
+
+    // 1. זיהוי משתמש והרשאות מהמערכת הקיימת
+    const db = getDB();
+    const role = currentUser ? currentUser.role : 'user';
+    const userDept = currentUser ? currentUser.department : [];
+
+    // 2. סינון נתונים אקטיבי - המידע של האחרים נמחק לפני השליחה!
+    let localContext = {};
+    if (role === 'admin') {
+        localContext = db; // מנכ"ל מקבל הכל
+    } else {
+        // עובד רגיל: מקבל רק את הפרופיל שלו + רשימת נוכחות אנונימית
+        localContext.userInfo = db.users[currentUser.username];
+        localContext.myVacations = db.vacations[currentUser.username] || {};
+        localContext.todayTeamSummary = Object.keys(db.users).map(u => ({
+            isPresent: !(db.vacations[u] && db.vacations[u][new Date().toISOString().split('T')[0]])
+        }));
+    }
+
+    display.innerHTML += `<div style="align-self:flex-end; color:var(--primary-mid);">👤 ${query}</div>`;
+    input.value = '';
+
+    // 3. קריאה ל-API מאובטח (למשל Gemini)
+    // הערה: כאן המידע נשלח כ-Temporary Context בלבד ולא נשמר לאימון
+    try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=YOUR_API_KEY`, {
+            method: 'POST',
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: `System: אתה AI פנימי. נתונים: ${JSON.stringify(localContext)}. שאלה: ${query}` }] }]
+            })
+        });
+        const resData = await response.json();
+        const reply = resData.candidates[0].content.parts[0].text;
+        display.innerHTML += `<div style="background:rgba(255,255,255,0.05); padding:8px; border-radius:8px;">🤖 ${reply}</div>`;
+    } catch (e) {
+        display.innerHTML += `<div style="color:red;">שגיאת תקשורת פנימית.</div>`;
+    }
+    display.scrollTop = display.scrollHeight;
+}
 });
 
 

@@ -1637,5 +1637,17 @@
 </div>
 
 <button onclick="toggleAIChat()" style="position:fixed; bottom:20px; left:20px; width:60px; height:60px; border-radius:50%; background:var(--primary); color:white; border:none; box-shadow:0 4px 15px rgba(0,0,0,0.3); cursor:pointer; z-index:9998; font-size:24px;">🤖</button>
+<div id="ai-internal-chat" class="glass-card" style="position:fixed; bottom:80px; left:20px; width:320px; height:400px; display:none; flex-direction:column; z-index:10000; border:1px solid rgba(0,150,255,0.2);">
+    <div style="background:var(--primary); color:white; padding:10px; display:flex; justify-content:space-between; border-radius:12px 12px 0 0;">
+        <span>🛡️ צ'אט נתונים פנימי</span>
+        <button onclick="toggleInternalAI()" style="background:none; border:none; color:white; cursor:pointer;">✕</button>
+    </div>
+    <div id="ai-content" style="flex:1; padding:10px; overflow-y:auto; font-size:13px; display:flex; flex-direction:column; gap:8px;"></div>
+    <div style="padding:10px; display:flex; gap:5px; border-top:1px solid rgba(255,255,255,0.1);">
+        <input type="text" id="ai-query" placeholder="שאל שאלה פנימית..." style="flex:1; padding:6px; border-radius:4px; border:1px solid var(--border); background:rgba(0,0,0,0.1); color:white;">
+        <button class="btn btn-primary" onclick="runInternalAI()" style="padding:5px 10px;">שאל</button>
+    </div>
+</div>
+<button onclick="toggleInternalAI()" style="position:fixed; bottom:20px; left:20px; z-index:9999; width:50px; height:50px; border-radius:50%; background:var(--primary); border:none; cursor:pointer; font-size:20px; box-shadow:0 4px 15px rgba(0,0,0,0.3);">🤖</button>
 </body>
 </html>
