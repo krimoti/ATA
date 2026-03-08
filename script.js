@@ -1908,6 +1908,36 @@ function applyBranding(s) {
   }
 }
 
+function saveGeminiKey() {
+  const val = (document.getElementById('geminiApiKeyInput')?.value || '').trim();
+  if (!val || val.length < 20) {
+    const st = document.getElementById('geminiKeyStatus');
+    if (st) { st.textContent = '⚠️ מפתח לא תקין'; st.style.color = 'var(--danger)'; }
+    return;
+  }
+  localStorage.setItem('dazura_gemini_key', val);
+  document.getElementById('geminiApiKeyInput').value = '';
+  const st = document.getElementById('geminiKeyStatus');
+  if (st) { st.textContent = '✅ מפתח נשמר — AI ישתמש ב-Gemini'; st.style.color = 'var(--success)'; }
+}
+
+function clearGeminiKey() {
+  localStorage.removeItem('dazura_gemini_key');
+  if (document.getElementById('geminiApiKeyInput')) document.getElementById('geminiApiKeyInput').value = '';
+  const st = document.getElementById('geminiKeyStatus');
+  if (st) { st.textContent = 'מפתח הוסר — AI יעבוד במצב מקומי'; st.style.color = 'var(--text-muted)'; }
+}
+
+function initGeminiKeyStatus() {
+  const has = !!localStorage.getItem('dazura_gemini_key');
+  const st  = document.getElementById('geminiKeyStatus');
+  if (st) {
+    st.textContent = has ? '🟢 מפתח Gemini פעיל — AI משופר זמין' : '⚪ אין מפתח — AI עובד במצב מקומי בלבד';
+    st.style.color = has ? 'var(--success)' : 'var(--text-muted)';
+  }
+}
+
+
 function saveCompanySettings() {
   const get = id => document.getElementById(id)?.value;
   const s = {
@@ -3636,7 +3666,7 @@ function renderCeoAiMessages() {
   container.scrollTop = container.scrollHeight;
 }
 
-function sendCeoAiQuery(query) {
+async function sendCeoAiQuery(query) {
   const input = document.getElementById('ceoAiInput');
   const q = query || (input ? input.value.trim() : '');
   if (!q) return;
@@ -3645,31 +3675,112 @@ function sendCeoAiQuery(query) {
   ceoAiHistory.push({ role: 'user', content: q });
   renderCeoAiMessages();
 
-  // Show typing indicator
   const container = document.getElementById('ceoAiMessages');
   if (container) {
     container.innerHTML += `<div id="ceoTyping" style="display:flex;align-items:flex-start;margin-bottom:10px;">
-      <div style="background:var(--surface2);border-radius:14px 14px 14px 4px;padding:10px 14px;font-size:13px;">
+      <div style="background:rgba(255,255,255,0.07);border-radius:14px 14px 14px 4px;padding:10px 14px;font-size:13px;border:1px solid rgba(255,255,255,0.08);">
         <span style="display:inline-flex;gap:4px;">
-          <span style="width:6px;height:6px;background:var(--text-muted);border-radius:50%;animation:typingDot 1.2s infinite 0s;display:inline-block;"></span>
-          <span style="width:6px;height:6px;background:var(--text-muted);border-radius:50%;animation:typingDot 1.2s infinite 0.2s;display:inline-block;"></span>
-          <span style="width:6px;height:6px;background:var(--text-muted);border-radius:50%;animation:typingDot 1.2s infinite 0.4s;display:inline-block;"></span>
+          <span style="width:6px;height:6px;background:rgba(100,180,255,0.7);border-radius:50%;animation:typingDot 1.2s infinite 0s;display:inline-block;"></span>
+          <span style="width:6px;height:6px;background:rgba(100,180,255,0.7);border-radius:50%;animation:typingDot 1.2s infinite 0.2s;display:inline-block;"></span>
+          <span style="width:6px;height:6px;background:rgba(100,180,255,0.7);border-radius:50%;animation:typingDot 1.2s infinite 0.4s;display:inline-block;"></span>
         </span>
       </div>
     </div>`;
     container.scrollTop = container.scrollHeight;
   }
 
-  // Build AI data context
-  const answer = buildCeoAiAnswer(q);
+  // Always get local data answer first
+  const localAnswer = buildCeoAiAnswer(q);
+
+  // Try Gemini if API key set and question seems to need NLP
+  const apiKey = localStorage.getItem('dazura_gemini_key');
+  const needsGemini = apiKey && (q.length > 15 || q.includes('?'));
+
+  let finalAnswer = localAnswer;
+
+  if (needsGemini && !localAnswer.startsWith('🔒') && !localAnswer.startsWith('❓')) {
+    try {
+      finalAnswer = await askGeminiWithContext(q, localAnswer, apiKey);
+    } catch(e) {
+      // Silently fall back to local answer
+      finalAnswer = localAnswer;
+    }
+  }
 
   setTimeout(() => {
     const typing = document.getElementById('ceoTyping');
     if (typing) typing.remove();
-    ceoAiHistory.push({ role: 'assistant', content: answer });
+    ceoAiHistory.push({ role: 'assistant', content: finalAnswer });
     renderCeoAiMessages();
-  }, 700);
+  }, needsGemini ? 0 : 700);
 }
+
+// ═══════════════════════════════════════════════════════════
+// GEMINI API — צינור מבודד עם סטריליזציה (ללא PII)
+// ═══════════════════════════════════════════════════════════
+function sanitizeForGemini(text) {
+  if (!text) return text;
+  // Replace Hebrew full names (2 words) with generic label
+  return text.replace(/[א-ת]{2,} [א-ת]{2,}/g, 'עובד')
+             .replace(/[A-Za-z]{3,} [A-Za-z]{3,}/g, 'Employee');
+}
+
+async function askGeminiWithContext(userQ, localData, apiKey) {
+  const db  = getDB();
+  const s   = getSettings();
+  const companyName = (s && s.companyName) ? s.companyName : 'החברה';
+  const today = new Date().toISOString().split('T')[0];
+  const allUsers = Object.values(db.users || {}).filter(u => isUserActive(u) && u.role !== 'admin');
+  const vacs = db.vacations || {};
+  const onVac  = allUsers.filter(u=>{const t=(vacs[u.username]||{})[today];return t==='full'||t==='half';}).length;
+  const onWfh  = allUsers.filter(u=>(vacs[u.username]||{})[today]==='wfh').length;
+  const onSick = allUsers.filter(u=>(vacs[u.username]||{})[today]==='sick').length;
+  const role   = currentUser ? (isCeoUser() ? 'מנכ"ל' : currentUser.role === 'manager' ? 'מנהל' : 'עובד') : 'אנונימי';
+
+  const systemPrompt = 'אתה מנוע ה-AI הרשמי של מערכת Dazura לניהול חופשות.
+' +
+    'תפקיד המשתמש: ' + role + '
+' +
+    'חברה: ' + companyName + '
+' +
+    'תאריך היום: ' + today + '
+' +
+    'נתונים כלליים: עובדים: ' + allUsers.length + ' | חופשה: ' + onVac + ' | WFH: ' + onWfh + ' | מחלה: ' + onSick + '
+' +
+    'מידע ממנוע מקומי: ' + sanitizeForGemini(localData) + '
+
+' +
+    'חוקים:
+' +
+    '- ענה תמיד בעברית מקצועית וקצרה.
+' +
+    '- אל תמציא נתונים שאינם בהקשר.
+' +
+    '- אל תענה על שאלות שאינן קשורות למערכת.
+' +
+    '- אם שואלים על סיבת מחלה/חופשה של אחר — השב: "לא יכול לענות על כך".
+' +
+    '- שפר ניסוח של המידע המקומי בלבד, אל תוסיף עובדות חדשות.';
+
+  const resp = await fetch(
+    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + apiKey,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: 'user', parts: [{ text: userQ }] }],
+        generationConfig: { maxOutputTokens: 500, temperature: 0.3 }
+      })
+    }
+  );
+  if (!resp.ok) throw new Error('Gemini ' + resp.status);
+  const data = await resp.json();
+  const text = data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
+  if (!text) throw new Error('empty');
+  return text.trim();
+}
+
 
 function buildCeoAiAnswer(q) {
   if (!q || !q.trim()) return '❓ לא הבנתי את השאלה.';
@@ -5217,6 +5328,7 @@ function renderEmployeeScores() {
 // ============================================================
 // 🤖 MODULE SELECTOR AI CHAT
 // ============================================================
+const ceoAiHistory = [];
 const moduleAiHistory = [];
 
 function clearModuleAiChat() {
@@ -5269,13 +5381,30 @@ function sendModuleAiQuery(query) {
     container.scrollTop = container.scrollHeight;
   }
 
-  setTimeout(() => {
-    const typing = document.getElementById('modTyping');
-    if (typing) typing.remove();
-    const answer = buildCeoAiAnswer(q); // reuse same engine
-    moduleAiHistory.push({ role: 'assistant', content: answer });
-    renderModuleAiMessages();
-  }, 600);
+  const localAnswer = buildCeoAiAnswer(q);
+  const apiKey = localStorage.getItem('dazura_gemini_key');
+  const needsGemini = apiKey && q.length > 15 && !localAnswer.startsWith('🔒');
+
+  if (needsGemini) {
+    askGeminiWithContext(q, localAnswer, apiKey).then(answer => {
+      const typing = document.getElementById('modTyping');
+      if (typing) typing.remove();
+      moduleAiHistory.push({ role: 'assistant', content: answer });
+      renderModuleAiMessages();
+    }).catch(() => {
+      const typing = document.getElementById('modTyping');
+      if (typing) typing.remove();
+      moduleAiHistory.push({ role: 'assistant', content: localAnswer });
+      renderModuleAiMessages();
+    });
+  } else {
+    setTimeout(() => {
+      const typing = document.getElementById('modTyping');
+      if (typing) typing.remove();
+      moduleAiHistory.push({ role: 'assistant', content: localAnswer });
+      renderModuleAiMessages();
+    }, 600);
+  }
 }
 
 function showModuleSelector() {
@@ -6537,135 +6666,5 @@ window.addEventListener('load', function() {
     splash.style.opacity = '0';
     setTimeout(() => splash.remove(), 600);
   }, 2200);
-function toggleAIChat() {
-  const widget = document.getElementById('ai-chat-widget');
-  widget.style.display = (widget.style.display === 'none' || widget.style.display === '') ? 'flex' : 'none';
-}
-
-async function handleAISend() {
-  const inputEl = document.getElementById('ai-input');
-  const query = inputEl.value.trim();
-  if (!query) return;
-
-  appendAIMessage(query, 'user');
-  inputEl.value = '';
-
-  const db = getDB();
-  const currentRole = currentUser?.role || 'user';
-  
-  // הכנת הנתונים ל-AI בהתאם להרשאה
-  let restrictedData = { ...db };
-  
-  if (currentRole === 'user') {
-    // עובד רגיל רואה רק את שלו (סינון אקטיבי לפני השליחה ל-AI)
-    restrictedData.users = { [currentUser.username]: db.users[currentUser.username] };
-    restrictedData.vacations = { [currentUser.username]: db.vacations[currentUser.username] };
-  } else if (currentRole === 'manager') {
-    // מנהל רואה רק את המחלקה שלו
-    const myDepts = currentUser.department || [];
-    const filteredUsers = {};
-    for (const u in db.users) {
-      if (db.users[u].department.some(d => myDepts.includes(d))) {
-        filteredUsers[u] = db.users[u];
-      }
-    }
-    restrictedData.users = filteredUsers;
-  }
-
-  const systemInstructions = `
-    אתה מנוע ה-AI של Dazura. 
-    תפקיד המשתמש הנוכחי: ${currentRole}. 
-    המשתמש המחובר: ${currentUser?.displayName}.
-    תאריך היום: ${new Date().toISOString().split('T')[0]}.
-    
-    חוקי פרטיות:
-    1. מנכ"ל/ADMIN: גישה מלאה להכל.
-    2. מנהל: גישה רק למחלקות שלו.
-    3. עובד: גישה רק לנתונים שלו. מותר לשאול "מי חסר בצוות" לצורך תיאום, אך ללא סיבת היעדרות (חופשה/מחלה).
-    
-    ענה תמיד בעברית על בסיס נתוני ה-JSON שקיבלת בלבד.
-  `;
-
-  try {
-    // כאן מתבצעת הקריאה ל-API (למשל Gemini או OpenAI)
-    // הערה: עליך להטמיע כאן את ה-API Key שלך בצד השרת
-    const response = "זוהי תשובת דוגמה. כדי להפעיל באמת, יש לחבר API Key."; 
-    appendAIMessage(response, 'bot');
-  } catch (error) {
-    appendAIMessage("שגיאה בחיבור ל-AI", 'bot');
-  }
-}
-
-function appendAIMessage(text, side) {
-  const container = document.getElementById('ai-messages');
-  const div = document.createElement('div');
-  div.style.padding = "8px 12px";
-  div.style.borderRadius = "10px";
-  div.style.maxWidth = "80%";
-  div.style.marginBottom = "5px";
-  
-  if (side === 'user') {
-    div.style.alignSelf = "flex-start";
-    div.style.background = "rgba(255,255,255,0.1)";
-  } else {
-    div.style.alignSelf = "flex-end";
-    div.style.background = "var(--primary)";
-    div.style.color = "white";
-  }
-  
-  div.textContent = text;
-  container.appendChild(div);
-  container.scrollTop = container.scrollHeight;
-}
-function toggleInternalAI() {
-    const chat = document.getElementById('ai-internal-chat');
-    chat.style.display = chat.style.display === 'none' ? 'flex' : 'none';
-}
-
-async function runInternalAI() {
-    const input = document.getElementById('ai-query');
-    const display = document.getElementById('ai-content');
-    const query = input.value.trim();
-    if(!query) return;
-
-    // 1. זיהוי משתמש והרשאות מהמערכת הקיימת
-    const db = getDB();
-    const role = currentUser ? currentUser.role : 'user';
-    const userDept = currentUser ? currentUser.department : [];
-
-    // 2. סינון נתונים אקטיבי - המידע של האחרים נמחק לפני השליחה!
-    let localContext = {};
-    if (role === 'admin') {
-        localContext = db; // מנכ"ל מקבל הכל
-    } else {
-        // עובד רגיל: מקבל רק את הפרופיל שלו + רשימת נוכחות אנונימית
-        localContext.userInfo = db.users[currentUser.username];
-        localContext.myVacations = db.vacations[currentUser.username] || {};
-        localContext.todayTeamSummary = Object.keys(db.users).map(u => ({
-            isPresent: !(db.vacations[u] && db.vacations[u][new Date().toISOString().split('T')[0]])
-        }));
-    }
-
-    display.innerHTML += `<div style="align-self:flex-end; color:var(--primary-mid);">👤 ${query}</div>`;
-    input.value = '';
-
-    // 3. קריאה ל-API מאובטח (למשל Gemini)
-    // הערה: כאן המידע נשלח כ-Temporary Context בלבד ולא נשמר לאימון
-    try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=YOUR_API_KEY`, {
-            method: 'POST',
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: `System: אתה AI פנימי. נתונים: ${JSON.stringify(localContext)}. שאלה: ${query}` }] }]
-            })
-        });
-        const resData = await response.json();
-        const reply = resData.candidates[0].content.parts[0].text;
-        display.innerHTML += `<div style="background:rgba(255,255,255,0.05); padding:8px; border-radius:8px;">🤖 ${reply}</div>`;
-    } catch (e) {
-        display.innerHTML += `<div style="color:red;">שגיאת תקשורת פנימית.</div>`;
-    }
-    display.scrollTop = display.scrollHeight;
-}
 });
-
 

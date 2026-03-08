@@ -1116,6 +1116,25 @@
           </div>
         </div>
         <div style="margin-top:16px;padding:12px 16px;background:var(--primary-light);border-radius:8px;font-size:13px;color:var(--primary-dark);" id="cyclePreview"></div>
+        <!-- Gemini API Key -->
+        <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:20px;">
+          <div style="font-weight:700;font-size:14px;margin-bottom:6px;">🤖 Gemini AI — מפתח API אישי</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;line-height:1.6;">
+            המפתח נשמר <strong>במכשיר שלך בלבד</strong> ולא נשלח לשום שרת חיצוני.
+            לפני שליחה, שמות ופרטים מזהים מוסרים אוטומטית.
+            <a href="https://aistudio.google.com" target="_blank" style="color:var(--primary);">קבל מפתח חינמי ← aistudio.google.com</a>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input type="password" id="geminiApiKeyInput" class="form-input"
+              placeholder="AIzaSy..."
+              style="flex:1;font-family:monospace;font-size:13px;letter-spacing:1px;"
+              oninput="this.style.borderColor=this.value.length>10?'var(--success)':'var(--border-strong)'">
+            <button onclick="saveGeminiKey()" class="btn btn-primary" style="white-space:nowrap;padding:10px 16px;">💾 שמור מפתח</button>
+            <button onclick="clearGeminiKey()" class="btn" style="white-space:nowrap;padding:10px 16px;color:var(--danger);">🗑️ מחק</button>
+          </div>
+          <div id="geminiKeyStatus" style="font-size:12px;margin-top:6px;color:var(--text-muted);"></div>
+        </div>
+
         <button class="btn btn-primary" onclick="saveCompanySettings()" style="margin-top:16px;background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:white;">💾 שמור הגדרות חברה</button>
       </div>
 
@@ -1622,32 +1641,5 @@
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
 <script src="script.js"></script>
-<div id="ai-chat-widget" class="glass-card" style="position:fixed; bottom:20px; left:20px; width:350px; height:450px; display:none; flex-direction:column; z-index:9999; border:1px solid rgba(0,150,255,0.3); overflow:hidden;">
-  <div style="background:var(--primary); color:white; padding:12px; display:flex; justify-content:space-between; align-items:center;">
-    <span>🤖 Dazura AI Assistant</span>
-    <button onclick="toggleAIChat()" style="background:none; border:none; color:white; cursor:pointer; font-size:18px;">✕</button>
-  </div>
-  <div id="ai-messages" style="flex:1; padding:15px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; background:rgba(255,255,255,0.05);">
-    <div class="ai-bubble-bot">שלום! אני העוזר של Dazura. איך אוכל לעזור היום?</div>
-  </div>
-  <div style="padding:10px; display:flex; gap:5px; background:var(--surface);">
-    <input type="text" id="ai-input" placeholder="שאל אותי משהו..." style="flex:1; padding:8px; border-radius:5px; border:1px solid var(--border);">
-    <button class="btn btn-primary" onclick="handleAISend()" style="padding:8px 15px;">שלח</button>
-  </div>
-</div>
-
-<button onclick="toggleAIChat()" style="position:fixed; bottom:20px; left:20px; width:60px; height:60px; border-radius:50%; background:var(--primary); color:white; border:none; box-shadow:0 4px 15px rgba(0,0,0,0.3); cursor:pointer; z-index:9998; font-size:24px;">🤖</button>
-<div id="ai-internal-chat" class="glass-card" style="position:fixed; bottom:80px; left:20px; width:320px; height:400px; display:none; flex-direction:column; z-index:10000; border:1px solid rgba(0,150,255,0.2);">
-    <div style="background:var(--primary); color:white; padding:10px; display:flex; justify-content:space-between; border-radius:12px 12px 0 0;">
-        <span>🛡️ צ'אט נתונים פנימי</span>
-        <button onclick="toggleInternalAI()" style="background:none; border:none; color:white; cursor:pointer;">✕</button>
-    </div>
-    <div id="ai-content" style="flex:1; padding:10px; overflow-y:auto; font-size:13px; display:flex; flex-direction:column; gap:8px;"></div>
-    <div style="padding:10px; display:flex; gap:5px; border-top:1px solid rgba(255,255,255,0.1);">
-        <input type="text" id="ai-query" placeholder="שאל שאלה פנימית..." style="flex:1; padding:6px; border-radius:4px; border:1px solid var(--border); background:rgba(0,0,0,0.1); color:white;">
-        <button class="btn btn-primary" onclick="runInternalAI()" style="padding:5px 10px;">שאל</button>
-    </div>
-</div>
-<button onclick="toggleInternalAI()" style="position:fixed; bottom:20px; left:20px; z-index:9999; width:50px; height:50px; border-radius:50%; background:var(--primary); border:none; cursor:pointer; font-size:20px; box-shadow:0 4px 15px rgba(0,0,0,0.3);">🤖</button>
 </body>
 </html>
