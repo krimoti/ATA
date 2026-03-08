@@ -1,4 +1,21 @@
 
+// ── DISPLAY HELPERS (handle dz-20 initial-hidden class) ──────
+function showEl(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('dz-20'); el.style.display = '';
+}
+function hideEl(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.style.display = 'none';
+}
+function showElInline(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('dz-20'); el.style.display = 'inline-block';
+}
+
 // DATA LAYER — localStorage based
 // ============================================================
 const DB_KEY = 'vacSystem_v3';
@@ -675,23 +692,24 @@ function regNextStep(step) {
     const fullName = document.getElementById('regFullName').value.trim();
     const username = document.getElementById('regUsername').value.trim();
     const dept     = document.getElementById('regDept').value;
-    if (!fullName) { errEl.textContent = 'נא להזין שם מלא'; errEl.style.display = 'block'; return; }
-    if (!username) { errEl.textContent = 'נא להזין שם משתמש'; errEl.style.display = 'block'; return; }
-    if (!/^[a-zA-Z0-9_]+$/.test(username)) { errEl.textContent = 'שם משתמש: אנגלית/מספרים בלבד'; errEl.style.display = 'block'; return; }
-    if (!dept) { errEl.textContent = 'נא לבחור מחלקה'; errEl.style.display = 'block'; return; }
+    if (!fullName) { errEl.textContent = 'נא להזין שם מלא'; errEl.classList.remove('dz-20'); errEl.style.display = 'block'; return; }
+    if (!username) { errEl.textContent = 'נא להזין שם משתמש'; errEl.classList.remove('dz-20'); errEl.style.display = 'block'; return; }
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) { errEl.textContent = 'שם משתמש: אנגלית/מספרים בלבד'; errEl.classList.remove('dz-20'); errEl.style.display = 'block'; return; }
+    if (!dept) { errEl.textContent = 'נא לבחור מחלקה'; errEl.classList.remove('dz-20'); errEl.style.display = 'block'; return; }
     const db = getDB();
-    if (db.users[username.toLowerCase()]) { errEl.textContent = 'שם משתמש זה כבר קיים'; errEl.style.display = 'block'; return; }
+    if (db.users[username.toLowerCase()]) { errEl.textContent = 'שם משתמש זה כבר קיים'; errEl.classList.remove('dz-20'); errEl.style.display = 'block'; return; }
   }
   if (step === 3) {
     const pass  = document.getElementById('regPassword').value;
     const pass2 = document.getElementById('regPassword2').value;
-    if (pass.length < 4) { errEl.textContent = 'הסיסמה חייבת להיות לפחות 4 תווים'; errEl.style.display = 'block'; return; }
-    if (pass !== pass2)  { errEl.textContent = 'הסיסמאות אינן תואמות'; errEl.style.display = 'block'; return; }
+    if (pass.length < 4) { errEl.textContent = 'הסיסמה חייבת להיות לפחות 4 תווים'; errEl.classList.remove('dz-20'); errEl.style.display = 'block'; return; }
+    if (pass !== pass2)  { errEl.textContent = 'הסיסמאות אינן תואמות'; errEl.classList.remove('dz-20'); errEl.style.display = 'block'; return; }
   }
 
   // Show correct step
   [1,2,3].forEach(i => {
-    document.getElementById('regStep' + i).style.display = i === step ? '' : 'none';
+    const _rs = document.getElementById('regStep' + i);
+    if (_rs) { if (i === step) { _rs.classList.remove('dz-20'); _rs.style.display = ''; } else { _rs.style.display = 'none'; } }
     const regDot = document.getElementById('regDot' + i); if (regDot) { regDot.classList.toggle('dz-step-active', i <= step); regDot.classList.toggle('dz-step-inactive', i > step); }
   });
 }
@@ -729,18 +747,18 @@ function doRegister() {
   errEl.style.display = 'none';
   
   if (!fullName || !username || !dept || !pass) {
-    errEl.textContent = 'נא למלא את כל השדות'; errEl.style.display = 'block'; return;
+    errEl.textContent = 'נא למלא את כל השדות'; errEl.classList.remove('dz-20'); errEl.style.display = 'block'; return;
   }
   if (pass.length < 4) {
-    errEl.textContent = 'הסיסמה חייבת להיות לפחות 4 תווים'; errEl.style.display = 'block'; return;
+    errEl.textContent = 'הסיסמה חייבת להיות לפחות 4 תווים'; errEl.classList.remove('dz-20'); errEl.style.display = 'block'; return;
   }
   if (pass !== pass2) {
-    errEl.textContent = 'הסיסמאות אינן תואמות'; errEl.style.display = 'block'; return;
+    errEl.textContent = 'הסיסמאות אינן תואמות'; errEl.classList.remove('dz-20'); errEl.style.display = 'block'; return;
   }
   
   const db = getDB();
   if (db.users[username]) {
-    errEl.textContent = 'שם משתמש זה כבר קיים'; errEl.style.display = 'block'; return;
+    errEl.textContent = 'שם משתמש זה כבר קיים'; errEl.classList.remove('dz-20'); errEl.style.display = 'block'; return;
   }
 
   // Check if admin approval required
@@ -794,8 +812,10 @@ function showApp(skipModuleSelector) {
   document.getElementById('appScreen').classList.add('active');
   
   // Set user info
-  document.getElementById('navUserName').textContent = currentUser.fullName;
-  document.getElementById('userAvatar').textContent = currentUser.fullName.charAt(0);
+  const _nav = document.getElementById('navUserName');
+  if (_nav) { _nav.classList.remove('dz-20'); _nav.textContent = currentUser.fullName; }
+  const _av = document.getElementById('userAvatar');
+  if (_av) { _av.classList.remove('dz-20'); _av.textContent = currentUser.fullName.charAt(0); }
 
   // Show company name in nav if element exists
   const nameDisplay = document.getElementById('companyNameDisplay');
@@ -807,10 +827,12 @@ function showApp(skipModuleSelector) {
   const hasAdminAccess = isAdmin || userHasAnyAdminAccess(currentUser.username);
 
   document.querySelectorAll('.admin-only').forEach(el => {
-    el.style.display = hasAdminAccess ? '' : 'none';
+    if (hasAdminAccess) { el.classList.remove('dz-20'); el.style.display = ''; }
+    else { el.style.display = 'none'; }
   });
   document.querySelectorAll('.manager-only').forEach(el => {
-    el.style.display = isManager ? '' : 'none';
+    if (isManager) { el.classList.remove('dz-20'); el.style.display = ''; }
+    else { el.style.display = 'none'; }
   });
   
   // Firebase button: admin only
@@ -1030,7 +1052,7 @@ function renderDashboard() {
   if (currentUser.role === 'accountant' || currentUser.role === 'admin') {
     const nowDate = new Date();
     const isJan = nowDate.getMonth() === 0 && nowDate.getDate() <= 9;
-    document.getElementById('quotaUploadSection').style.display = 'block';
+    const _qs=document.getElementById('quotaUploadSection'); if(_qs){_qs.classList.remove('dz-20');_qs.style.display='';}
     document.getElementById('quotaUploadStatus').textContent = isJan 
       ? ' — חלון הטעינה פתוח עד 09 לינואר!' 
       : ' — החלון נסגר (01-09 לינואר בלבד)';
@@ -1836,7 +1858,7 @@ function handleLogoUpload(input) {
       if (preview) { preview.src = base64; preview.style.display = ''; }
       const logoEl = document.getElementById('companyLogoDisplay');
       const iconEl = document.getElementById('brandIcon');
-      if (logoEl) { logoEl.src = base64; logoEl.style.display = ''; }
+      if (logoEl) { logoEl.src = base64; logoEl.classList.remove('dz-20'); logoEl.style.display = ''; }
       if (iconEl) iconEl.style.display = 'none';
       // Also update module selector logo
       const mLogoImg  = document.getElementById('moduleLogoImg');
@@ -1857,7 +1879,7 @@ function clearLogo() {
   const logoEl = document.getElementById('companyLogoDisplay');
   const iconEl = document.getElementById('brandIcon');
   if(logoEl) logoEl.style.display = 'none';
-  if(iconEl) iconEl.style.display = '';
+  if(iconEl) { iconEl.classList.remove('dz-20'); iconEl.style.display = ''; }
   if(document.getElementById('logoFileInput')) document.getElementById('logoFileInput').value = '';
   
 }
@@ -2533,12 +2555,12 @@ function saveNewEmployee() {
   const errEl    = document.getElementById('addEmpError');
 
   if (!name || !username || !dept || !pass) {
-    errEl.textContent = 'נא למלא את כל השדות'; errEl.style.display = 'block'; return;
+    errEl.textContent = 'נא למלא את כל השדות'; errEl.classList.remove('dz-20'); errEl.style.display = 'block'; return;
   }
 
   const db = getDB();
   if (db.users[username]) {
-    errEl.textContent = 'שם משתמש כבר קיים'; errEl.style.display = 'block'; return;
+    errEl.textContent = 'שם משתמש כבר קיים'; errEl.classList.remove('dz-20'); errEl.style.display = 'block'; return;
   }
 
   db.users[username] = {
@@ -4444,11 +4466,11 @@ function doForcePasswordChange() {
 
   if (pass.length < 4) {
     errEl.textContent = 'הסיסמה חייבת להיות לפחות 4 תווים';
-    errEl.style.display = 'block'; return;
+    errEl.classList.remove('dz-20'); errEl.style.display = 'block'; return;
   }
   if (pass !== pass2) {
     errEl.textContent = 'הסיסמאות אינן תואמות';
-    errEl.style.display = 'block'; return;
+    errEl.classList.remove('dz-20'); errEl.style.display = 'block'; return;
   }
 
   const db = getDB();
@@ -5274,14 +5296,14 @@ async function forgotStep1Next() {
   const errEl    = document.getElementById('forgotStep1Error');
   errEl.style.display = 'none';
 
-  if (!username) { errEl.textContent = 'נא להזין שם משתמש'; errEl.style.display = 'block'; return; }
+  if (!username) { errEl.textContent = 'נא להזין שם משתמש'; errEl.classList.remove('dz-20'); errEl.style.display = 'block'; return; }
 
   const db   = getDB();
   const user = db.users[username];
-  if (!user) { errEl.textContent = 'שם משתמש לא נמצא במערכת'; errEl.style.display = 'block'; return; }
+  if (!user) { errEl.textContent = 'שם משתמש לא נמצא במערכת'; errEl.classList.remove('dz-20'); errEl.style.display = 'block'; return; }
   if (!user.email) {
     errEl.innerHTML = '⚠️ אין מייל רשום לחשבון זה.<br><strong>פנה למנהל המערכת לאיפוס ידני.</strong>';
-    errEl.style.display = 'block'; return;
+    errEl.classList.remove('dz-20'); errEl.style.display = 'block'; return;
   }
 
   // Show sending state
@@ -5298,7 +5320,7 @@ async function forgotStep1Next() {
     document.getElementById('forgotNewPass').value  = '';
     document.getElementById('forgotNewPass2').value = '';
     document.getElementById('forgotStep1Body').style.display = 'none';
-    document.getElementById('forgotStep2Body').style.display = '';
+    (function(){const _e=document.getElementById('forgotStep2Body');if(_e){_e.classList.remove('dz-20'); _e.style.display='';}})()
     auditLog('password_reset_sent', `${username} ביקש איפוס סיסמה`);
   } else {
     const msgs = {
@@ -5308,7 +5330,7 @@ async function forgotStep1Next() {
       'auth/operation-not-allowed': '⚠️ שחזור מייל לא מופעל — פנה למנהל'
     };
     errEl.textContent = msgs[result.error] || `⚠️ שגיאה: ${result.error}`;
-    errEl.style.display = 'block';
+    errEl.classList.remove('dz-20'); errEl.style.display = 'block';
   }
 }
 
@@ -5318,11 +5340,11 @@ function forgotSetNewPassword() {
   const p2 = document.getElementById('forgotNewPass2').value;
   errEl.style.display = 'none';
 
-  if (!p1 || p1.length < 4) { errEl.textContent = 'סיסמה חייבת להיות לפחות 4 תווים'; errEl.style.display = 'block'; return; }
-  if (p1 !== p2) { errEl.textContent = 'הסיסמאות אינן תואמות'; errEl.style.display = 'block'; return; }
+  if (!p1 || p1.length < 4) { errEl.textContent = 'סיסמה חייבת להיות לפחות 4 תווים'; errEl.classList.remove('dz-20'); errEl.style.display = 'block'; return; }
+  if (p1 !== p2) { errEl.textContent = 'הסיסמאות אינן תואמות'; errEl.classList.remove('dz-20'); errEl.style.display = 'block'; return; }
 
   const db = getDB();
-  if (!db.users[_forgotUser]) { errEl.textContent = 'שגיאה — נסה שוב'; errEl.style.display = 'block'; return; }
+  if (!db.users[_forgotUser]) { errEl.textContent = 'שגיאה — נסה שוב'; errEl.classList.remove('dz-20'); errEl.style.display = 'block'; return; }
   db.users[_forgotUser].password = hashPass(p1);
   saveDB(db);
   closeModal('forgotStep1Modal');
@@ -5350,13 +5372,13 @@ function doChangePassword() {
   const db = getDB();
   const user = db.users[currentUser.username];
   if (user.password !== hashPass(current)) {
-    errEl.textContent = 'הסיסמה הנוכחית שגויה'; errEl.style.display = 'block'; return;
+    errEl.textContent = 'הסיסמה הנוכחית שגויה'; errEl.classList.remove('dz-20'); errEl.style.display = 'block'; return;
   }
   if (newPass.length < 4) {
-    errEl.textContent = 'הסיסמה החדשה חייבת להיות לפחות 4 תווים'; errEl.style.display = 'block'; return;
+    errEl.textContent = 'הסיסמה החדשה חייבת להיות לפחות 4 תווים'; errEl.classList.remove('dz-20'); errEl.style.display = 'block'; return;
   }
   if (newPass !== newPass2) {
-    errEl.textContent = 'הסיסמאות אינן תואמות'; errEl.style.display = 'block'; return;
+    errEl.textContent = 'הסיסמאות אינן תואמות'; errEl.classList.remove('dz-20'); errEl.style.display = 'block'; return;
   }
   user.password = hashPass(newPass);
   saveDB(db);
@@ -6067,3 +6089,12 @@ function savePermissionsForUser(username) {
   setTimeout(dismissSplash, 3500);
 })();
 
+
+// ── Signal that script.js is fully loaded — flush queued _safeCall calls ──
+window._scriptReady = true;
+if (window._pendingCalls && window._pendingCalls.length) {
+  window._pendingCalls.forEach(function(c) {
+    if (typeof window[c.fn] === 'function') window[c.fn].apply(null, c.args);
+  });
+  window._pendingCalls = [];
+}
