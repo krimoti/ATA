@@ -484,7 +484,7 @@ async function doBiometricLogin(type) {
   const origHtml = btn ? btn.innerHTML : '';
   try {
     if (btn) {
-      btn.innerHTML = `<span style="font-size:28px;">⏳</span><span>מאמת...</span>`;
+      btn.innerHTML = `<span class="dz-fs-95">⏳</span><span>מאמת...</span>`;
       btn.disabled = true;
     }
 
@@ -692,7 +692,7 @@ function regNextStep(step) {
   // Show correct step
   [1,2,3].forEach(i => {
     document.getElementById('regStep' + i).style.display = i === step ? '' : 'none';
-    document.getElementById('regDot' + i).style.background = i <= step ? 'var(--primary)' : 'var(--border)';
+    const regDot = document.getElementById('regDot' + i); if (regDot) { regDot.classList.toggle('dz-step-active', i <= step); regDot.classList.toggle('dz-step-inactive', i > step); }
   });
 }
 
@@ -1024,7 +1024,7 @@ function renderDashboard() {
   
   // Color balance
   const balEl = document.getElementById('statBalance');
-  balEl.style.color = cb.balance < 0 ? 'var(--danger)' : 'var(--warning)';
+  balElclassList.toggle('dz-balance-danger', cb.balance < 0); el.classList.toggle('dz-balance-warning', cb.balance >= 0);
   
   // Quota upload notice for accountant/admin only
   if (currentUser.role === 'accountant' || currentUser.role === 'admin') {
@@ -1066,9 +1066,9 @@ function renderMonthlyChart(year) {
   const labelsEl = document.getElementById('monthlyBarLabels');
   
   chartEl.innerHTML = monthData.map((v, i) => `
-    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
+    <div class="dz-flex-col-1001">
       <span style="font-size:10px;font-weight:700;color:${v > 0 ? 'var(--primary)' : 'var(--text-muted)'};">${v || ''}</span>
-      <div style="width:100%;background:${v > 0 ? 'var(--primary)' : 'var(--border)'};height:${Math.round((v/max)*140)+4}px;border-radius:4px 4px 0 0;min-height:4px;transition:height 0.3s;"></div>
+      <div class="dz-1002"></div>
     </div>
   `).join('');
   
@@ -1090,7 +1090,7 @@ function renderUpcoming() {
   
   const el = document.getElementById('upcomingVacations');
   if (upcoming.length === 0) {
-    el.innerHTML = '<p style="color:var(--text-muted);font-size:14px;text-align:center;padding:20px;">אין חופשות מתוכננות קרובות</p>';
+    el.innerHTML = '<p class="dz-1003">אין חופשות מתוכננות קרובות</p>';
     return;
   }
   
@@ -1101,10 +1101,10 @@ function renderUpcoming() {
     return `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);">
         <div>
-          <div style="font-weight:700;font-size:14px;">${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}</div>
-          <div style="font-size:12px;color:var(--text-muted);">${dayName}</div>
+          <div class="dz-1004">${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}</div>
+          <div class="dz-97">${dayName}</div>
         </div>
-        <span style="font-size:13px;font-weight:600;">${typeLabel}</span>
+        <span class="dz-1005">${typeLabel}</span>
       </div>
     `;
   }).join('');
@@ -1214,7 +1214,7 @@ function renderCalendar() {
       const sickBadge = document.createElement('div');
       sickBadge.className = 'day-badge';
       sickBadge.textContent = '🤒';
-      sickBadge.style.cssText = 'background:#1f2937;color:white;';
+      sickBadge.classList.add('dz-sick-badge');
       cell.appendChild(sickBadge);
     }
 
@@ -1250,7 +1250,7 @@ function openDayModal(dateStr, hol, currentType, isSick) {
   
   let info = '';
   if (hol && hol.name) info = `<strong>אירוע:</strong> ${hol.name}<br>`;
-  if (hol && hol.isHalf) info += `<span style="color:var(--warning);font-weight:600;">⚠️ ערב חג — ניתן לבחור חצי יום בלבד</span>`;
+  if (hol && hol.isHalf) info += `<span class="dz-1006">⚠️ ערב חג — ניתן לבחור חצי יום בלבד</span>`;
   document.getElementById('dayModalInfo').innerHTML = info;
   
   const opts = document.getElementById('dayModalOptions');
@@ -1258,11 +1258,11 @@ function openDayModal(dateStr, hol, currentType, isSick) {
 
   // If sick day — show only cancel sick option
   if (isSick) {
-    document.getElementById('dayModalInfo').innerHTML = `<span style="color:#374151;font-weight:700;">🤒 יום מחלה מדווח</span>`;
+    document.getElementById('dayModalInfo').innerHTML = `<span class="dz-30">🤒 יום מחלה מדווח</span>`;
     // Hide toggle since we're in sick mode view
     document.getElementById('sickToggle').closest('div').style.display = 'none';
     const btn = document.createElement('button');
-    btn.style.cssText = 'display:block;width:100%;padding:14px 20px;border-radius:10px;border:2px solid var(--danger);background:#fef2f2;font-family:\'Heebo\',sans-serif;font-size:15px;font-weight:600;cursor:pointer;text-align:right;color:var(--danger);';
+    btn.className = 'dz-day-btn dz-day-btn-sick';
     btn.textContent = '❌ בטל דיווח מחלה';
     btn.onclick = () => {
       const db = getDB();
@@ -1300,7 +1300,8 @@ function openDayModal(dateStr, hol, currentType, isSick) {
   options.forEach(opt => {
     const btn = document.createElement('button');
     btn.className = 'day-option-btn';
-    btn.style.cssText = `display:block;width:100%;padding:14px 20px;border-radius:10px;border:2px solid ${opt.active ? opt.color : 'var(--border)'};background:${opt.active ? opt.color + '22' : 'white'};font-family:'Heebo',sans-serif;font-size:15px;font-weight:600;cursor:pointer;text-align:right;color:${opt.active ? opt.color : 'var(--text)'};transition:all 0.2s;margin-bottom:8px;`;
+    btn.className = 'dz-day-option-btn' + (opt.active ? ' dz-day-option-active' : '');
+    if (opt.active) { /* dynamic: opt.color varies per option type */ btn.style.borderColor = opt.color; btn.style.background = opt.color + '22'; btn.style.color = opt.color; }
     btn.textContent = opt.label + (opt.active ? ' ✓' : '');
     btn.onclick = () => {
       saveVacation(currentUser.username, dateStr, opt.type);
@@ -1342,7 +1343,7 @@ function renderYearly() {
     // Day header
     ['א','ב','ג','ד','ה','ו','ש'].forEach(dn => {
       const h = document.createElement('div');
-      h.style.cssText = 'font-size:9px;font-weight:700;color:var(--text-muted);text-align:center;padding:2px 0;';
+      h.className = 'dz-mini-cal-hdr';
       h.textContent = dn;
       miniGrid.appendChild(h);
     });
@@ -1419,22 +1420,22 @@ function renderReport() {
   
   const content = document.getElementById('reportContent');
   content.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:24px;">
+    <div class="dz-grid-1007">
       <div style="background:var(--primary-light);border-radius:10px;padding:16px;text-align:center;">
-        <div style="font-size:24px;font-weight:800;color:var(--primary);">${annual}</div>
-        <div style="font-size:12px;color:var(--text-secondary);">מכסה שנתית</div>
+        <div class="dz-1008">${annual}</div>
+        <div class="dz-1010">מכסה שנתית</div>
       </div>
-      <div style="background:#dcfce7;border-radius:10px;padding:16px;text-align:center;">
+      <div class="dz-card-1009">
         <div style="font-size:24px;font-weight:800;color:var(--success);">${stats.total}</div>
-        <div style="font-size:12px;color:var(--text-secondary);">ימים שנוצלו</div>
+        <div class="dz-1010">ימים שנוצלו</div>
       </div>
       <div style="background:#fef9c3;border-radius:10px;padding:16px;text-align:center;">
-        <div style="font-size:24px;font-weight:800;color:#ca8a04;">${stats.wfh}</div>
-        <div style="font-size:12px;color:var(--text-secondary);">ימי WFH</div>
+        <div class="dz-1011">${stats.wfh}</div>
+        <div class="dz-1010">ימי WFH</div>
       </div>
-      <div style="background:${balance < 0 ? 'var(--danger-light)' : 'var(--success-light)'};border-radius:10px;padding:16px;text-align:center;">
+      <div class="dz-card-1012">
         <div style="font-size:24px;font-weight:800;color:${balance < 0 ? 'var(--danger)' : 'var(--success)'};">${balance.toFixed(2)}</div>
-        <div style="font-size:12px;color:var(--text-secondary);">יתרה נוכחית</div>
+        <div class="dz-1010">יתרה נוכחית</div>
       </div>
     </div>
     
@@ -1455,12 +1456,12 @@ function renderReport() {
             const total = m.full + m.half * 0.5;
             const payMonth = i >= 10 ? (i === 10 ? 0 : 1) : i + 1;
             return `<tr>
-              <td style="font-weight:700;">${monthNames[i]}</td>
+              <td class="dz-1013">${monthNames[i]}</td>
               <td>${m.full || '-'}</td>
               <td>${m.half || '-'}</td>
               <td>${m.wfh || '-'}</td>
               <td style="font-weight:700;color:${total > 0 ? 'var(--primary)' : 'var(--text-muted)'};">${total || '-'}</td>
-              <td style="font-size:12px;color:var(--text-muted);">${total > 0 ? monthNames[payMonth] : '-'}</td>
+              <td class="dz-97">${total > 0 ? monthNames[payMonth] : '-'}</td>
             </tr>`;
           }).join('')}
         </tbody>
@@ -1470,7 +1471,7 @@ function renderReport() {
             <td>${stats.full}</td>
             <td>${stats.half}</td>
             <td>${stats.wfh}</td>
-            <td colspan="2" style="color:var(--primary);">${stats.total} ימי חופשה</td>
+            <td colspan="2" class="dz-clr-160">${stats.total} ימי חופשה</td>
           </tr>
         </tfoot>
       </table>
@@ -1663,9 +1664,9 @@ function renderAIForecast() {
     } else {
       alertsEl.innerHTML = alerts.map(a => {
         const c = alertColors[a.level];
-        return `<div style="background:${c.bg};border:1px solid ${c.border};border-radius:10px;padding:12px 16px;margin-bottom:8px;">
+        return `<div class="dz-card-1016">
           <div style="font-weight:700;font-size:14px;color:${c.text};">${a.icon} ${a.text}</div>
-          ${a.sub ? `<div style="font-size:12px;color:${c.text};opacity:0.8;margin-top:3px;">${a.sub}</div>` : ''}
+          ${a.sub ? `<div class="dz-1017">${a.sub}</div>` : ''}
         </div>`;
       }).join('');
     }
@@ -1692,7 +1693,7 @@ function renderAIForecast() {
     // Weeks grid
     html += '<div>';
     // Day labels
-    html += '<div style="display:flex;flex-direction:column;gap:2px;margin-top:20px;margin-left:4px;">';
+    html += '<div class="dz-flex-col-1018">';
     ['א','ב','ג','ד','ה'].forEach(d => {
       html += `<div style="font-size:9px;color:var(--text-muted);height:12px;line-height:12px;">${d}</div>`;
     });
@@ -1705,13 +1706,13 @@ function renderAIForecast() {
       const color = getHeatColor(intensity);
       const monthLabel = monthStarts[w] || '';
 
-      html += `<div style="display:flex;flex-direction:column;gap:2px;">
+      html += `<div class="dz-flex-col-1019">
         <div style="font-size:9px;color:var(--text-muted);height:16px;white-space:nowrap;overflow:visible;">${monthLabel}</div>`;
 
       // 5 work days
       for (let d = 0; d < 5; d++) {
         const title = data.count > 0 ? `שבוע ${w}: ${data.count} ימים — ${data.names.slice(0,3).join(', ')}` : `שבוע ${w}: אין חופשות`;
-        html += `<div title="${title}" style="width:12px;height:12px;border-radius:2px;background:${color};cursor:pointer;"></div>`;
+        html += `<div title="${title}" class="dz-1020"></div>`;
       }
       html += '</div>';
     }
@@ -1720,7 +1721,7 @@ function renderAIForecast() {
     // Legend
     html += `<div style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:11px;color:var(--text-muted);">
       <span>פחות</span>
-      ${[0,0.25,0.5,0.75,1].map(v=>`<div style="width:12px;height:12px;border-radius:2px;background:${getHeatColor(v)};"></div>`).join('')}
+      ${[0,0.25,0.5,0.75,1].map(v=>`<div class="dz-1021"></div>`).join('')}
       <span>יותר</span>
     </div>`;
 
@@ -1731,25 +1732,25 @@ function renderAIForecast() {
   const chartEl = document.getElementById('deptMonthChart');
   if (chartEl) {
     const depts = Object.keys(deptMonthMap).slice(0, 6); // max 6 depts
-    if (!depts.length) { chartEl.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">אין נתונים</p>'; return; }
+    if (!depts.length) { chartEl.innerHTML = '<p class="dz-225">אין נתונים</p>'; return; }
 
     const deptColors = ['#1a56e8','#16a34a','#7c3aed','#0891b2','#dc2626','#d97706'];
     const maxVal = Math.max(1, ...depts.flatMap(d => deptMonthMap[d]));
 
-    let html = '<div style="overflow-x:auto;"><table style="border-collapse:collapse;font-size:11px;min-width:600px;">';
+    let html = '<div class="dz-190"><table style="border-collapse:collapse;font-size:11px;min-width:600px;">';
     // Header
-    html += '<tr><th style="padding:4px 8px;text-align:right;width:80px;"></th>';
+    html += '<tr><th class="dz-1023"></th>';
     MONTHS.forEach(m => { html += `<th style="padding:4px 6px;color:var(--text-secondary);font-weight:600;text-align:center;">${m.slice(0,3)}</th>`; });
     html += '</tr>';
 
     depts.forEach((dept, di) => {
       const color = deptColors[di % deptColors.length];
-      html += `<tr><td style="padding:6px 8px;font-weight:600;color:${color};white-space:nowrap;">${dept}</td>`;
+      html += `<tr><td class="dz-1024">${dept}</td>`;
       deptMonthMap[dept].forEach(val => {
         const h = val > 0 ? Math.max(4, Math.round(val / maxVal * 40)) : 0;
         const pct = val > 0 ? val.toFixed(0) : '';
         html += `<td style="padding:4px 6px;text-align:center;vertical-align:bottom;">
-          ${h > 0 ? `<div title="${val} ימים" style="height:${h}px;background:${color};border-radius:2px 2px 0 0;margin:0 auto;width:14px;opacity:0.85;"></div>` : ''}
+          ${h > 0 ? `<div title="${val} ימים" class="dz-1025"></div>` : ''}
           <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">${pct}</div>
         </td>`;
       });
@@ -1758,10 +1759,10 @@ function renderAIForecast() {
     html += '</table></div>';
 
     // Legend
-    html += '<div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;">';
+    html += '<div class="dz-flex-1026">';
     depts.forEach((d, i) => {
       html += `<span style="display:flex;align-items:center;gap:4px;font-size:11px;">
-        <span style="width:10px;height:10px;border-radius:2px;background:${deptColors[i % deptColors.length]};display:inline-block;"></span>${d}
+        <span class="dz-1027"></span>${d}
       </span>`;
     });
     html += '</div>';
@@ -1908,35 +1909,6 @@ function applyBranding(s) {
   }
 }
 
-function saveGeminiKey() {
-  const val = (document.getElementById('geminiApiKeyInput')?.value || '').trim();
-  if (!val || val.length < 20) {
-    const st = document.getElementById('geminiKeyStatus');
-    if (st) { st.textContent = '⚠️ מפתח לא תקין'; st.style.color = 'var(--danger)'; }
-    return;
-  }
-  localStorage.setItem('dazura_gemini_key', val);
-  document.getElementById('geminiApiKeyInput').value = '';
-  const st = document.getElementById('geminiKeyStatus');
-  if (st) { st.textContent = '✅ מפתח נשמר — AI ישתמש ב-Gemini'; st.style.color = 'var(--success)'; }
-}
-
-function clearGeminiKey() {
-  localStorage.removeItem('dazura_gemini_key');
-  if (document.getElementById('geminiApiKeyInput')) document.getElementById('geminiApiKeyInput').value = '';
-  const st = document.getElementById('geminiKeyStatus');
-  if (st) { st.textContent = 'מפתח הוסר — AI יעבוד במצב מקומי'; st.style.color = 'var(--text-muted)'; }
-}
-
-function initGeminiKeyStatus() {
-  const has = !!localStorage.getItem('dazura_gemini_key');
-  const st  = document.getElementById('geminiKeyStatus');
-  if (st) {
-    st.textContent = has ? '🟢 מפתח Gemini פעיל — AI משופר זמין' : '⚪ אין מפתח — AI עובד במצב מקומי בלבד';
-    st.style.color = has ? 'var(--success)' : 'var(--text-muted)';
-  }
-}
-
 
 function saveCompanySettings() {
   const get = id => document.getElementById(id)?.value;
@@ -2007,10 +1979,10 @@ function renderManagerDashboard() {
     { icon:'👥', val:totalEmployees,         label:'סה"כ עובדים',  color:'var(--success)', bg:'var(--success-light)',names:[] },
     { icon:'⏳', val:pending,               label:'בקשות ממתינות', color:'var(--danger)',  bg:'var(--danger-light)', names:[] }
   ].map(c=>`
-    <div style="background:${c.bg};border-radius:12px;padding:16px;text-align:center;" title="${c.names.join(', ')}">
-      <div style="font-size:30px;font-weight:900;color:${c.color};">${c.val}</div>
+    <div class="dz-card-1028" title="${c.names.join(', ')}">
+      <div class="dz-1029">${c.val}</div>
       <div style="font-size:11px;color:var(--text-secondary);margin-top:4px;">${c.icon} ${c.label}</div>
-      ${c.names.length?`<div style="font-size:10px;color:var(--text-muted);margin-top:4px;">${c.names.slice(0,3).join(', ')}${c.names.length>3?'…':''}</div>`:''}
+      ${c.names.length?`<div class="dz-1030">${c.names.slice(0,3).join(', ')}${c.names.length>3?'…':''}</div>`:''}
     </div>`).join('');
 
   // PENDING APPROVALS
@@ -2028,17 +2000,17 @@ function renderManagerDashboard() {
       pendingEl.innerHTML = pendingReqs.map(req => {
         const hrs = Math.round((Date.now()-new Date(req.createdAt))/3600000);
         const urgent = hrs >= timeout;
-        return `<div style="background:${urgent?'#fef2f2':'var(--surface2)'};border:1px solid ${urgent?'#fca5a5':'var(--border)'};border-radius:10px;padding:14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        return `<div class="dz-flex-1031">
           <div>
-            <div style="font-weight:700;font-size:14px;">${req.fullName} ${urgent?`<span style="color:var(--danger);font-size:12px;">⚠️ ממתין ${hrs} שעות</span>`:''}</div>
-            <div style="font-size:12px;color:var(--text-secondary);">${req.dateRange||''} • ${req.dept||''} • ${req.days||0} ימים</div>
-            ${isAdmin && req.assignedManager ? `<div style="font-size:11px;color:var(--text-muted);">מיועד ל: ${db.users[req.assignedManager]?.fullName||req.assignedManager}</div>` : ''}
-            <div style="font-size:11px;color:var(--text-muted);">הוגש: ${new Date(req.createdAt).toLocaleDateString('he-IL')}</div>
-            ${req.note?`<div style="font-size:12px;color:var(--primary);margin-top:4px;">💬 "${req.note}"</div>`:''}
+            <div class="dz-1004">${req.fullName} ${urgent?`<span class="dz-1032">⚠️ ממתין ${hrs} שעות</span>`:''}</div>
+            <div class="dz-1010">${req.dateRange||''} • ${req.dept||''} • ${req.days||0} ימים</div>
+            ${isAdmin && req.assignedManager ? `<div class="dz-12">מיועד ל: ${db.users[req.assignedManager]?.fullName||req.assignedManager}</div>` : ''}
+            <div class="dz-12">הוגש: ${new Date(req.createdAt).toLocaleDateString('he-IL')}</div>
+            ${req.note?`<div class="dz-1034">💬 "${req.note}"</div>`:''}
           </div>
-          <div style="display:flex;gap:8px;">
-            <button class="btn btn-success" style="font-size:13px;" onclick="approveRequest('${req.id}')">✅ אשר</button>
-            <button class="btn" style="font-size:13px;background:var(--danger-light);color:var(--danger);border:1px solid #fca5a5;" onclick="rejectRequestPrompt('${req.id}')">❌ דחה</button>
+          <div class="dz-flex-53">
+            <button class="btn btn-success" class="dz-fs-236" onclick="approveRequest('${req.id}')">✅ אשר</button>
+            <button class="btn" class="dz-1037" onclick="rejectRequestPrompt('${req.id}')">❌ דחה</button>
           </div>
         </div>`;
       }).join('');
@@ -2057,14 +2029,14 @@ function renderManagerDashboard() {
     });
     upcoming.sort((a,b)=>a.date.localeCompare(b.date));
     if(!upcoming.length) {
-      upcomingEl.innerHTML='<p style="color:var(--text-muted);font-size:14px;">אין חופשות מתוכננות ב-30 הימים הקרובים</p>';
+      upcomingEl.innerHTML='<p class="dz-1038">אין חופשות מתוכננות ב-30 הימים הקרובים</p>';
     } else {
       const grouped={};
       upcoming.forEach(u=>{if(!grouped[u.date])grouped[u.date]=[];grouped[u.date].push(u);});
       upcomingEl.innerHTML=Object.entries(grouped).map(([dt,items])=>{
         const d=new Date(dt+'T00:00:00');
         return `<div style="margin-bottom:10px;">
-          <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:4px;">${d.getDate()} ${monthNames[d.getMonth()]}</div>
+          <div class="dz-1039">${d.getDate()} ${monthNames[d.getMonth()]}</div>
           ${items.map(i=>`<span style="display:inline-block;background:${i.type==='wfh'?'#f3e8ff':'var(--primary-light)'};color:${i.type==='wfh'?'#7c3aed':'var(--primary-dark)'};border-radius:20px;padding:3px 10px;font-size:12px;margin:2px;">${i.name}${i.type==='wfh'?' 🏠':i.type==='half'?' (חצי)':''}</span>`).join('')}
         </div>`;
       }).join('');
@@ -2078,7 +2050,7 @@ function renderManagerDashboard() {
   const overlapEl = document.getElementById('overlapList');
   if(overlapEl && overlaps.length) {
     overlapEl.innerHTML = overlaps.map(o=>`
-      <div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:10px 14px;margin-bottom:6px;font-size:13px;">
+      <div class="dz-card-1040">
         ⚠️ <strong>${o.date}</strong> — מחלקת ${o.dept}: <strong>${o.names.join(' ו-')}</strong> שניהם בחופשה
       </div>`).join('');
   }
@@ -2091,32 +2063,32 @@ function renderManagerDashboard() {
       const cb = calcBalance(u.username, year);
       const pct = Math.min(100, cb.stats.total/Math.max(1,cb.annual)*100);
       const color = cb.projectedEndBalance<0?'var(--danger)':cb.projectedEndBalance<3?'var(--warning)':'var(--success)';
-      return `<tr style="border-bottom:1px solid var(--border);">
-        <td style="padding:10px;font-weight:600;">${u.fullName}</td>
+      return `<tr class="dz-1134">
+        <td class="dz-1041">${u.fullName}</td>
         <td style="padding:10px;text-align:center;font-size:13px;">${u.dept?.[0]||'-'}</td>
-        <td style="padding:10px;text-align:center;">${cb.annual}</td>
-        <td style="padding:10px;text-align:center;">${cb.stats.total}</td>
-        <td style="padding:10px;min-width:100px;">
+        <td class="dz-1042">${cb.annual}</td>
+        <td class="dz-1042">${cb.stats.total}</td>
+        <td class="dz-1043">
           <div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden;">
-            <div style="height:100%;width:${pct}%;background:var(--primary);border-radius:4px;transition:width 0.5s;"></div>
+            <div class="dz-1044"></div>
           </div>
         </td>
         <td style="padding:10px;text-align:center;font-weight:700;color:${color};">${cb.balance.toFixed(1)}</td>
-        <td style="padding:10px;text-align:center;font-size:12px;color:var(--text-muted);">${cb.projectedEndBalance.toFixed(1)}</td>
+        <td class="dz-1045">${cb.projectedEndBalance.toFixed(1)}</td>
       </tr>`;
     }).join('');
     teamEl.innerHTML = rows ? `
-      <div class="table-wrapper"><table style="width:100%;border-collapse:collapse;">
-        <thead><tr style="background:var(--surface2);">
-          <th style="padding:10px;text-align:right;">עובד</th>
-          <th style="padding:10px;">מחלקה</th>
-          <th style="padding:10px;">מכסה</th>
-          <th style="padding:10px;">נוצל</th>
-          <th style="padding:10px;min-width:100px;">%</th>
-          <th style="padding:10px;">יתרה</th>
-          <th style="padding:10px;font-size:11px;">צפי סוף שנה</th>
+      <div class="table-wrapper"><table class="dz-1046">
+        <thead><tr class="dz-1054">
+          <th class="dz-1047">עובד</th>
+          <th class="dz-pd-1048">מחלקה</th>
+          <th class="dz-pd-1048">מכסה</th>
+          <th class="dz-pd-1048">נוצל</th>
+          <th class="dz-1043">%</th>
+          <th class="dz-pd-1048">יתרה</th>
+          <th class="dz-1049">צפי סוף שנה</th>
         </tr></thead><tbody>${rows}</tbody>
-      </table></div>` : '<p style="color:var(--text-muted);font-size:14px;">אין עובדים</p>';
+      </table></div>` : '<p class="dz-1038">אין עובדים</p>';
   }
 
   renderAuditLog();
@@ -2145,14 +2117,14 @@ function renderAuditLog() {
   const el = document.getElementById('auditLogList');
   if(!el) return;
   const log = (getDB().auditLog||[]).slice(0,50);
-  if(!log.length){el.innerHTML='<p style="color:var(--text-muted);font-size:13px;">אין רשומות</p>';return;}
+  if(!log.length){el.innerHTML='<p class="dz-225">אין רשומות</p>';return;}
   const icons={login:'🔑',logout:'👋',vacation_add:'✈️',vacation_remove:'❌',approval_approved:'✅',approval_rejected:'❌',settings_changed:'⚙️',quota_saved:'📊',employee_added:'👤',employee_deleted:'🗑️',payroll_export:'📤',monthly_report:'📄',vacation_request:'📨'};
   el.innerHTML=log.map(e=>{
     const d=new Date(e.ts);
     return `<div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border);">
       <span>${icons[e.action]||'📝'}</span>
-      <div style="flex:1;font-size:13px;"><strong>${e.user}</strong> <span style="color:var(--text-secondary);">${e.details||e.action}</span></div>
-      <span style="font-size:11px;color:var(--text-muted);white-space:nowrap;">${d.toLocaleString('he-IL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span>
+      <div class="dz-fs-1051"><strong>${e.user}</strong> <span style="color:var(--text-secondary);">${e.details||e.action}</span></div>
+      <span class="dz-1052">${d.toLocaleString('he-IL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span>
     </div>`;
   }).join('');
 }
@@ -2426,19 +2398,19 @@ function renderAdminVacations() {
         const total = full + half * 0.5;
         const payM = m >= 11 ? (m === 11 ? 0 : 1) : m;
         rows.push(`<tr>
-          <td style="font-weight:700;">${user.fullName}</td>
+          <td class="dz-1013">${user.fullName}</td>
           <td>${deptDisplay}</td>
           <td>${monthNames[m-1]}</td>
           <td>${full}</td>
           <td>${half}</td>
           <td style="font-weight:700;color:var(--primary);">${total}</td>
-          <td style="font-size:12px;color:var(--text-muted);">${monthNames[payM]}</td>
+          <td class="dz-97">${monthNames[payM]}</td>
         </tr>`);
       }
     }
   }
   
-  tbody.innerHTML = rows.length ? rows.join('') : '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:24px;">אין נתונים להצגה</td></tr>';
+  tbody.innerHTML = rows.length ? rows.join('') : '<tr><td colspan="7" class="dz-1053">אין נתונים להצגה</td></tr>';
 }
 
 function clearAdminFilters() {
@@ -2644,9 +2616,9 @@ function showToast(msg, type = 'success') {
   toast.textContent = msg;
   container.appendChild(toast);
   setTimeout(() => {
-    toast.style.opacity = '0';
-    toast.style.transform = 'translateX(20px)';
-    toast.style.transition = 'all 0.3s';
+    toast.classList.add('dz-fade-out');
+    toast.classList.add('dz-slide-out');
+    toast// transition via CSS class
     setTimeout(() => toast.remove(), 300);
   }, 3000);
 }
@@ -2790,35 +2762,35 @@ function renderDeptManagerTable() {
   ).join('');
 
   if (!depts.length) {
-    el.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">אין מחלקות עדיין</p>';
+    el.innerHTML = '<p class="dz-225">אין מחלקות עדיין</p>';
     return;
   }
 
   el.innerHTML = `
     <table style="width:100%;border-collapse:collapse;font-size:13px;">
-      <thead><tr style="background:var(--surface2);">
-        <th style="padding:10px;text-align:right;">מחלקה</th>
-        <th style="padding:10px;text-align:right;">מנהל/ת אחראי/ת לאישור חופשות</th>
-        <th style="padding:10px;text-align:right;">עובדים</th>
-        <th style="padding:10px;"></th>
+      <thead><tr class="dz-1054">
+        <th class="dz-1047">מחלקה</th>
+        <th class="dz-1047">מנהל/ת אחראי/ת לאישור חופשות</th>
+        <th class="dz-1047">עובדים</th>
+        <th class="dz-pd-1048"></th>
       </tr></thead>
       <tbody>
         ${depts.map(dept => {
           const managerUsername = deptManagers[dept] || '';
           const managerUser = managerUsername ? db.users[managerUsername] : null;
           const empCount = allUsers.filter(u => (u.dept||[]).includes ? (u.dept||[]).includes(dept) : u.dept===dept).length;
-          return `<tr style="border-bottom:1px solid var(--border);">
-            <td style="padding:10px;font-weight:700;">🏢 ${dept}</td>
-            <td style="padding:10px;">
-              <select onchange="setDeptManager('${dept}', this.value)" class="form-input" style="font-size:13px;padding:6px 10px;width:200px;" dir="rtl">
+          return `<tr class="dz-1134">
+            <td class="dz-1055">🏢 ${dept}</td>
+            <td class="dz-pd-1048">
+              <select onchange="setDeptManager('${dept}', this.value)" class="form-input" class="dz-1056" dir="rtl">
                 <option value="">— ללא מנהל מוגדר —</option>
                 ${allUsers.map(u => `<option value="${u.username}" ${u.username===managerUsername?'selected':''}>${u.fullName}</option>`).join('')}
               </select>
-              ${!managerUsername ? '<span style="color:var(--warning);font-size:11px;margin-right:6px;">⚠️ לא מוגדר</span>' : ''}
+              ${!managerUsername ? '<span class="dz-1057">⚠️ לא מוגדר</span>' : ''}
             </td>
             <td style="padding:10px;color:var(--text-secondary);">${empCount} עובדים</td>
-            <td style="padding:10px;">
-              <button onclick="removeDepartment('${dept}')" style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:18px;" title="מחק מחלקה">×</button>
+            <td class="dz-pd-1048">
+              <button onclick="removeDepartment('${dept}')" class="dz-1058" title="מחק מחלקה">×</button>
             </td>
           </tr>`;
         }).join('')}
@@ -2948,13 +2920,13 @@ function showExcelConfirm(rows) {
   let warningHtml = '';
   if (!isJan) {
     warningHtml = `
-      <div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#92400e;">
+      <div class="dz-card-1059">
         ⚠️ <strong>שים לב!</strong> אתה טוען מכסות בחודש <strong>${currentMonthHe}</strong> ולא בינואר.<br>
         <strong>תאריך יתרה שישמר: 01/${String(currentMonthNum).padStart(2,'0')}/${year}</strong><br>
         יתרת סוף שנה תחושב: יתרה נוכחית + צבירה חודשית × ${12 - currentMonthNum} חודשים
         <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:700;">
-            <input type="checkbox" id="excelMonthConfirm" style="accent-color:var(--primary);width:16px;height:16px;">
+          <label class="dz-flex-1060">
+            <input type="checkbox" id="excelMonthConfirm" class="dz-1061">
             אני מאשר/ת שהמכסה הנוכחית מתייחסת ל-01 ${currentMonthHe} ${year}
           </label>
         </div>
@@ -2983,10 +2955,10 @@ function showExcelConfirm(rows) {
     const statusIcon = r.matched ? '✅' : '⚠️';
     const statusText = r.matched ? r.matched.fullName : 'לא נמצא';
     const statusColor = r.matched ? 'var(--success)' : 'var(--warning)';
-    return `<tr style="border-bottom:1px solid var(--border);">
-      <td style="padding:8px;font-size:13px;">${r.firstName} ${r.lastName}</td>
-      <td style="padding:8px;font-size:13px;text-align:center;">${r.annual}</td>
-      <td style="padding:8px;font-size:13px;text-align:center;">${r.currentQuota}</td>
+    return `<tr class="dz-1134">
+      <td class="dz-1062">${r.firstName} ${r.lastName}</td>
+      <td class="dz-1063">${r.annual}</td>
+      <td class="dz-1063">${r.currentQuota}</td>
       <td style="padding:8px;font-size:12px;color:${statusColor};">${statusIcon} ${statusText}</td>
     </tr>`;
   }).join('');
@@ -2995,14 +2967,14 @@ function showExcelConfirm(rows) {
   
   document.getElementById('quotaExcelConfirmBody').innerHTML = `
     ${warningHtml}
-    <p style="font-size:14px;margin-bottom:12px;">נמצאו <strong>${rows.length}</strong> שורות בקובץ, מתוכן <strong style="color:var(--success);">${matchCount}</strong> זוהו עובדים קיימים.</p>
-    <div style="overflow-x:auto;border-radius:8px;border:1px solid var(--border);">
-      <table style="width:100%;font-size:13px;border-collapse:collapse;">
-        <thead><tr style="background:var(--surface2);">
-          <th style="padding:8px;text-align:right;">שם</th>
-          <th style="padding:8px;text-align:center;">מכסה שנתית</th>
-          <th style="padding:8px;text-align:center;">מכסה נוכחית</th>
-          <th style="padding:8px;text-align:right;">זיהוי</th>
+    <p class="dz-1064">נמצאו <strong>${rows.length}</strong> שורות בקובץ, מתוכן <strong class="dz-clr-162">${matchCount}</strong> זוהו עובדים קיימים.</p>
+    <div class="dz-1065">
+      <table class="dz-1153">
+        <thead><tr class="dz-1054">
+          <th class="dz-1067">שם</th>
+          <th class="dz-1066">מכסה שנתית</th>
+          <th class="dz-1066">מכסה נוכחית</th>
+          <th class="dz-1067">זיהוי</th>
         </tr></thead>
         <tbody>${tableRows}</tbody>
       </table>
@@ -3106,41 +3078,41 @@ function renderVacationForecast() {
   const avgPerMonth = monthsUsed > 0 ? (stats.total / monthsUsed).toFixed(1) : '0';
   
   el.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
-      <div class="section-title" style="margin-bottom:0;"><span class="section-title-icon">🔮</span> תחזית חופשה</div>
-      <span style="background:${statusColor}22;color:${statusColor};padding:5px 14px;border-radius:20px;font-size:13px;font-weight:700;border:1px solid ${statusColor}44;">${statusEmoji} ${statusText}</span>
+    <div class="dz-flex-194">
+      <div class="section-title" class="dz-mg-168"><span class="section-title-icon">🔮</span> תחזית חופשה</div>
+      <span class="dz-card-1070">${statusEmoji} ${statusText}</span>
     </div>
     
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px;">
-      <div style="background:var(--primary-light);border-radius:10px;padding:12px;text-align:center;">
+      <div class="dz-card-1071">
         <div style="font-size:22px;font-weight:800;color:var(--primary);">${accrued.toFixed(2)}</div>
-        <div style="font-size:11px;color:var(--text-secondary);">צברתי עד כה</div>
+        <div class="dz-1072">צברתי עד כה</div>
       </div>
       <div style="background:${currentBalance < 0 ? 'var(--danger-light)' : 'var(--success-light)'};border-radius:10px;padding:12px;text-align:center;">
-        <div style="font-size:22px;font-weight:800;color:${currentBalance < 0 ? 'var(--danger)' : 'var(--success)'};">${currentBalance.toFixed(2)}</div>
-        <div style="font-size:11px;color:var(--text-secondary);">יתרה נוכחית</div>
+        <div class="dz-1073">${currentBalance.toFixed(2)}</div>
+        <div class="dz-1072">יתרה נוכחית</div>
       </div>
-      <div style="background:#fef3c7;border-radius:10px;padding:12px;text-align:center;">
+      <div class="dz-card-1074">
         <div style="font-size:22px;font-weight:800;color:#d97706;">${recommended}</div>
-        <div style="font-size:11px;color:var(--text-secondary);">ימים מומלצים/חודש</div>
+        <div class="dz-1072">ימים מומלצים/חודש</div>
       </div>
       <div style="background:#f3e8ff;border-radius:10px;padding:12px;text-align:center;">
-        <div style="font-size:22px;font-weight:800;color:#7c3aed;">${avgPerMonth}</div>
-        <div style="font-size:11px;color:var(--text-secondary);">ממוצע בפועל/חודש</div>
+        <div class="dz-1075">${avgPerMonth}</div>
+        <div class="dz-1072">ממוצע בפועל/חודש</div>
       </div>
     </div>
     
     <!-- Progress bar -->
-    <div style="margin-bottom:8px;">
+    <div class="dz-mg-1076">
       <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-secondary);margin-bottom:4px;">
         <span>ניצול מול צבירה (${stats.total} ניצול / ${accrued.toFixed(2)} נצבר)</span>
         <span>${Math.round(stats.total / Math.max(1, accrued) * 100)}%</span>
       </div>
-      <div style="height:10px;background:var(--border);border-radius:10px;overflow:hidden;">
+      <div class="dz-1077">
         <div style="height:100%;width:${Math.min(100, stats.total / Math.max(0.01, accrued) * 100)}%;background:${stats.total > accrued ? 'var(--danger)' : 'var(--primary)'};border-radius:10px;transition:width 0.5s;"></div>
       </div>
     </div>
-    <div style="font-size:12px;color:var(--text-muted);">
+    <div class="dz-97">
       📅 נותרו כ-${remainingWorkDays} ימי עבודה השנה &nbsp;|&nbsp; 
       🎯 יתרה צפויה בסוף שנה: <strong style="color:${projectedEndBalance < 0 ? 'var(--danger)' : 'var(--success)'};">${projectedEndBalance.toFixed(2)} ימים</strong> &nbsp;|&nbsp;
       ✈️ ניתן לנצל עוד ${Math.max(0, currentBalance).toFixed(2)} ימים כיום
@@ -3302,27 +3274,27 @@ function updateApprovalStatusBadge() {
 
   if(req.status === 'pending') {
     badge.textContent = '⏳ ממתין לאישור';
-    badge.style.background = '#fef3c7';
-    badge.style.color = '#92400e';
-    badge.style.border = '1px solid #fbbf24';
+    badge.classList.add('dz-status-warning');
+    badge// color via dz-status-warning
+    badge// border via dz-status-warning
     if(btn) btn.textContent = '🔄 שלח מחדש';
   } else if(req.status === 'approved') {
     badge.textContent = '✅ אושר';
-    badge.style.background = 'var(--success-light)';
-    badge.style.color = '#14532d';
-    badge.style.border = '1px solid var(--success)';
+    badge.classList.add('dz-status-success');
+    badge// color via dz-status-success
+    badge// border via dz-status-success
     if(btn) btn.style.display = 'none';
   } else if(req.status === 'rejected') {
     badge.textContent = `❌ נדחה${req.rejectReason ? ' — ' + req.rejectReason : ''}`;
-    badge.style.background = 'var(--danger-light)';
-    badge.style.color = '#7f1d1d';
-    badge.style.border = '1px solid #fca5a5';
+    badge.classList.add('dz-status-danger');
+    badge// color via dz-status-danger
+    badge// border via dz-status-danger
     if(btn) btn.textContent = '📨 שלח מחדש';
   } else if(req.status === 'changed') {
     badge.textContent = '⚠️ הימים השתנו — יש לשלוח מחדש';
-    badge.style.background = '#fff7ed';
-    badge.style.color = '#9a3412';
-    badge.style.border = '1px solid #fb923c';
+    badge.classList.add('dz-status-orange');
+    badge// color via dz-status-orange
+    badge// border via dz-status-orange
     if(btn) btn.textContent = '📨 שלח לאישור מחדש';
   }
 }
@@ -3425,7 +3397,7 @@ function renderPermissionsTable() {
   ).sort((a, b) => a.fullName.localeCompare(b.fullName));
 
   if (!users.length) {
-    el.innerHTML = '<div style="color:var(--text-muted);font-size:13px;">אין עובדים להצגה</div>';
+    el.innerHTML = '<div class="dz-225">אין עובדים להצגה</div>';
     return;
   }
 
@@ -3434,13 +3406,13 @@ function renderPermissionsTable() {
   el.innerHTML = `
     <table style="border-collapse:collapse;width:100%;font-size:12px;min-width:600px;">
       <thead>
-        <tr style="background:var(--surface2);">
+        <tr class="dz-1054">
           <th style="padding:10px 12px;text-align:right;font-size:13px;min-width:140px;">עובד / מנהל</th>
-          <th style="padding:10px 8px;text-align:center;font-size:11px;min-width:50px;">גישה לניהול</th>
+          <th class="dz-1078">גישה לניהול</th>
           ${grantableSections.map(s => `
             <th style="padding:10px 6px;text-align:center;font-size:10px;max-width:80px;white-space:normal;line-height:1.3;">${s.label}</th>
           `).join('')}
-          <th style="padding:10px 8px;text-align:center;">שמור</th>
+          <th class="dz-1079">שמור</th>
         </tr>
       </thead>
       <tbody>
@@ -3448,13 +3420,13 @@ function renderPermissionsTable() {
           const perms = getUserPermissions(u.username);
           const hasAny = grantableSections.some(s => perms[s.key]);
           return `
-            <tr style="border-bottom:1px solid var(--border);" id="permRow_${u.username}">
-              <td style="padding:10px 12px;">
-                <div style="font-weight:700;">${u.fullName}</div>
-                <div style="font-size:11px;color:var(--text-muted);">${u.role === 'manager' ? '👔 מנהל' : '👤 עובד'} · ${Array.isArray(u.dept) ? u.dept[0] : u.dept || ''}</div>
+            <tr class="dz-1134" id="permRow_${u.username}">
+              <td class="dz-pd-1080">
+                <div class="dz-1013">${u.fullName}</div>
+                <div class="dz-12">${u.role === 'manager' ? '👔 מנהל' : '👤 עובד'} · ${Array.isArray(u.dept) ? u.dept[0] : u.dept || ''}</div>
               </td>
-              <td style="padding:10px 8px;text-align:center;">
-                <span style="font-size:11px;padding:3px 8px;border-radius:10px;font-weight:700;background:${hasAny ? 'var(--success-light)' : 'var(--surface2)'};color:${hasAny ? 'var(--success)' : 'var(--text-muted)'};">
+              <td class="dz-1079">
+                <span class="dz-card-1081">
                   ${hasAny ? '✅ יש' : '—'}
                 </span>
               </td>
@@ -3463,14 +3435,14 @@ function renderPermissionsTable() {
                   <input type="checkbox"
                     id="perm_${u.username}_${s.key}"
                     ${perms[s.key] ? 'checked' : ''}
-                    style="width:16px;height:16px;cursor:pointer;"
+                    class="dz-1082"
                     onchange="onPermCheckChange('${u.username}')">
                 </td>
               `).join('')}
-              <td style="padding:10px 8px;text-align:center;">
+              <td class="dz-1079">
                 <button onclick="savePermRow('${u.username}')"
                   class="btn btn-primary"
-                  style="padding:6px 14px;font-size:12px;border-radius:8px;">
+                  class="dz-card-1083">
                   💾
                 </button>
               </td>
@@ -3521,7 +3493,7 @@ function populateQuickPermUser() {
 
 
 function onPermCheckChange(username) {
-  if (row) row.style.background = 'var(--warning-light)';
+  if (row) row.classList.add('dz-status-info');
 }
 
 function savePermRow(username) {
@@ -3534,8 +3506,8 @@ function savePermRow(username) {
   saveUserPermissions(username, perms);
 
   const row = document.getElementById('permRow_' + username);
-  if (row) row.style.background = 'var(--success-light)';
-  setTimeout(() => { if (row) row.style.background = ''; }, 1500);
+  if (row) row.classList.add('dz-status-success');
+  setTimeout(() => { if (row) row.classList.remove('dz-status-warning','dz-status-success','dz-status-danger','dz-status-orange','dz-status-info','dz-toggle-on','dz-toggle-off'); }, 1500);
 
   const db = getDB();
   const name = db.users[username]?.fullName || username;
@@ -3609,7 +3581,7 @@ function populateCeoDashboard() {
   const dlEl = document.getElementById('ceoDateLine');
   if (dlEl) dlEl.textContent = 'יום ' + days[today.getDay()] + ' · ' + today.getDate() + ' ' + months[today.getMonth()] + ' ' + today.getFullYear();
   const wtEl = document.getElementById('ceoWelcomeText');
-  if (wtEl) wtEl.innerHTML = '👋 ' + greeting + ', <span style="background:linear-gradient(135deg,#fff,#80ccff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">' + currentUser.fullName + '</span>';
+  if (wtEl) wtEl.innerHTML = '👋 ' + greeting + ', <span class="dz-grad-1084">' + currentUser.fullName + '</span>';
 
   // Stats row
   const allUsers = Object.values(db.users).filter(u => isUserActive(u) && u.role !== 'admin');
@@ -3636,600 +3608,9 @@ function populateCeoDashboard() {
   if (legG) legG.textContent = greeting + ', ' + currentUser.fullName;
 
   // Init AI chat
-  renderCeoAiMessages();
+  if (typeof initCeoAiChat === 'function') initCeoAiChat();
 }
 
-
-function initCeoAiChat() {
-  renderCeoAiMessages();
-}
-
-function renderCeoAiMessages() {
-  const container = document.getElementById('ceoAiMessages');
-  if (!container) return;
-  const chips = document.getElementById('ceoAiChips');
-
-  if (ceoAiHistory.length === 0) {
-    container.innerHTML = `
-      <div style="text-align:center;padding:14px 8px;opacity:0.65;">
-        <div style="font-size:11px;color:rgba(180,210,255,0.7);">בחר שאלה מהירה למעלה או הקלד שאלה חופשית</div>
-      </div>`;
-    if (chips) chips.style.display = 'flex';
-    return;
-  }
-  if (chips) chips.style.display = 'none';
-  container.innerHTML = ceoAiHistory.map(msg =>
-    '<div style="display:flex;flex-direction:column;align-items:' + (msg.role==='user'?'flex-end':'flex-start') + ';margin-bottom:8px;">' +
-    '<div style="max-width:92%;background:' + (msg.role==='user'?'rgba(0,80,255,0.65)':'rgba(255,255,255,0.07)') + ';color:white;border-radius:' + (msg.role==='user'?'12px 12px 3px 12px':'12px 12px 12px 3px') + ';padding:9px 13px;font-size:12px;line-height:1.6;white-space:pre-wrap;border:1px solid ' + (msg.role==='user'?'rgba(0,150,255,0.3)':'rgba(255,255,255,0.08)') + ';">' +
-    msg.content + '</div></div>'
-  ).join('');
-  container.scrollTop = container.scrollHeight;
-}
-
-async function sendCeoAiQuery(query) {
-  const input = document.getElementById('ceoAiInput');
-  const q = query || (input ? input.value.trim() : '');
-  if (!q) return;
-  if (input) input.value = '';
-
-  ceoAiHistory.push({ role: 'user', content: q });
-  renderCeoAiMessages();
-
-  const container = document.getElementById('ceoAiMessages');
-  if (container) {
-    container.innerHTML += `<div id="ceoTyping" style="display:flex;align-items:flex-start;margin-bottom:10px;">
-      <div style="background:rgba(255,255,255,0.07);border-radius:14px 14px 14px 4px;padding:10px 14px;font-size:13px;border:1px solid rgba(255,255,255,0.08);">
-        <span style="display:inline-flex;gap:4px;">
-          <span style="width:6px;height:6px;background:rgba(100,180,255,0.7);border-radius:50%;animation:typingDot 1.2s infinite 0s;display:inline-block;"></span>
-          <span style="width:6px;height:6px;background:rgba(100,180,255,0.7);border-radius:50%;animation:typingDot 1.2s infinite 0.2s;display:inline-block;"></span>
-          <span style="width:6px;height:6px;background:rgba(100,180,255,0.7);border-radius:50%;animation:typingDot 1.2s infinite 0.4s;display:inline-block;"></span>
-        </span>
-      </div>
-    </div>`;
-    container.scrollTop = container.scrollHeight;
-  }
-
-  const apiKey = localStorage.getItem('dazura_gemini_key');
-
-  let finalAnswer = '';
-  if (apiKey) {
-    try {
-      finalAnswer = await askGeminiWithContext(q, apiKey);
-    } catch(e) {
-      finalAnswer = '⚠️ שגיאת Gemini: ' + e.message + '\n\nמשיב מהמנוע המקומי:\n' + buildCeoAiAnswer(q);
-    }
-  } else {
-    finalAnswer = buildCeoAiAnswer(q);
-  }
-
-  const typingEl = document.getElementById('ceoTyping');
-  if (typingEl) typingEl.remove();
-  ceoAiHistory.push({ role: 'assistant', content: finalAnswer });
-  renderCeoAiMessages();
-}
-
-// ═══════════════════════════════════════════════════════════
-// GEMINI API — צינור מבודד עם סטריליזציה (ללא PII)
-// ═══════════════════════════════════════════════════════════
-function sanitizeForGemini(text) {
-  if (!text) return text;
-  // Replace Hebrew full names (2 words) with generic label
-  return text.replace(/[א-ת]{2,} [א-ת]{2,}/g, 'עובד')
-             .replace(/[A-Za-z]{3,} [A-Za-z]{3,}/g, 'Employee');
-}
-
-async function askGeminiWithContext(userQ, apiKey) {
-  const db          = getDB();
-  const s           = getSettings();
-  const companyName = (s && s.companyName) ? s.companyName : 'החברה';
-  const today       = new Date().toISOString().split('T')[0];
-  const cu          = currentUser;
-  if (!cu) throw new Error('no user');
-
-  const isAdmin   = isCeoUser() || cu.role === 'admin';
-  const isMgr     = isAdmin || cu.role === 'manager';
-  const isAcct    = cu.role === 'accountant';
-  const userDept  = Array.isArray(cu.dept) ? cu.dept[0] : (cu.dept || '');
-  const roleLabel = isAdmin ? 'מנכ"ל/אדמין' : cu.role === 'manager' ? 'מנהל מחלקה' : isAcct ? 'חשבת' : 'עובד';
-
-  const allUsers  = Object.values(db.users || {}).filter(u => isUserActive(u) && u.role !== 'admin');
-  const vacs      = db.vacations || {};
-  const now       = new Date();
-
-  // ── Build sanitized employee data ──────────────────────
-  function sanitizeName(fullName) {
-    // Keep first name only — remove last name (PII)
-    return (fullName || '').split(' ')[0];
-  }
-
-  // Filter users by permission
-  const visibleUsers = isAdmin ? allUsers :
-    isMgr ? allUsers.filter(u => {
-      const d = Array.isArray(u.dept) ? u.dept[0] : u.dept;
-      return d === userDept;
-    }) :
-    allUsers.filter(u => u.username === cu.username);
-
-  // Today status
-  const todayRows = visibleUsers.map(u => {
-    const t    = (vacs[u.username] || {})[today];
-    const stat = t === 'full' ? 'חופשה' : t === 'half' ? 'חופשה חצי-יום' : t === 'wfh' ? 'WFH' : t === 'sick' ? 'מחלה' : 'נוכח';
-    const dept = Array.isArray(u.dept) ? u.dept[0] : (u.dept || '');
-    return sanitizeName(u.fullName) + ' [' + dept + ']: ' + stat;
-  }).join('\n');
-
-  // Quotas (for accountant and managers)
-  const quotaRows = (isMgr || isAcct) ? visibleUsers.map(u => {
-    const q    = (u.quotas || {})[now.getFullYear()] || {};
-    const used = Object.values(vacs[u.username] || {}).filter(t => t === 'full' || t === 'half').length;
-    return sanitizeName(u.fullName) + ': מכסה=' + (q.annual||0) + ', ניצל=' + used + ', יתרה=' + ((q.annual||0) - used);
-  }).join('\n') : '';
-
-  // Pending approvals
-  const pending = (db.approvalRequests || []).filter(r => r.status === 'pending');
-  const pendingRows = isMgr ? pending.map(r =>
-    sanitizeName(r.employeeName || r.username) + ': ' + r.startDate + ' עד ' + r.endDate + ' (הוגש: ' + (r.submittedAt||'').slice(0,10) + ')'
-  ).join('\n') : '';
-
-  // Burnout — 90+ days no vacation
-  const burnoutRows = isMgr ? visibleUsers.filter(u => {
-    const userVacs = vacs[u.username] || {};
-    const last = Object.keys(userVacs).filter(d => userVacs[d]==='full'||userVacs[d]==='half').sort().pop();
-    if (!last) return true;
-    return (now - new Date(last)) / 86400000 > 90;
-  }).map(u => sanitizeName(u.fullName) + ' [' + (Array.isArray(u.dept)?u.dept[0]:u.dept) + ']').join(', ') : '';
-
-  // Audit log (admin only)
-  const auditRows = isAdmin ? (db.auditLog || []).slice(-20).map(e =>
-    (e.ts||'').slice(0,16) + ' | ' + (e.action||'') + ' | ' + (e.details||'')
-  ).join('\n') : '';
-
-  // Personal data for regular employee
-  const myVacs  = vacs[cu.username] || {};
-  const myUsed  = Object.values(myVacs).filter(t=>t==='full'||t==='half').length;
-  const myQ     = ((cu.quotas||{})[now.getFullYear()]||{}).annual || 0;
-  const myReqs  = (db.approvalRequests||[]).filter(r=>r.username===cu.username);
-
-  // ── Build system prompt ─────────────────────────────────
-  const lines = [
-    '## זהות ותפקיד',
-    'אתה מנוע ה-AI הרשמי של מערכת Dazura (גרסה 3.0). תפקידך לסייע בניהול וניתוח נתוני חופשות, מחלות ו-WFH. עבוד בעברית מקצועית בלבד.',
-    '',
-    '## פרטי משתמש מחובר',
-    'שם: ' + sanitizeName(cu.fullName) + ' | תפקיד: ' + roleLabel + ' | מחלקה: ' + userDept + ' | תאריך: ' + today + ' | חברה: ' + companyName,
-    '',
-    '## הרשאות',
-    isAdmin ? 'גישה מלאה לכל המידע. חובה להתריע על עומס מחלקתי אם >30% חסרים.' :
-    isMgr   ? 'גישה למחלקה שלך בלבד (' + userDept + '). עובד ממחלקה אחרת — השב: "אין לי הרשאה להציג מידע מחוץ למחלקת ' + userDept + '".' :
-    isAcct  ? 'גישה ליתרות וצבירה. WFH — רק אם נשאל במפורש.' :
-    'גישה למידע אישי בלבד. מותר לשאול מי חסר מהצוות (לצרכי עבודה), אסור לחשוף סיבת חיסור.',
-    '',
-    '## נתוני נוכחות היום',
-    todayRows || 'אין נתונים',
-  ];
-
-  if (isMgr || isAcct) {
-    lines.push('', '## יתרות חופשה', quotaRows || 'אין נתונים');
-  }
-  if (isMgr && pendingRows) {
-    lines.push('', '## בקשות ממתינות לאישור', pendingRows);
-  }
-  if (isMgr && burnoutRows) {
-    lines.push('', '## עובדים בסיכון שחיקה (90+ יום ללא חופשה)', burnoutRows);
-  }
-  if (isAdmin && auditRows) {
-    lines.push('', '## יומן ביקורת (20 פעולות אחרונות)', auditRows);
-  }
-  if (!isMgr && !isAcct) {
-    lines.push('', '## הנתונים שלך',
-      'ימי חופשה שנוצלו: ' + myUsed + ' | מכסה שנתית: ' + myQ + ' | יתרה: ' + (myQ - myUsed),
-      'בקשות שלי: ' + myReqs.length + ' (מאושרות: ' + myReqs.filter(r=>r.status==='approved').length + ', ממתינות: ' + myReqs.filter(r=>r.status==='pending').length + ')'
-    );
-  }
-
-  lines.push(
-    '',
-    '## מגבלות חובה',
-    '- אל תמציא נתונים. אם נתון חסר — אמור "לא נמצא דיווח".',
-    '- סיבת מחלה/חופשה של אחר — "לא יכול לענות על כך".',
-    '- אל תענה על שאלות שאינן קשורות למערכת (מזג אוויר, קוד, ויקיפדיה).',
-    '- אל תחשוף סיסמאות, מיילים, או פרטים מזהים.',
-    '- תמיד ענה בעברית ברורה ומקצועית.'
-  );
-
-  const systemPrompt = lines.join('\n');
-
-  const resp = await fetch(
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + apiKey,
-    {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        system_instruction: {parts: [{text: systemPrompt}]},
-        contents: [{role: 'user', parts: [{text: userQ}]}],
-        generationConfig: {maxOutputTokens: 700, temperature: 0.4}
-      })
-    }
-  );
-  if (!resp.ok) {
-    const errText = await resp.text().catch(()=>'');
-    throw new Error('Gemini ' + resp.status + ': ' + errText.slice(0,120));
-  }
-  const data = await resp.json();
-  const text = data && data.candidates && data.candidates[0] &&
-               data.candidates[0].content && data.candidates[0].content.parts &&
-               data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
-  if (!text) throw new Error('תשובה ריקה מ-Gemini');
-  return text.trim();
-}
-
-
-
-function buildCeoAiAnswer(q) {
-  if (!q || !q.trim()) return '❓ לא הבנתי את השאלה.';
-  try {
-    const db        = getDB();
-    const today     = new Date();
-    const todayStr  = today.toISOString().split('T')[0];
-    const thisYear  = today.getFullYear();
-    const allUsers  = Object.values(db.users || {}).filter(u => isUserActive(u) && u.role !== 'admin');
-    const vacs      = db.vacations || {};
-    const approvals = db.approvalRequests || [];
-    const months    = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
-    const ql        = (q + '').toLowerCase();
-
-    // Helpers
-    function fmt(dt) { const d = new Date(dt+'T00:00:00'); return d.getDate()+'/'+(d.getMonth()+1); }
-    function getYear(s) { const m = s.match(/20\d\d/); return m ? parseInt(m[0]) : thisYear; }
-    function getDept(u) { return Array.isArray(u.dept) ? u.dept[0] : (u.dept || ''); }
-    function vacDays(entries) {
-      return entries.reduce((s,[,t]) => s + (t==='full' ? 1 : t==='half' ? 0.5 : 0), 0);
-    }
-
-    // Role
-    const isMgr = currentUser && (isCeoUser() || currentUser.role === 'admin' || currentUser.role === 'manager');
-
-    // ══════════════════════════════════════════════════════
-    // ████  EMPLOYEE ZONE  ████
-    // ══════════════════════════════════════════════════════
-
-    // ── 1. PERSONAL VACATION BALANCE & USAGE ──────────────
-    // triggers: יתרה / נותרו / חופשה שלי / כמה ימים / צברתי / ניצלתי / קצב / מומלץ
-    const isPersonalVac = ql.includes('יתרה') || ql.includes('נותרו') || ql.includes('צברתי') ||
-      ql.includes('ניצלתי') || ql.includes('קצב') || ql.includes('מומלץ') ||
-      ((ql.includes('כמה') || ql.includes('כמה ימים')) && (ql.includes('חופשה') || ql.includes('ימים'))) ||
-      (ql.includes('חופשה') && (ql.includes('שלי') || ql.includes('אני') || ql.includes('לקחתי')));
-
-    if (isPersonalVac) {
-      if (!currentUser) return 'לא מחובר.';
-      const year   = getYear(ql);
-      const myV    = vacs[currentUser.username] || {};
-      const yEntries = Object.entries(myV).filter(([dt]) => new Date(dt+'T00:00:00').getFullYear() === year);
-      const used   = vacDays(yEntries);
-      const quota  = currentUser.vacationQuota || 14;
-      const remaining = Math.max(0, quota - used);
-      const monthsLeft = 12 - today.getMonth(); // months left in year
-      const ideal  = monthsLeft > 0 ? (remaining / monthsLeft).toFixed(1) : 0;
-      const upcoming = yEntries.filter(([dt,t]) => dt > todayStr && (t==='full'||t==='half')).sort(([a],[b])=>a<b?-1:1);
-      const wfhCount = yEntries.filter(([,t])=>t==='wfh').length;
-
-      let ans = `🏖️ יתרת חופשה שלך — ${year}:\n`;
-      ans += `• מכסה שנתית: ${quota} ימים\n`;
-      ans += `• נוצלו: ${used} ימים\n`;
-      ans += `• נותרו: ${remaining} ימים\n`;
-      ans += `• ימי WFH השנה: ${wfhCount}\n`;
-
-      if (year === thisYear) {
-        ans += `\n📊 תחזית ניצול:\n`;
-        const totalByYearEnd = used + upcoming.length; // rough estimate
-        if (remaining > 0 && monthsLeft > 0) {
-          ans += `• מומלץ: ${ideal} ימים/חודש לסיום מאוזן\n`;
-          if (remaining > monthsLeft * 2) ans += `⚠️ יתרה גבוהה — כדאי לתכנן חופשות מוקדם\n`;
-          else if (remaining <= monthsLeft) ans += `✅ קצב ניצול תקין\n`;
-        }
-      }
-
-      if (upcoming.length) ans += `\n• חופשות מתוכננות: ${upcoming.slice(0,6).map(([dt])=>fmt(dt)).join(', ')}`;
-      else ans += `\n• אין חופשות מתוכננות קדימה`;
-      return ans;
-    }
-
-    // ── 2. REQUEST STATUS ─────────────────────────────────
-    // triggers: בקשה / בקשת חופשה / מצב הבקשה / ממתינה / אושרה / נדחתה
-    if (ql.includes('בקשה') || ql.includes('ממתינה') || ql.includes('אושרה') || ql.includes('נדחתה') || ql.includes('מצב הבקשה') || ql.includes('שלחתי למנהל')) {
-      if (!currentUser) return 'לא מחובר.';
-      const myRequests = approvals
-        .filter(r => r.username === currentUser.username)
-        .sort((a,b) => (b.submittedAt||'') > (a.submittedAt||'') ? 1 : -1);
-      if (!myRequests.length) return '📋 לא נמצאו בקשות חופשה שמורות במערכת.';
-      const last = myRequests[0];
-      const statusLabel = last.status === 'pending' ? '⏳ ממתינה לאישור' : last.status === 'approved' ? '✅ אושרה' : '❌ נדחתה';
-      let ans = `📋 בקשת החופשה האחרונה שלך:\n• תאריך הגשה: ${last.submittedAt ? last.submittedAt.slice(0,10) : 'לא ידוע'}\n• תאריכים: ${last.from||'?'} עד ${last.to||'?'}\n• סטטוס: ${statusLabel}`;
-      if (last.note) ans += `\n• הערה: ${last.note}`;
-      if (myRequests.length > 1) ans += `\n\n📌 סה"כ ${myRequests.length} בקשות בהיסטוריה`;
-      return ans;
-    }
-
-    // ── 3. MY SICK DAYS ────────────────────────────────────
-    if ((ql.includes('מחלה') || ql.includes('חולה') || ql.includes('sick')) &&
-        (ql.includes('שלי') || ql.includes('אני') || ql.includes('לקחתי') || ql.includes('כמה'))) {
-      if (!currentUser) return 'לא מחובר.';
-      const year = getYear(ql);
-      const myV  = vacs[currentUser.username] || {};
-      const sickV = Object.entries(myV).filter(([dt,t]) => t==='sick' && new Date(dt+'T00:00:00').getFullYear()===year).length;
-      const sickDB = Object.values(db.sick||{}).filter(s => s.username===currentUser.username && s.date && s.date.startsWith(year+'')).length;
-      return `🤒 ימי מחלה שלך — ${year}:\n• ימי מחלה מדווחים: ${Math.max(sickV, sickDB)}`;
-    }
-
-    // ── 4. MY WFH ──────────────────────────────────────────
-    if ((ql.includes('wfh') || ql.includes('מהבית') || ql.includes('עבדתי מהבית')) &&
-        (ql.includes('שלי') || ql.includes('אני') || ql.includes('כמה'))) {
-      if (!currentUser) return 'לא מחובר.';
-      const year = getYear(ql);
-      const myV  = vacs[currentUser.username] || {};
-      const count = Object.entries(myV).filter(([dt,t]) => t==='wfh' && new Date(dt+'T00:00:00').getFullYear()===year).length;
-      return `🏠 ימי WFH שלך — ${year}: ${count} ימים`;
-    }
-
-    // ── 5. MY HOURS / TIMECLOCK ────────────────────────────
-    if (ql.includes('שעות') && (ql.includes('שלי') || ql.includes('אני') || ql.includes('דיווחתי'))) {
-      if (!currentUser) return 'לא מחובר.';
-      const year = getYear(ql);
-      const tc   = (db.timeclock || {})[currentUser.username] || {};
-      const entries = Object.entries(tc).filter(([dt]) => dt.startsWith(year+''));
-      if (!entries.length) return `⏱️ אין דיווחי שעות בשנת ${year}.`;
-      let totalMins = 0;
-      entries.forEach(([,v]) => {
-        if (v.in && v.out) {
-          const [ih,im] = v.in.split(':').map(Number);
-          const [oh,om] = v.out.split(':').map(Number);
-          totalMins += (oh*60+om) - (ih*60+im);
-        }
-      });
-      return `⏱️ דיווחי שעות — ${year}:\n• ימים: ${entries.length}\n• סה"כ: ${Math.floor(totalMins/60)}:${String(totalMins%60).padStart(2,'0')} שעות`;
-    }
-
-    // ── 6. MY STATUS TODAY ────────────────────────────────
-    if (ql.includes('הסטטוס שלי') || ql.includes('מצבי') || ql.includes('מה אני') || (ql.includes('היום') && (ql.includes('שלי')||ql.includes('אני')))) {
-      if (!currentUser) return 'לא מחובר.';
-      const myV  = vacs[currentUser.username] || {};
-      const ts   = myV[todayStr];
-      const lbl  = ts==='full'?'🏖️ בחופשה':ts==='half'?'🌓 חצי יום':ts==='wfh'?'🏠 WFH':ts==='sick'?'🤒 מחלה':'🏢 במשרד';
-      return `👤 הסטטוס שלך היום: ${lbl}`;
-    }
-
-    // ── 7. JEWISH HOLIDAYS ────────────────────────────────
-    if (ql.includes('חג') || ql.includes('חגים') || ql.includes('פסח') || ql.includes('ראש השנה') ||
-        ql.includes('סוכות') || ql.includes('שבועות') || ql.includes('יום כיפור') || ql.includes('עצמאות') ||
-        ql.includes('ערב') || ql.includes('יום קצר') || ql.includes('חגי')) {
-      const year = getYear(ql);
-      const holidays2025 = [
-        { name:'ראש השנה', date:'02/10/2025', short:'01/10/2025', note:'יום קצר ב-01/10' },
-        { name:'יום כיפור', date:'12/10/2025', short:'11/10/2025', note:'יום קצר ב-11/10' },
-        { name:'סוכות', date:'16/10/2025', short:'15/10/2025', note:'יום קצר ב-15/10' },
-        { name:'שמחת תורה', date:'23/10/2025', short:'22/10/2025', note:'יום קצר ב-22/10' },
-        { name:'חנוכה', date:'14/12/2025', note:'ללא יום קצר' },
-        { name:'פורים', date:'13/03/2025', note:'ללא יום קצר' },
-        { name:'ערב פסח', date:'12/04/2025', short:'12/04/2025', note:'יום קצר' },
-        { name:'פסח (א\')', date:'13/04/2025', note:'חג' },
-        { name:'שביעי של פסח', date:'19/04/2025', note:'חג' },
-        { name:'יום העצמאות', date:'01/05/2025', short:'30/04/2025', note:'יום קצר ב-30/04' },
-        { name:'שבועות', date:'02/06/2025', short:'01/06/2025', note:'יום קצר ב-01/06' },
-      ];
-      const holidays2026 = [
-        { name:'ראש השנה', date:'11/09/2026', short:'10/09/2026', note:'יום קצר ב-10/09' },
-        { name:'יום כיפור', date:'20/09/2026', short:'19/09/2026', note:'יום קצר ב-19/09' },
-        { name:'סוכות', date:'25/09/2026', short:'24/09/2026', note:'יום קצר ב-24/09' },
-        { name:'שמחת תורה', date:'02/10/2026', short:'01/10/2026', note:'יום קצר ב-01/10' },
-        { name:'חנוכה', date:'05/12/2026', note:'ללא יום קצר' },
-        { name:'פורים', date:'03/03/2026', note:'ללא יום קצר' },
-        { name:'ערב פסח', date:'01/04/2026', short:'01/04/2026', note:'יום קצר' },
-        { name:'פסח (א\')', date:'02/04/2026', note:'חג' },
-        { name:'שביעי של פסח', date:'08/04/2026', note:'חג' },
-        { name:'יום העצמאות', date:'20/04/2026', short:'19/04/2026', note:'יום קצר ב-19/04' },
-        { name:'שבועות', date:'22/05/2026', short:'21/05/2026', note:'יום קצר ב-21/05' },
-      ];
-      const list = year === 2026 ? holidays2026 : holidays2025;
-      // Filter to relevant holiday if specific one mentioned
-      const specific = list.find(h => ql.includes(h.name.toLowerCase().split(' ')[0]));
-      if (specific) {
-        return `📅 ${specific.name} ${year}:\n• תאריך: ${specific.date}\n• ${specific.note}`;
-      }
-      return `📅 חגי ${year}:\n` + list.map(h => `• ${h.name}: ${h.date}${h.short?' ('+h.note+')':''}`).join('\n');
-    }
-
-    // ── 8. DEPT STATUS — names OK (team coordination) ─────
-    // "מי מהמחלקה שלי / הצוות / בחופשה היום" — names exposed for work coordination
-    const isDeptQuery = (ql.includes('מחלקה') || ql.includes('הצוות') || ql.includes('עמיתים') || ql.includes('הצוות שלי')) &&
-      !ql.includes('כל ה') && !ql.includes('חברה') && !ql.includes('כלל');
-    if (isDeptQuery || (ql.includes('מי') && !isMgr && (ql.includes('חופשה')||ql.includes('wfh')||ql.includes('מהבית')||ql.includes('מחלה')||ql.includes('משרד')))) {
-      if (!currentUser) return 'לא מחובר.';
-      const myDept = getDept(currentUser);
-      const peers  = allUsers.filter(u => getDept(u) === myDept && u.username !== currentUser.username);
-      if (!peers.length) return `👥 אין עמיתים נוספים במחלקת ${myDept}.`;
-      const onVac  = peers.filter(u=>{const t=(vacs[u.username]||{})[todayStr];return t==='full'||t==='half';});
-      const onWfh  = peers.filter(u=>(vacs[u.username]||{})[todayStr]==='wfh');
-      const onSick = peers.filter(u=>(vacs[u.username]||{})[todayStr]==='sick');
-      const present= peers.filter(u=>!['full','half','wfh','sick'].includes((vacs[u.username]||{})[todayStr]));
-
-      if (ql.includes('wfh')||ql.includes('מהבית')) return onWfh.length?`🏠 WFH היום — ${myDept}:\n${onWfh.map(u=>u.fullName).join('\n')}`:`🏠 אף אחד מ${myDept} לא עובד מהבית היום.`;
-      if (ql.includes('חולה')||ql.includes('מחלה')) return onSick.length?`🤒 מחלה היום — ${myDept}:\n${onSick.map(u=>u.fullName).join('\n')}`:`🤒 אין דיווחי מחלה מ${myDept} היום.`;
-      if (ql.includes('חופשה')) return onVac.length?`🏖️ בחופשה היום — ${myDept}:\n${onVac.map(u=>u.fullName).join('\n')}`:`✅ אף אחד מ${myDept} לא בחופשה היום.`;
-      // Full summary with names
-      return `👥 סטטוס צוות ${myDept} — היום:\n` +
-        (onVac.length  ? `🏖️ בחופשה: ${onVac.map(u=>u.fullName).join(', ')}\n` : '') +
-        (onWfh.length  ? `🏠 WFH: ${onWfh.map(u=>u.fullName).join(', ')}\n` : '') +
-        (onSick.length ? `🤒 מחלה: ${onSick.map(u=>u.fullName).join(', ')}\n` : '') +
-        (present.length? `✅ במשרד: ${present.map(u=>u.fullName).join(', ')}` : '');
-    }
-
-    // ── 9. CONFLICT CHECK (own dept) ──────────────────────
-    if (ql.includes('מתנגש') || ql.includes('חופף') || ql.includes('אותה מחלקה') || ql.includes('ביחד בחופשה')) {
-      if (!currentUser) return 'לא מחובר.';
-      const myDept    = getDept(currentUser);
-      const myV       = vacs[currentUser.username] || {};
-      const myUpcoming= Object.entries(myV).filter(([dt,t])=>dt>=todayStr&&(t==='full'||t==='half')).map(([dt])=>dt);
-      if (!myUpcoming.length) return '📅 אין לך ימי חופשה מתוכננים קדימה — אין מה לבדוק.';
-      const peers = allUsers.filter(u => getDept(u)===myDept && u.username!==currentUser.username);
-      const conflicts = {};
-      myUpcoming.forEach(dt => {
-        peers.forEach(u => {
-          const t=(vacs[u.username]||{})[dt];
-          if(t==='full'||t==='half'){if(!conflicts[dt])conflicts[dt]=[];conflicts[dt].push(u.fullName);}
-        });
-      });
-      const dates=Object.keys(conflicts).sort();
-      if(!dates.length) return `✅ אין התנגשויות!\nאף אחד ממחלקת ${myDept} לא בחופשה באותם ימים שלך.`;
-      return `⚠️ התנגשויות במחלקת ${myDept}:\n`+dates.map(dt=>`• ${fmt(dt)} — ${conflicts[dt].join(', ')}`).join('\n');
-    }
-
-    // ══════════════════════════════════════════════════════
-    // ████  MANAGER / CEO ZONE  ████
-    // ══════════════════════════════════════════════════════
-    if (!isMgr) {
-      return `🔒 מידע זה אינו זמין לעובד רגיל.\n\nאני יכול לעזור לך ב:\n• יתרת החופשה שלי\n• כמה ימים לקחתי השנה\n• מצב בקשת החופשה שלי\n• מי מהצוות בחופשה היום\n• האם החופשה שלי מתנגשת\n• לוח חגים`;
-    }
-
-    // ── M1. REAL-TIME STATS ───────────────────────────────
-    const isStats = ql.includes('כמה עובדים') || ql.includes('סטטיסטיקה') || ql.includes('סטטיסטיק') || ql.includes('בזמן אמת') || ql.includes('כלל החברה') || ql.includes('כל החברה') || (ql.includes('היום') && !ql.includes('שלי') && !ql.includes('אני'));
-    const isWho   = ql.includes('מי') || ql.includes('רשימה');
-    const wantWfh = ql.includes('מהבית')||ql.includes('wfh');
-    const wantSick= ql.includes('חולה')||ql.includes('מחלה');
-    const wantVac = ql.includes('חופשה')||ql.includes('חופש');
-
-    if (isStats || isWho) {
-      const onVac=[], onWfh=[], onSick=[], present=[];
-      allUsers.forEach(u => {
-        const t=(vacs[u.username]||{})[todayStr];
-        const dept=getDept(u);
-        const lbl=`${u.fullName} (${dept})`;
-        if(t==='full'||t==='half') onVac.push(lbl);
-        else if(t==='wfh') onWfh.push(lbl);
-        else if(t==='sick') onSick.push(lbl);
-        else present.push(u.fullName);
-      });
-      if(wantWfh&&!wantVac&&!wantSick) return onWfh.length?`🏠 WFH היום (${onWfh.length}):\n${onWfh.join('\n')}`:'🏠 אין WFH היום.';
-      if(wantSick&&!wantVac&&!wantWfh) return onSick.length?`🤒 מחלה היום (${onSick.length}):\n${onSick.join('\n')}`:'🤒 אין מחלה היום.';
-      if(wantVac&&!wantWfh&&!wantSick) return onVac.length?`🏖️ חופשה היום (${onVac.length}):\n${onVac.join('\n')}`:'✅ אין חופשות היום.';
-      return `📊 כל החברה — היום:\n🏖️ חופשה: ${onVac.length}${onVac.length?'\n   '+onVac.join('\n   '):''}\n🏠 WFH: ${onWfh.length}${onWfh.length?'\n   '+onWfh.join('\n   '):''}\n🤒 מחלה: ${onSick.length}${onSick.length?'\n   '+onSick.join('\n   '):''}\n✅ במשרד: ${present.length}`;
-    }
-
-    // ── M2. BURNOUT / לא לקח חופשה ───────────────────────
-    if (ql.includes('שחיקה')||ql.includes('burnout')||ql.includes('לא לקח')||ql.includes('סכנת שחיקה')||ql.includes('90 יום')) {
-      const ninetyAgo=new Date(today); ninetyAgo.setDate(ninetyAgo.getDate()-90);
-      const at=allUsers.filter(u=>!Object.entries(vacs[u.username]||{}).some(([dt,t])=>new Date(dt+'T00:00:00')>=ninetyAgo&&(t==='full'||t==='half')));
-      return at.length
-        ?`🚨 ${at.length} עובדים ללא חופשה ב-90 יום האחרונים:\n${at.map(u=>`• ${u.fullName} (${getDept(u)})`).join('\n')}\n\n💡 מומלץ: שיחה אישית ותזמון חופשה`
-        :'✅ כל העובדים לקחו חופשה ב-90 הימים האחרונים.';
-    }
-
-    // ── M3. FINANCIAL / COST ──────────────────────────────
-    if (ql.includes('עלות')||ql.includes('עלויות')||ql.includes('חיסכון')||ql.includes('שכר')||ql.includes('כסף')||ql.includes('תקציב')||ql.includes('פיננס')||ql.includes('צבורים')) {
-      const year=getYear(ql);
-      let fromM=1,toM=12,label='שנת '+year;
-      if(!ql.includes('שנ')&&!ql.includes('שנתי')&&!ql.includes('שנה')) {
-        if(ql.includes('רבעון')){const qn=Math.floor(today.getMonth()/3);fromM=qn*3+1;toM=Math.min(qn*3+3,12);label=`רבעון ${qn+1} ${year}`;}
-        else{fromM=today.getMonth()+1;toM=fromM;label=`${months[today.getMonth()]} ${year}`;}
-      }
-      let vacD=0,vacC=0,wfhD=0,wfhS=0,accumulated=0;
-      allUsers.forEach(u=>{
-        const sal=u.dailySalary||850;
-        const quota=u.vacationQuota||14;
-        const allYearV=Object.entries(vacs[u.username]||{}).filter(([dt])=>new Date(dt+'T00:00:00').getFullYear()===year);
-        const usedYear=vacDays(allYearV);
-        accumulated+=Math.max(0,quota-usedYear)*sal;
-        Object.entries(vacs[u.username]||{}).forEach(([dt,t])=>{
-          const d=new Date(dt+'T00:00:00');
-          if(d.getFullYear()!==year) return;
-          const m=d.getMonth()+1;
-          if(m<fromM||m>toM) return;
-          if(t==='full'){vacD++;vacC+=sal;}else if(t==='half'){vacD+=0.5;vacC+=sal*0.5;}else if(t==='wfh'){wfhD++;wfhS+=sal*0.3;}
-        });
-      });
-      let ans=`💰 ניתוח כספי — ${label}:\n\n🏖️ ימי חופשה: ${vacD}\n   עלות ישירה: ₪${Math.round(vacC).toLocaleString()}\n\n🏠 ימי WFH: ${wfhD}\n   חיסכון: ₪${Math.round(wfhS).toLocaleString()}\n\n📊 מאזן: ${wfhS>=vacC?'✅':'⚠️'} ₪${Math.abs(Math.round(wfhS-vacC)).toLocaleString()} ${wfhS>=vacC?'לטובת החברה':'לחובת החברה'}`;
-      if(ql.includes('צבורים')||ql.includes('חובה')) ans+=`\n\n💼 ימי חופשה צבורים (כל עובדים):\n   עלות פוטנציאלית: ₪${Math.round(accumulated).toLocaleString()}`;
-      return ans;
-    }
-
-    // ── M4. PENDING APPROVALS ─────────────────────────────
-    if (ql.includes('ממתינות')||ql.includes('אישור')||ql.includes('ממתין')||ql.includes('48 שעות')||ql.includes('בקשות חופשה')) {
-      const pending=approvals.filter(r=>r.status==='pending');
-      if(!pending.length) return '✅ אין בקשות חופשה ממתינות לאישור.';
-      const now=Date.now();
-      const over48=pending.filter(r=>r.submittedAt&&(now-new Date(r.submittedAt).getTime())>48*3600*1000);
-      let ans=`📋 בקשות חופשה ממתינות: ${pending.length}\n`;
-      if(over48.length) ans+=`⚠️ מעל 48 שעות: ${over48.length}\n\n${over48.map(r=>`• ${r.fullName} — הוגש ${r.submittedAt?r.submittedAt.slice(0,10):'?'}`).join('\n')}`;
-      else ans+=`✅ כל הבקשות הוגשו בפחות מ-48 שעות`;
-      return ans;
-    }
-
-    // ── M5. DEPT LOAD ANALYSIS ────────────────────────────
-    if (ql.includes('מחלקה')||ql.includes('עומס')||ql.includes('ניתוח מחלקתי')) {
-      const depts={};
-      allUsers.forEach(u=>{
-        const dept=getDept(u);
-        if(!depts[dept]) depts[dept]={total:0,absent:0};
-        depts[dept].total++;
-        const t=(vacs[u.username]||{})[todayStr];
-        if(t==='full'||t==='half') depts[dept].absent++;
-      });
-      const sorted=Object.entries(depts).sort(([,a],[,b])=>(b.absent/b.total)-(a.absent/a.total));
-      return `🏢 עומס חופשות לפי מחלקה — היום:\n\n`+
-        sorted.map(([d,v])=>{
-          const pct=v.total?Math.round((v.absent/v.total)*100):0;
-          const bar='█'.repeat(Math.round(pct/10))+'░'.repeat(10-Math.round(pct/10));
-          return `${pct>=50?'🔴':pct>=25?'🟡':'🟢'} ${d}: ${bar} ${pct}% (${v.absent}/${v.total})`;
-        }).join('\n');
-    }
-
-    // ── M6. FORECAST ──────────────────────────────────────
-    if (ql.includes('חזה')||ql.includes('חיזוי')||ql.includes('עמוס')||ql.includes('ניבוי')||ql.includes('קדימה')) {
-      const weeks=Array.from({length:4},(_,w)=>{
-        const ws=new Date(today);ws.setDate(today.getDate()+w*7+(1-((today.getDay()||7)-1)));
-        const dates=Array.from({length:5},(_,i)=>{const d=new Date(ws);d.setDate(ws.getDate()+i);return d.toISOString().slice(0,10);});
-        let abs=0,wfh=0;
-        allUsers.forEach(u=>dates.forEach(dt=>{const t=(vacs[u.username]||{})[dt];if(t==='full'||t==='half')abs++;else if(t==='wfh')wfh++;}));
-        const pct=allUsers.length>0?Math.round((abs/(allUsers.length*5))*100):0;
-        const d0=new Date(dates[0]+'T00:00:00');
-        return{label:d0.getDate()+'/'+(d0.getMonth()+1),pct,abs,wfh};
-      });
-      const sorted=[...weeks].sort((a,b)=>b.pct-a.pct);
-      return `📅 חיזוי עומס — 4 שבועות:\n\n`+
-        weeks.map(w=>`${w.pct>=40?'🔴':w.pct>=20?'🟡':'🟢'} שבוע ${w.label}\n   ${'█'.repeat(Math.round(w.pct/10))}${'░'.repeat(10-Math.round(w.pct/10))} ${w.pct}% (${w.abs} חופשות, ${w.wfh} WFH)`).join('\n\n')+
-        `\n\n💡 עמוס: שבוע ${sorted[0].label}\n💡 שקט: שבוע ${sorted[sorted.length-1].label}`;
-    }
-
-    // ── M7. SPECIFIC EMPLOYEE ─────────────────────────────
-    const nameMatch=allUsers.find(u=>ql.includes(u.fullName.toLowerCase())||(u.username&&ql.includes(u.username.toLowerCase())));
-    if(nameMatch){
-      const year=getYear(ql);
-      const empV=vacs[nameMatch.username]||{};
-      const yE=Object.entries(empV).filter(([dt])=>new Date(dt+'T00:00:00').getFullYear()===year);
-      const used=vacDays(yE);
-      const quota=nameMatch.vacationQuota||14;
-      const wfhC=yE.filter(([,t])=>t==='wfh').length;
-      const ts=(empV[todayStr]);
-      const statusNow=ts==='full'?'🏖️ בחופשה':ts==='half'?'🌓 חצי יום':ts==='wfh'?'🏠 WFH':ts==='sick'?'🤒 מחלה':'🏢 במשרד';
-      const sickC=Object.values(db.sick||{}).filter(s=>s.username===nameMatch.username&&s.date&&s.date.startsWith(year+'')).length;
-      return `👤 ${nameMatch.fullName} — ${year}:\n• מחלקה: ${getDept(nameMatch)}\n• היום: ${statusNow}\n• חופשה: ${used}/${quota} ימים (נותרו: ${Math.max(0,quota-used)})\n• WFH: ${wfhC} ימים\n• מחלה: ${sickC} ימים`;
-    }
-
-    // ── DEFAULT FALLBACK ──────────────────────────────────
-    const onV=allUsers.filter(u=>{const t=(vacs[u.username]||{})[todayStr];return t==='full'||t==='half';}).length;
-    const onW=allUsers.filter(u=>(vacs[u.username]||{})[todayStr]==='wfh').length;
-    const onS=allUsers.filter(u=>(vacs[u.username]||{})[todayStr]==='sick').length;
-    return `📊 סיכום — היום:\n• עובדים: ${allUsers.length} | חופשה: ${onV} | WFH: ${onW} | מחלה: ${onS} | במשרד: ${allUsers.length-onV-onW-onS}\n\nנסה שאלה ספציפית יותר.`;
-
-  } catch(err) {
-    console.error('AI error:', err);
-    return '⚠️ שגיאה בעיבוד השאלה. נסה שוב.';
-  }
-}
-
-function clearCeoAiChat() {
-  ceoAiHistory.length = 0;
-  renderCeoAiMessages();
-}
 
 function openCeoDayView() {
   const db    = getDB();
@@ -4249,11 +3630,11 @@ function openCeoDayView() {
   });
 
   const section = (title, icon, color, users) => users.length ? `
-    <div style="margin-bottom:16px;">
+    <div class="dz-mg-188">
       <div style="font-weight:700;font-size:13px;color:${color};margin-bottom:8px;">${icon} ${title} (${users.length})</div>
-      ${users.map(u=>`<div style="display:flex;justify-content:space-between;padding:8px 10px;background:var(--surface2);border-radius:8px;margin-bottom:4px;font-size:13px;">
+      ${users.map(u=>`<div class="dz-flex-1086">
         <span style="font-weight:600;">${u.fullName}</span>
-        <span style="color:var(--text-muted);">${u.dept}</span>
+        <span class="dz-clr-1087">${u.dept}</span>
       </div>`).join('')}
     </div>` : '';
 
@@ -4349,20 +3730,20 @@ function toggleSickMode(checked) {
   const normalOpts = document.getElementById('dayModalOptions');
   const sickOpts   = document.getElementById('sickModeOptions');
   if (checked) {
-    track.style.background = '#ef4444';
-    thumb.style.left = '25px';
+    track.classList.add('dz-bg-danger-solid');
+    thumb.classList.add('dz-toggle-thumb-on'); thumb.classList.remove('dz-toggle-thumb-off');
     normalOpts.style.display = 'none';
     sickOpts.style.display   = 'flex';
     sickOpts.innerHTML = `
-      <button onclick="saveSickDay('${_currentDayModalDate}','full')" style="background:#fef2f2;border:2px solid #ef4444;border-radius:12px;padding:14px 18px;font-size:14px;font-weight:700;color:#991b1b;cursor:pointer;font-family:'Heebo',sans-serif;text-align:right;">
+      <button onclick="saveSickDay('${_currentDayModalDate}','full')" class="dz-card-1088">
         🤒 יום מחלה מלא
       </button>
-      <button onclick="saveSickDay('${_currentDayModalDate}','half')" style="background:#fef2f2;border:2px solid #f87171;border-radius:12px;padding:14px 18px;font-size:14px;font-weight:700;color:#991b1b;cursor:pointer;font-family:'Heebo',sans-serif;text-align:right;">
+      <button onclick="saveSickDay('${_currentDayModalDate}','half')" class="dz-card-1089">
         🤒 חצי יום מחלה
       </button>`;
   } else {
-    track.style.background = '#e5e7eb';
-    thumb.style.left = '3px';
+    track.classList.add('dz-toggle-off'); el2.classList.remove('dz-toggle-on');
+    thumb.classList.add('dz-toggle-thumb-off'); thumb.classList.remove('dz-toggle-thumb-on');
     normalOpts.style.display = 'flex';
     sickOpts.style.display   = 'none';
   }
@@ -4413,15 +3794,15 @@ function openSickTodayFromSelector() {
   document.getElementById('sickTodayDate').textContent = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
   const list = document.getElementById('sickTodayList');
   if (!sick.length) {
-    list.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:24px;">✅ אין דיווחי מחלה להיום</div>';
+    list.innerHTML = '<div class="dz-1053">✅ אין דיווחי מחלה להיום</div>';
   } else {
     list.innerHTML = sick.map(s => `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#fef2f2;border-radius:10px;margin-bottom:6px;border:1px solid #fca5a5;">
+      <div class="dz-flex-1090">
         <div>
-          <div style="font-weight:700;font-size:13px;">🤒 ${s.fullName}</div>
-          <div style="font-size:11px;color:var(--text-muted);">${s.dept} · ${s.type === 'full' ? 'יום מלא' : 'חצי יום'}</div>
+          <div class="dz-1117">🤒 ${s.fullName}</div>
+          <div class="dz-12">${s.dept} · ${s.type === 'full' ? 'יום מלא' : 'חצי יום'}</div>
         </div>
-        <div style="font-size:11px;color:var(--text-muted);">${new Date(s.reportedAt).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'})}</div>
+        <div class="dz-12">${new Date(s.reportedAt).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'})}</div>
       </div>`).join('');
   }
   openModal('sickTodayModal');
@@ -4460,21 +3841,21 @@ function loadDailyStatusWidget() {
     const btn = document.getElementById(`dsBtn_${s}`);
     if (!btn) return;
     if (s === current) {
-      btn.style.background = colors[s];
+      /* dynamic: color varies by vacation type (colors[s]) */
       btn.style.borderColor = colors[s];
-      btn.style.color = 'white';
-      btn.style.transform = 'scale(1.04)';
+      btn.style.background = colors[s] + '22';
+      btn.classList.add('dz-day-status-active');
     } else {
-      btn.style.background = 'white';
-      btn.style.borderColor = 'var(--border)';
-      btn.style.color = 'var(--text)';
-      btn.style.transform = '';
+      btn.classList.remove('dz-day-status-active');
+      btn.style.borderColor = '';
+      btn.style.background = '';
+      btn.classList.remove('dz-card-hover');
     }
   });
 }
 function openWhereIsEmployee() {
   document.getElementById('whereIsSearch').value = '';
-  document.getElementById('whereIsResults').innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px;font-size:13px;">הקלד לפחות 2 תווים לחיפוש...</div>';
+  document.getElementById('whereIsResults').innerHTML = '<div class="dz-1091">הקלד לפחות 2 תווים לחיפוש...</div>';
   openModal('whereIsModal');
   setTimeout(() => document.getElementById('whereIsSearch').focus(), 200);
 }
@@ -4520,7 +3901,7 @@ function renderWhereIsResults() {
 
   // Show nothing until user types
   if (query.length < 2) {
-    container.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px;font-size:13px;">הקלד לפחות 2 תווים לחיפוש...</div>';
+    container.innerHTML = '<div class="dz-1091">הקלד לפחות 2 תווים לחיפוש...</div>';
     return;
   }
 
@@ -4533,7 +3914,7 @@ function renderWhereIsResults() {
   ).sort((a,b) => a.fullName.localeCompare(b.fullName));
 
   if (!users.length) {
-    container.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px;font-size:13px;">לא נמצאו עובדים תואמים</div>';
+    container.innerHTML = '<div class="dz-1091">לא נמצאו עובדים תואמים</div>';
     return;
   }
 
@@ -4541,12 +3922,12 @@ function renderWhereIsResults() {
     const s = getEmployeeStatusToday(u.username);
     const dept = Array.isArray(u.dept) ? u.dept[0] : u.dept || '';
     return `<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:${s.bg};border-radius:12px;border:1px solid ${s.color}22;">
-      <div style="width:38px;height:38px;border-radius:50%;background:${s.color}22;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">${s.label.split(' ')[0]}</div>
+      <div class="dz-flex-1092">${s.label.split(' ')[0]}</div>
       <div style="flex:1;min-width:0;">
-        <div style="font-weight:700;font-size:14px;color:var(--text);">${u.fullName}</div>
-        <div style="font-size:11px;color:var(--text-muted);">${dept}</div>
+        <div class="dz-1093">${u.fullName}</div>
+        <div class="dz-12">${dept}</div>
       </div>
-      <div style="font-size:12px;font-weight:700;color:${s.color};white-space:nowrap;">${s.label.split(' ').slice(1).join(' ')}</div>
+      <div class="dz-1094">${s.label.split(' ').slice(1).join(' ')}</div>
     </div>`;
   }).join('');
 }
@@ -4560,7 +3941,7 @@ function openCeoAnnouncementsModal() {
   const ann = db.announcements || [];
   const list = document.getElementById('ceoAnnouncementsList');
   if (!ann.length) {
-    list.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:24px;">אין הודעות עדיין</div>';
+    list.innerHTML = '<div class="dz-1053">אין הודעות עדיין</div>';
   } else {
     list.innerHTML = ann.map(a => {
       const d = new Date(a.ts);
@@ -4569,15 +3950,15 @@ function openCeoAnnouncementsModal() {
       const total    = allUsers.length;
       const pct      = total > 0 ? Math.round(ackCount / total * 100) : 0;
       return `
-        <div style="border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;">
+        <div class="dz-card-1095">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;">
-            <div style="font-size:13px;font-weight:700;color:var(--text);flex:1;">${a.text}</div>
-            <button onclick="deleteAnnouncement('${a.id}')" style="background:var(--danger-light);color:var(--danger);border:none;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;white-space:nowrap;">🗑️ מחק</button>
+            <div class="dz-1096">${a.text}</div>
+            <button onclick="deleteAnnouncement('${a.id}')" class="dz-card-1097">🗑️ מחק</button>
           </div>
           <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">מאת: ${a.from} · ${dateStr}</div>
-          <div style="background:var(--surface2);border-radius:8px;padding:8px 10px;">
+          <div class="dz-card-1098">
             <div style="font-size:12px;font-weight:700;margin-bottom:4px;">אישורי קריאה: ${ackCount}/${total} (${pct}%)</div>
-            <div style="background:#e5e7eb;border-radius:4px;height:6px;overflow:hidden;">
+            <div class="dz-1099">
               <div style="background:var(--success);height:100%;width:${pct}%;transition:width 0.5s;border-radius:4px;"></div>
             </div>
           </div>
@@ -4735,7 +4116,7 @@ function openBulkImportModal() {
 
 function handleBulkDrop(e) {
   e.preventDefault();
-  document.getElementById('bulkDropZone').style.borderColor = 'var(--border)';
+  document.getElementById('bulkDropZone')// via dz-card-hover
   const file = e.dataTransfer.files[0];
   if (file) parseBulkFile(file);
 }
@@ -4826,37 +4207,37 @@ async function parseBulkFile(file) {
       const newCount    = parsed.filter(p => !p.isUpdate).length;
       const updateCount = parsed.filter(p => p.isUpdate).length;
       summaryEl.innerHTML =
-        `<span style="color:var(--success);">✅ ${newCount} עובדים חדשים</span>` +
+        `<span class="dz-clr-162">✅ ${newCount} עובדים חדשים</span>` +
         (updateCount ? `<span style="color:var(--primary);margin-right:12px;">🔄 ${updateCount} יעודכנו</span>` : '') +
-        (errors.length ? `<span style="color:var(--danger);margin-right:12px;">⚠️ ${errors.length} שגיאות</span>` : '');
+        (errors.length ? `<span class="dz-1101">⚠️ ${errors.length} שגיאות</span>` : '');
 
       const year = new Date().getFullYear();
       tableEl.innerHTML = `
         <table style="width:100%;border-collapse:collapse;font-size:12px;">
-          <thead><tr style="background:var(--surface2);">
-            <th style="padding:6px 8px;text-align:right;">שם מלא</th>
-            <th style="padding:6px 8px;text-align:right;">משתמש</th>
-            <th style="padding:6px 8px;text-align:right;">מחלקה</th>
-            <th style="padding:6px 8px;text-align:center;">מכסה ${year}</th>
-            <th style="padding:6px 8px;text-align:center;">יתרה</th>
-            <th style="padding:6px 8px;text-align:center;">שכר יומי</th>
-            <th style="padding:6px 8px;text-align:center;">יום הולדת</th>
-            <th style="padding:6px 8px;text-align:center;">סטטוס</th>
+          <thead><tr class="dz-1054">
+            <th class="dz-1102">שם מלא</th>
+            <th class="dz-1102">משתמש</th>
+            <th class="dz-1102">מחלקה</th>
+            <th class="dz-1103">מכסה ${year}</th>
+            <th class="dz-1103">יתרה</th>
+            <th class="dz-1103">שכר יומי</th>
+            <th class="dz-1103">יום הולדת</th>
+            <th class="dz-1103">סטטוס</th>
           </tr></thead>
           <tbody>
-            ${parsed.map(p => `<tr style="border-bottom:1px solid var(--border);">
-              <td style="padding:6px 8px;font-weight:600;">${p.fullName}</td>
+            ${parsed.map(p => `<tr class="dz-1134">
+              <td class="dz-1104">${p.fullName}</td>
               <td style="padding:6px 8px;color:var(--primary);direction:ltr;">${p.username}</td>
-              <td style="padding:6px 8px;">${p.dept}</td>
-              <td style="padding:6px 8px;text-align:center;">${p.annual !== null ? p.annual : '—'}</td>
-              <td style="padding:6px 8px;text-align:center;">${p.balance !== null ? p.balance : '—'}</td>
-              <td style="padding:6px 8px;text-align:center;">${p.salary !== null ? '₪' + p.salary : '—'}</td>
-              <td style="padding:6px 8px;text-align:center;">${p.birthday ? p.birthday.split('-').reverse().join('/') : '—'}</td>
-              <td style="padding:6px 8px;text-align:center;">${p.isUpdate
-                ? '<span style="color:var(--primary);font-size:11px;">🔄 עדכון</span>'
+              <td class="dz-pd-1105">${p.dept}</td>
+              <td class="dz-1103">${p.annual !== null ? p.annual : '—'}</td>
+              <td class="dz-1103">${p.balance !== null ? p.balance : '—'}</td>
+              <td class="dz-1103">${p.salary !== null ? '₪' + p.salary : '—'}</td>
+              <td class="dz-1103">${p.birthday ? p.birthday.split('-').reverse().join('/') : '—'}</td>
+              <td class="dz-1103">${p.isUpdate
+                ? '<span class="dz-1106">🔄 עדכון</span>'
                 : '<span style="color:var(--success);font-size:11px;">✨ חדש</span>'}</td>
             </tr>`).join('')}
-            ${errors.map(e => `<tr style="background:var(--danger-light);"><td colspan="6" style="padding:6px 8px;color:var(--danger);font-size:11px;">${e}</td></tr>`).join('')}
+            ${errors.map(e => `<tr class="dz-1107"><td colspan="6" class="dz-1108">${e}</td></tr>`).join('')}
           </tbody>
         </table>`;
 
@@ -5162,20 +4543,20 @@ function renderPendingRegistrations() {
   if (!listEl) return;
 
   if (!pending.length) {
-    listEl.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:8px 0;">אין הרשמות ממתינות ✅</div>';
+    listEl.innerHTML = '<div class="dz-1109">אין הרשמות ממתינות ✅</div>';
     return;
   }
 
   listEl.innerHTML = pending.map(u => `
     <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--warning-light);border-radius:10px;margin-bottom:8px;flex-wrap:wrap;">
-      <div style="flex:1;">
-        <div style="font-weight:700;font-size:14px;">${u.fullName}</div>
-        <div style="font-size:12px;color:var(--text-secondary);">${u.username} · ${u.dept} · ${u.email||'אין מייל'}</div>
-        <div style="font-size:11px;color:var(--text-muted);">${u.registeredAt ? new Date(u.registeredAt).toLocaleString('he-IL') : ''}</div>
+      <div class="dz-238">
+        <div class="dz-1004">${u.fullName}</div>
+        <div class="dz-1010">${u.username} · ${u.dept} · ${u.email||'אין מייל'}</div>
+        <div class="dz-12">${u.registeredAt ? new Date(u.registeredAt).toLocaleString('he-IL') : ''}</div>
       </div>
-      <div style="display:flex;gap:6px;">
-        <button onclick="approveRegistration('${u.username}')" class="btn btn-success" style="padding:7px 14px;font-size:13px;border-radius:8px;">✅ אשר</button>
-        <button onclick="rejectRegistration('${u.username}')" class="btn btn-outline" style="padding:7px 14px;font-size:13px;border-radius:8px;color:var(--danger);border-color:var(--danger);">❌ דחה</button>
+      <div class="dz-flex-1111">
+        <button onclick="approveRegistration('${u.username}')" class="btn btn-success" class="dz-card-1112">✅ אשר</button>
+        <button onclick="rejectRegistration('${u.username}')" class="btn btn-outline" class="dz-card-1113">❌ דחה</button>
       </div>
     </div>
   `).join('');
@@ -5293,40 +4674,40 @@ function renderAIStaffingForecast() {
   const DEPT_COLORS = ['#1a56e8','#16a34a','#7c3aed','#0891b2','#dc2626','#d97706'];
 
   el.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
-      <div class="section-title" style="margin-bottom:0;"><span class="section-title-icon">🤖</span> AI — חיזוי מחסור כוח אדם</div>
-      <span style="font-size:11px;background:#fef3c7;color:#92400e;padding:4px 10px;border-radius:12px;font-weight:700;">8 שבועות קדימה</span>
+    <div class="dz-flex-258">
+      <div class="section-title" class="dz-mg-168"><span class="section-title-icon">🤖</span> AI — חיזוי מחסור כוח אדם</div>
+      <span class="dz-card-1114">8 שבועות קדימה</span>
     </div>
 
     ${alerts.length ? `
-    <div style="margin-bottom:14px;">
-      <div style="font-size:13px;font-weight:700;margin-bottom:8px;">⚠️ התראות מחסור</div>
+    <div class="dz-mg-139">
+      <div class="dz-21">⚠️ התראות מחסור</div>
       ${alerts.map(a => `
         <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:${a.pct>=70?'var(--danger-light)':'var(--warning-light)'};border-radius:10px;margin-bottom:6px;">
-          <div style="font-size:20px;">${a.pct >= 70 ? '🔴' : '🟡'}</div>
-          <div style="flex:1;">
-            <div style="font-weight:700;font-size:13px;">${a.dept} — שבוע ${a.label}</div>
-            <div style="font-size:12px;color:var(--text-secondary);">${a.absent} מתוך ${a.total} עובדים בחופשה (${a.pct}%)</div>
+          <div class="dz-fs-1116">${a.pct >= 70 ? '🔴' : '🟡'}</div>
+          <div class="dz-238">
+            <div class="dz-1117">${a.dept} — שבוע ${a.label}</div>
+            <div class="dz-1010">${a.absent} מתוך ${a.total} עובדים בחופשה (${a.pct}%)</div>
           </div>
         </div>
       `).join('')}
-    </div>` : `<div style="background:var(--success-light);border-radius:10px;padding:12px;margin-bottom:14px;font-size:13px;color:#14532d;">✅ לא זוהו מחסורים צפויים ב-8 השבועות הקרובים</div>`}
+    </div>` : `<div class="dz-card-1118">✅ לא זוהו מחסורים צפויים ב-8 השבועות הקרובים</div>`}
 
     ${depts.length ? `
     <div>
-      <div style="font-size:13px;font-weight:700;margin-bottom:8px;">מפת עומס 8 שבועות</div>
-      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <div class="dz-21">מפת עומס 8 שבועות</div>
+      <div class="dz-1119">
         <table style="border-collapse:collapse;min-width:500px;width:100%;font-size:12px;">
           <thead>
             <tr>
-              <th style="padding:6px 8px;text-align:right;white-space:nowrap;">מחלקה</th>
+              <th class="dz-1120">מחלקה</th>
               ${heatData.map(w => `<th style="padding:6px 4px;text-align:center;white-space:nowrap;">${w.label}</th>`).join('')}
             </tr>
           </thead>
           <tbody>
             ${depts.map((dept, di) => `
               <tr>
-                <td style="padding:6px 8px;font-weight:600;white-space:nowrap;color:${DEPT_COLORS[di%DEPT_COLORS.length]};">${dept}</td>
+                <td class="dz-1121">${dept}</td>
                 ${heatData.map(w => {
                   const dc = w.deptCounts[dept] || { pct: 0 };
                   const bg = dc.pct >= 70 ? '#fca5a5' : dc.pct >= 40 ? '#fde68a' : dc.pct >= 10 ? '#bbf7d0' : 'var(--surface2)';
@@ -5337,7 +4718,7 @@ function renderAIStaffingForecast() {
           </tbody>
         </table>
       </div>
-      <div style="display:flex;gap:12px;margin-top:8px;font-size:11px;color:var(--text-muted);">
+      <div class="dz-flex-1122">
         <span>🟥 70%+</span><span>🟨 40-70%</span><span>🟩 10-40%</span><span>⬜ נקי</span>
       </div>
     </div>` : ''}
@@ -5367,37 +4748,37 @@ function renderEmployeeScores() {
   }).sort((a,b) => a.wellbeing - b.wellbeing); // worst first
 
   if (!scores.length) {
-    el.innerHTML = '<div style="color:var(--text-muted);font-size:13px;">אין עובדים להצגה</div>';
+    el.innerHTML = '<div class="dz-225">אין עובדים להצגה</div>';
     return;
   }
 
   el.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
-      <div class="section-title" style="margin-bottom:0;"><span class="section-title-icon">🏆</span> AI — ציוני רווחת עובדים</div>
-      <span style="font-size:11px;background:var(--primary-light);color:var(--primary);padding:4px 10px;border-radius:12px;font-weight:700;">מסודר לפי סיכון</span>
+    <div class="dz-flex-258">
+      <div class="section-title" class="dz-mg-168"><span class="section-title-icon">🏆</span> AI — ציוני רווחת עובדים</div>
+      <span class="dz-card-1124">מסודר לפי סיכון</span>
     </div>
-    <div style="display:flex;flex-direction:column;gap:8px;">
+    <div class="dz-flex-col-145">
     ${scores.map(({ u, wellbeing, burnout, usagePct, daysSince, balance }) => {
       const color = wellbeing < 30 ? '#dc2626' : wellbeing < 60 ? '#f59e0b' : '#16a34a';
       const icon  = wellbeing < 30 ? '🔴' : wellbeing < 60 ? '🟡' : '🟢';
       return `
-        <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border-radius:10px;flex-wrap:wrap;">
-          <div style="font-size:20px;">${icon}</div>
-          <div style="flex:1;min-width:120px;">
-            <div style="font-weight:700;font-size:13px;">${u.fullName}</div>
-            <div style="font-size:11px;color:var(--text-muted);">${Array.isArray(u.dept)?u.dept[0]:u.dept||''} · ${daysSince} ימים ללא חופשה</div>
+        <div class="dz-flex-1125">
+          <div class="dz-fs-1116">${icon}</div>
+          <div class="dz-1126">
+            <div class="dz-1117">${u.fullName}</div>
+            <div class="dz-12">${Array.isArray(u.dept)?u.dept[0]:u.dept||''} · ${daysSince} ימים ללא חופשה</div>
           </div>
-          <div style="text-align:center;min-width:48px;">
-            <div style="font-size:18px;font-weight:800;color:${color};">${wellbeing}</div>
-            <div style="font-size:10px;color:var(--text-muted);">ציון</div>
+          <div class="dz-1128">
+            <div class="dz-1127">${wellbeing}</div>
+            <div class="dz-1129">ציון</div>
           </div>
-          <div style="text-align:center;min-width:48px;">
+          <div class="dz-1128">
             <div style="font-size:15px;font-weight:700;">${usagePct}%</div>
-            <div style="font-size:10px;color:var(--text-muted);">ניצול</div>
+            <div class="dz-1129">ניצול</div>
           </div>
-          <div style="text-align:center;min-width:48px;">
-            <div style="font-size:15px;font-weight:700;color:${balance<0?'var(--danger)':'var(--text)'};">${balance.toFixed(1)}</div>
-            <div style="font-size:10px;color:var(--text-muted);">יתרה</div>
+          <div class="dz-1128">
+            <div class="dz-1130">${balance.toFixed(1)}</div>
+            <div class="dz-1129">יתרה</div>
           </div>
         </div>`;
     }).join('')}
@@ -5411,75 +4792,6 @@ function renderEmployeeScores() {
 // ============================================================
 // 🤖 MODULE SELECTOR AI CHAT
 // ============================================================
-const ceoAiHistory = [];
-const moduleAiHistory = [];
-
-function clearModuleAiChat() {
-  moduleAiHistory.length = 0;
-  renderModuleAiMessages();
-}
-
-function renderModuleAiMessages() {
-  const container = document.getElementById('moduleAiMessages');
-  if (!container) return;
-  const chips = document.getElementById('moduleAiChips');
-
-  if (moduleAiHistory.length === 0) {
-    container.innerHTML = `<div style="text-align:center;padding:10px 4px;opacity:0.6;">
-      <div style="font-size:12px;color:rgba(180,210,255,0.7);">שאל אותי על הצוות — לדוגמה: "מי בחופשה היום?"</div>
-    </div>`;
-    if (chips) chips.style.display = 'flex';
-    return;
-  }
-  if (chips) chips.style.display = 'none';
-  container.innerHTML = moduleAiHistory.map(msg => `
-    <div style="display:flex;flex-direction:column;align-items:${msg.role==='user'?'flex-end':'flex-start'};margin-bottom:8px;">
-      <div style="max-width:92%;background:${msg.role==='user'?'rgba(0,80,255,0.7)':'rgba(255,255,255,0.08)'};color:white;border-radius:${msg.role==='user'?'12px 12px 3px 12px':'12px 12px 12px 3px'};padding:8px 12px;font-size:12px;line-height:1.5;white-space:pre-wrap;border:1px solid ${msg.role==='user'?'rgba(0,150,255,0.3)':'rgba(255,255,255,0.08)'};">
-        ${msg.content}
-      </div>
-    </div>`).join('');
-  container.scrollTop = container.scrollHeight;
-}
-
-function sendModuleAiQuery(query) {
-  const input = document.getElementById('moduleAiInput');
-  const q = query || (input ? input.value.trim() : '');
-  if (!q) return;
-  if (input) input.value = '';
-
-  moduleAiHistory.push({ role: 'user', content: q });
-  renderModuleAiMessages();
-
-  const container = document.getElementById('moduleAiMessages');
-  if (container) {
-    container.innerHTML += `<div id="modTyping" style="display:flex;align-items:flex-start;margin-bottom:8px;">
-      <div style="background:rgba(255,255,255,0.08);border-radius:12px 12px 12px 3px;padding:8px 12px;border:1px solid rgba(255,255,255,0.08);">
-        <span style="display:inline-flex;gap:4px;">
-          <span style="width:5px;height:5px;background:rgba(180,210,255,0.6);border-radius:50%;animation:typingDot 1.2s infinite 0s;display:inline-block;"></span>
-          <span style="width:5px;height:5px;background:rgba(180,210,255,0.6);border-radius:50%;animation:typingDot 1.2s infinite 0.2s;display:inline-block;"></span>
-          <span style="width:5px;height:5px;background:rgba(180,210,255,0.6);border-radius:50%;animation:typingDot 1.2s infinite 0.4s;display:inline-block;"></span>
-        </span>
-      </div>
-    </div>`;
-    container.scrollTop = container.scrollHeight;
-  }
-
-  const apiKey = localStorage.getItem('dazura_gemini_key');
-  const finish = (ans) => {
-    const typing = document.getElementById('modTyping');
-    if (typing) typing.remove();
-    moduleAiHistory.push({ role: 'assistant', content: ans });
-    renderModuleAiMessages();
-  };
-  if (apiKey) {
-    askGeminiWithContext(q, apiKey).then(finish).catch(e => {
-      finish('⚠️ שגיאת Gemini: ' + e.message + '\n\n' + buildCeoAiAnswer(q));
-    });
-  } else {
-    setTimeout(() => finish(buildCeoAiAnswer(q)), 600);
-  }
-}
-
 function showModuleSelector() {
   ['loginScreen','appScreen','timeClockScreen','ceoDashboardScreen'].forEach(id => {
     document.getElementById(id)?.classList.remove('active');
@@ -5504,6 +4816,7 @@ function showModuleSelector() {
   document.getElementById('moduleSelectorScreen').classList.add('active');
   loadTheme();
   updateSickCount();
+  if (typeof initModuleAiChat === 'function') initModuleAiChat();
 
   try {
     const db = getDB();
@@ -5576,7 +4889,7 @@ function loadTCRecord() {
   calcTCHours();
   const status = document.getElementById('tcSaveStatus');
   if (rec) {
-    status.innerHTML = `<span style="color:var(--success);">✅ דיווח קיים — ניתן לעדכן</span>`;
+    status.innerHTML = `<span class="dz-clr-162">✅ דיווח קיים — ניתן לעדכן</span>`;
   } else {
     status.innerHTML = '';
   }
@@ -5597,7 +4910,7 @@ function calcTCHours() {
     total.textContent = `${h}:${String(m).padStart(2,'0')}`;
     disp.style.display = '';
     // Color by hours
-    total.style.color = mins < 240 ? 'var(--danger)' : mins > 600 ? 'var(--warning)' : 'var(--primary)';
+    total.classList.toggle('dz-time-short', mins < 240); el.classList.toggle('dz-time-long', mins > 600 && mins >= 240); el.classList.toggle('dz-time-ok', mins >= 240 && mins <= 600);
   } else {
     disp.style.display = 'none';
   }
@@ -5610,9 +4923,9 @@ function saveTCRecord() {
   const note  = document.getElementById('tcNote').value.trim();
   const status = document.getElementById('tcSaveStatus');
 
-  if (!date)  { status.innerHTML = '<span style="color:var(--danger);">⚠️ בחר תאריך</span>'; return; }
-  if (!entry) { status.innerHTML = '<span style="color:var(--danger);">⚠️ הזן שעת כניסה</span>'; return; }
-  if (!exit)  { status.innerHTML = '<span style="color:var(--danger);">⚠️ הזן שעת יציאה</span>'; return; }
+  if (!date)  { status.innerHTML = '<span class="dz-clr-1131">⚠️ בחר תאריך</span>'; return; }
+  if (!entry) { status.innerHTML = '<span class="dz-clr-1131">⚠️ הזן שעת כניסה</span>'; return; }
+  if (!exit)  { status.innerHTML = '<span class="dz-clr-1131">⚠️ הזן שעת יציאה</span>'; return; }
 
   // Calc total
   const [eh,em] = entry.split(':').map(Number);
@@ -5635,7 +4948,7 @@ function saveTCRecord() {
   };
   saveDB(db);
   auditLog('timeclock_save', `${currentUser.fullName} דיווח שעות ${date}: ${entry}–${exit} (${totalStr})`);
-  status.innerHTML = `<span style="color:var(--success);">✅ נשמר בהצלחה — ${totalStr} שעות</span>`;
+  status.innerHTML = `<span class="dz-clr-162">✅ נשמר בהצלחה — ${totalStr} שעות</span>`;
   renderTCHistory();
 }
 
@@ -5657,15 +4970,15 @@ function renderTCHistory() {
   el.innerHTML = sorted.map(([date, rec]) => {
     const d = new Date(date + 'T00:00:00');
     const isToday = date === new Date().toISOString().slice(0,10);
-    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:${isToday?'var(--primary-light)':'var(--surface2)'};border-radius:10px;cursor:pointer;" onclick="document.getElementById('tcDate').value='${date}';loadTCRecord();">
-      <div style="text-align:center;min-width:36px;">
+    return `<div class="dz-flex-1132" onclick="document.getElementById('tcDate').value='${date}';loadTCRecord();">
+      <div class="dz-1133">
         <div style="font-size:17px;font-weight:800;color:${isToday?'var(--primary)':'var(--text)'};">${d.getDate()}</div>
-        <div style="font-size:10px;color:var(--text-muted);">${MONTHS[d.getMonth()]}</div>
+        <div class="dz-1129">${MONTHS[d.getMonth()]}</div>
       </div>
-      <div style="flex:1;">
-        <div style="font-size:12px;color:var(--text-muted);">${DAYS[d.getDay()]}${isToday?' · היום':''}</div>
-        <div style="font-size:13px;font-weight:700;">${rec.entry} – ${rec.exit}</div>
-        ${rec.note ? `<div style="font-size:11px;color:var(--text-muted);">${rec.note}</div>` : ''}
+      <div class="dz-238">
+        <div class="dz-97">${DAYS[d.getDay()]}${isToday?' · היום':''}</div>
+        <div class="dz-253">${rec.entry} – ${rec.exit}</div>
+        ${rec.note ? `<div class="dz-12">${rec.note}</div>` : ''}
       </div>
       <div style="font-size:16px;font-weight:800;color:var(--primary);">${rec.total}</div>
     </div>`;
@@ -5741,23 +5054,23 @@ function renderTCTodayPreview() {
     if (dates[today]) rows.push({ username, ...dates[today] });
   });
   if (!rows.length) {
-    el.innerHTML = '<div style="color:var(--text-muted);font-size:13px;">אין דיווחים להיום עדיין</div>';
+    el.innerHTML = '<div class="dz-225">אין דיווחים להיום עדיין</div>';
     return;
   }
   rows.sort((a,b) => a.fullName?.localeCompare(b.fullName));
   el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px;">
-    <thead><tr style="background:var(--surface2);">
-      <th style="padding:8px;text-align:right;">עובד</th>
-      <th style="padding:8px;text-align:right;">מחלקה</th>
-      <th style="padding:8px;text-align:center;">כניסה</th>
-      <th style="padding:8px;text-align:center;">יציאה</th>
-      <th style="padding:8px;text-align:center;">סה"כ</th>
+    <thead><tr class="dz-1054">
+      <th class="dz-1067">עובד</th>
+      <th class="dz-1067">מחלקה</th>
+      <th class="dz-1066">כניסה</th>
+      <th class="dz-1066">יציאה</th>
+      <th class="dz-1066">סה"כ</th>
     </tr></thead>
-    <tbody>${rows.map(r => `<tr style="border-bottom:1px solid var(--border);">
+    <tbody>${rows.map(r => `<tr class="dz-1134">
       <td style="padding:8px;font-weight:600;">${r.fullName||r.username}</td>
-      <td style="padding:8px;color:var(--text-secondary);">${r.dept||''}</td>
-      <td style="padding:8px;text-align:center;">${r.entry||'—'}</td>
-      <td style="padding:8px;text-align:center;">${r.exit||'—'}</td>
+      <td class="dz-1135">${r.dept||''}</td>
+      <td class="dz-1066">${r.entry||'—'}</td>
+      <td class="dz-1066">${r.exit||'—'}</td>
       <td style="padding:8px;text-align:center;font-weight:700;color:var(--primary);">${r.total||'—'}</td>
     </tr>`).join('')}</tbody>
   </table>`;
@@ -5804,58 +5117,58 @@ function renderVacationDNA() {
   const maxBar = Math.max(...monthDays, 1);
 
   el.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
-      <div class="section-title" style="margin-bottom:0;"><span class="section-title-icon">🧬</span> Vacation DNA — טביעת האצבע שלך</div>
-      <span style="font-size:11px;background:var(--primary-light);color:var(--primary);padding:4px 10px;border-radius:12px;font-weight:700;">AI Personal</span>
+    <div class="dz-flex-1136">
+      <div class="section-title" class="dz-mg-168"><span class="section-title-icon">🧬</span> Vacation DNA — טביעת האצבע שלך</div>
+      <span class="dz-card-1124">AI Personal</span>
     </div>
 
     <div style="background:var(--surface2);border-radius:12px;padding:14px;margin-bottom:14px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <span style="font-weight:700;font-size:13px;">🔋 מד שחיקה אישי</span>
-        <span style="font-size:14px;font-weight:800;color:${burnoutColor};">${burnoutScore}/100</span>
+      <div class="dz-flex-1137">
+        <span class="dz-1117">🔋 מד שחיקה אישי</span>
+        <span class="dz-1138">${burnoutScore}/100</span>
       </div>
       <div style="background:#e2e8f0;border-radius:6px;height:12px;overflow:hidden;">
-        <div style="height:100%;width:${burnoutScore}%;background:${burnoutColor};border-radius:6px;"></div>
+        <div class="dz-1139"></div>
       </div>
       <div style="font-size:12px;color:${burnoutColor};margin-top:6px;font-weight:600;">${burnoutLabel}</div>
-      ${daysSinceVac > 0 ? `<div style="font-size:11px;color:var(--text-muted);margin-top:3px;">ימים מאז חופשה אחרונה: <strong>${daysSinceVac}</strong></div>` : ''}
+      ${daysSinceVac > 0 ? `<div class="dz-1140">ימים מאז חופשה אחרונה: <strong>${daysSinceVac}</strong></div>` : ''}
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;">
-      <div style="background:var(--surface2);border-radius:10px;padding:12px;text-align:center;">
-        <div style="font-size:24px;font-weight:800;color:var(--primary);">${totalVacDays}</div>
-        <div style="font-size:11px;color:var(--text-muted);">ימי חופשה</div>
+      <div class="dz-card-1141">
+        <div class="dz-1008">${totalVacDays}</div>
+        <div class="dz-12">ימי חופשה</div>
       </div>
-      <div style="background:var(--surface2);border-radius:10px;padding:12px;text-align:center;">
-        <div style="font-size:24px;font-weight:800;color:#ca8a04;">${totalWFH}</div>
-        <div style="font-size:11px;color:var(--text-muted);">ימי WFH</div>
+      <div class="dz-card-1141">
+        <div class="dz-1011">${totalWFH}</div>
+        <div class="dz-12">ימי WFH</div>
       </div>
-      <div style="background:var(--surface2);border-radius:10px;padding:12px;text-align:center;">
+      <div class="dz-card-1141">
         <div style="font-size:24px;font-weight:800;color:var(--success);">${avgPerMonth}</div>
-        <div style="font-size:11px;color:var(--text-muted);">ממוצע/חודש</div>
+        <div class="dz-12">ממוצע/חודש</div>
       </div>
     </div>
 
-    <div style="margin-bottom:14px;">
-      <div style="font-size:12px;font-weight:700;color:var(--text-secondary);margin-bottom:8px;">דפוס חופשות לפי חודש</div>
+    <div class="dz-mg-139">
+      <div class="dz-1142">דפוס חופשות לפי חודש</div>
       <div style="display:flex;gap:3px;align-items:flex-end;height:64px;">
         ${monthDays.map((v, i) => {
           const h = Math.max(3, Math.round(v / maxBar * 52));
           const isNow  = i === currentMonth;
           const isPeak = i === peakMonthIdx && v > 0;
-          return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:64px;" title="${MONTHS[i]}: ${v} ימים">
-            <div style="width:100%;height:${h}px;background:${isPeak?'var(--warning)':isNow?'var(--primary)':'var(--primary-light)'};border-radius:3px 3px 0 0;"></div>
+          return `<div class="dz-flex-col-1143" title="${MONTHS[i]}: ${v} ימים">
+            <div class="dz-1144"></div>
             <div style="font-size:7px;color:var(--text-muted);margin-top:2px;">${MONTHS[i].slice(0,2)}</div>
           </div>`;
         }).join('')}
       </div>
     </div>
 
-    ${pattern ? `<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:12px;margin-bottom:10px;font-size:13px;">
+    ${pattern ? `<div class="dz-card-1145">
       <span style="font-weight:700;color:#15803d;">🔍 דפוס שזוהה: </span>${pattern}
     </div>` : ''}
 
-    ${recommendation ? `<div style="background:var(--primary-light);border:1px solid var(--primary);border-radius:10px;padding:12px;font-size:13px;">
+    ${recommendation ? `<div class="dz-card-1146">
       <span style="font-weight:700;color:var(--primary-dark);">💡 המלצה: </span>${recommendation}
     </div>` : ''}
   `;
@@ -6224,7 +5537,7 @@ function openFirebaseModal() {
     document.getElementById('fbDisconnectBtn').style.display = '';
     document.getElementById('fbResetBtn').style.display = '';
   } else {
-    statusDiv.innerHTML = '<div class="alert" style="background:var(--danger-light);color:var(--danger);border:1px solid #fca5a5;"><span class="alert-icon">⚠️</span><span>לא מחובר — עובד במצב לא מקוון. הנתונים נשמרים מקומית בלבד.</span></div>';
+    statusDiv.innerHTML = '<div class="alert" class="dz-1147"><span class="alert-icon">⚠️</span><span>לא מחובר — עובד במצב לא מקוון. הנתונים נשמרים מקומית בלבד.</span></div>';
     document.getElementById('fbDisconnectBtn').style.display = 'none';
     document.getElementById('fbResetBtn').style.display = 'none';
   }
@@ -6313,7 +5626,7 @@ function openSubmitModal() {
   }
   
   const MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
-  let html = `<div style="background:var(--surface2);border-radius:10px;padding:16px;margin-bottom:12px;">
+  let html = `<div class="dz-card-1148">
     <div style="font-weight:700;margin-bottom:8px;">📅 ${MONTHS[month-1]} ${year} — ${currentUser.fullName}</div>`;
   
   let totalDays = 0;
@@ -6324,13 +5637,13 @@ function openSubmitModal() {
     const days = type === 'full' ? 1 : type === 'half' ? 0.5 : 0;
     totalDays += days;
     const payM = getPayrollMonth(dt, getSettings()).month;
-    html += `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;">
+    html += `<div class="dz-flex-1149">
       <span>${d.getDate()}/${d.getMonth()+1} (${dayNames[d.getDay()]})</span>
       <span>${typeLabel}</span>
-      <span style="color:var(--text-muted);">תלוש: ${MONTHS[payM-1]}</span>
+      <span class="dz-clr-1087">תלוש: ${MONTHS[payM-1]}</span>
     </div>`;
   });
-  html += `<div style="font-weight:700;margin-top:8px;color:var(--primary);">סה"כ: ${totalDays} ימים</div></div>`;
+  html += `<div class="dz-1150">סה"כ: ${totalDays} ימים</div></div>`;
 
   // Show who will receive this request
   const db = getDB();
@@ -6341,7 +5654,7 @@ function openSubmitModal() {
       👤 הבקשה תועבר למנהל/ת: <strong>${managerName}</strong>
     </div>`;
   } else {
-    html += `<div style="background:#fef3c7;border-radius:8px;padding:10px 14px;font-size:13px;color:#92400e;margin-bottom:4px;">
+    html += `<div class="dz-card-1151">
       ⚠️ לא הוגדר מנהל למחלקה שלך — הבקשה תועבר לאדמין
     </div>`;
   }
@@ -6484,8 +5797,8 @@ function openApprovalModal(reqId) {
 
   document.getElementById('approvalModalTitle').textContent = `📋 בקשת חופשה — ${req.fullName}`;
 
-  let html = `<div style="background:var(--surface2);border-radius:10px;padding:16px;margin-bottom:12px;">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;font-size:14px;">
+  let html = `<div class="dz-card-1148">
+    <div class="dz-grid-1152">
       <div><strong>עובד:</strong> ${req.fullName}</div>
       <div><strong>מחלקה:</strong> ${req.dept||''}</div>
       <div><strong>תקופה:</strong> ${req.dateRange || (MONTHS[(req.month||1)-1] + ' ' + req.year)}</div>
@@ -6496,30 +5809,30 @@ function openApprovalModal(reqId) {
 
   const vacsObj = req.vacations || Object.fromEntries((req.dates||[]).map(d=>[d,req.type||'full']));
   let total = 0;
-  html += `<table style="width:100%;font-size:13px;border-collapse:collapse;">
-    <thead><tr style="background:var(--surface2);">
-      <th style="padding:8px;text-align:right;">תאריך</th><th style="padding:8px;text-align:right;">יום</th>
-      <th style="padding:8px;text-align:right;">סוג</th><th style="padding:8px;text-align:right;">תלוש</th>
+  html += `<table class="dz-1153">
+    <thead><tr class="dz-1054">
+      <th class="dz-1067">תאריך</th><th class="dz-1067">יום</th>
+      <th class="dz-1067">סוג</th><th class="dz-1067">תלוש</th>
     </tr></thead><tbody>`;
   Object.entries(vacsObj).sort(([a],[b])=>a.localeCompare(b)).forEach(([dt,type])=>{
     const d = new Date(dt+'T00:00:00');
     const typeLabel = type==='full'?'יום מלא':type==='half'?'חצי יום':'WFH';
     total += type==='full'?1:type==='half'?0.5:0;
     const payM = getPayrollMonth(dt, getSettings()).month;
-    html += `<tr style="border-bottom:1px solid var(--border);">
-      <td style="padding:8px;">${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}</td>
-      <td style="padding:8px;">${DAY_NAMES[d.getDay()]}</td>
-      <td style="padding:8px;">${typeLabel}</td>
-      <td style="padding:8px;color:var(--text-muted);">${MONTHS[payM-1]}</td>
+    html += `<tr class="dz-1134">
+      <td class="dz-pd-1154">${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}</td>
+      <td class="dz-pd-1154">${DAY_NAMES[d.getDay()]}</td>
+      <td class="dz-pd-1154">${typeLabel}</td>
+      <td class="dz-1155">${MONTHS[payM-1]}</td>
     </tr>`;
   });
   html += `</tbody><tfoot><tr style="font-weight:700;background:var(--primary-light);">
-    <td colspan="2" style="padding:8px;">סה"כ</td>
-    <td colspan="2" style="padding:8px;color:var(--primary);">${total} ימים</td>
+    <td colspan="2" class="dz-pd-1154">סה"כ</td>
+    <td colspan="2" class="dz-1156">${total} ימים</td>
   </tr></tfoot></table></div>
   <div class="modal-footer">
     <button class="btn btn-outline" onclick="closeModal('approvalModal')">סגור</button>
-    <button class="btn" style="background:var(--danger-light);color:var(--danger);border:1px solid #fca5a5;" onclick="rejectRequestPrompt('${req.id}');closeModal('approvalModal');">❌ דחה</button>
+    <button class="btn" class="dz-1147" onclick="rejectRequestPrompt('${req.id}');closeModal('approvalModal');">❌ דחה</button>
     <button class="btn btn-success" onclick="approveRequest('${req.id}');closeModal('approvalModal');">✅ אשר</button>
   </div>`;
 
@@ -6556,7 +5869,7 @@ function renderSelectedEmployee() {
   const roleBadge = u.role === 'admin' ? 'badge-admin' : u.role === 'accountant' ? 'badge-accountant' : 'badge-user';
 
   document.getElementById('empEditName').textContent = u.fullName;
-  document.getElementById('empEditRole').innerHTML = `<span class="badge ${roleBadge}" style="font-size:11px;">${roleLabel}</span>`;
+  document.getElementById('empEditRole').innerHTML = `<span class="badge ${roleBadge}" class="dz-fs-1157">${roleLabel}</span>`;
   document.getElementById('empEditDept').textContent = u.dept || '';
   document.getElementById('empEditUsername').textContent = username;
   document.getElementById('empEditBirthday').value = u.birthday || '';
@@ -6633,22 +5946,22 @@ function renderPermForEmployee() {
   const hasAccess = grantableSections.some(s => perms[s.key]);
 
   container.innerHTML = `
-    <div style="background:var(--surface);border:1.5px solid var(--primary);border-radius:14px;padding:18px 20px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+    <div class="dz-card-1158">
+      <div class="dz-flex-1136">
         <div>
-          <span style="font-size:16px;font-weight:900;">${u.fullName}</span>
+          <span class="dz-1159">${u.fullName}</span>
           <span style="font-size:12px;color:var(--text-muted);margin-right:8px;">${u.role === 'manager' ? '👔 מנהל' : '👤 עובד'} · ${Array.isArray(u.dept)?u.dept[0]:u.dept||''}</span>
-          <span style="font-size:11px;padding:3px 10px;border-radius:10px;font-weight:700;background:${hasAccess ? 'var(--success-light)' : 'var(--surface2)'};color:${hasAccess ? 'var(--success)' : 'var(--text-muted)'};">${hasAccess ? '✅ יש גישה' : '— אין גישה'}</span>
+          <span class="dz-card-1160">${hasAccess ? '✅ יש גישה' : '— אין גישה'}</span>
         </div>
         <button onclick="document.getElementById('permEditRow').style.display='none';document.getElementById('permEditSelect').value='';"
-          style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 14px;cursor:pointer;font-family:'Heebo',sans-serif;font-size:13px;font-weight:700;">✕ סגור</button>
+          class="dz-card-262">✕ סגור</button>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;">
         ${grantableSections.map(s => `
-          <label style="display:flex;align-items:center;gap:6px;background:var(--surface2);border:1.5px solid ${perms[s.key] ? 'var(--primary)' : 'var(--border)'};border-radius:10px;padding:8px 12px;cursor:pointer;font-size:12px;font-weight:600;transition:border-color 0.15s;">
+          <label class="dz-flex-1162">
             <input type="checkbox" id="perm_${username}_${s.key}" ${perms[s.key] ? 'checked' : ''}
               onchange="updatePermCheckbox('${username}','${s.key}',this.checked,this)"
-              style="width:15px;height:15px;accent-color:var(--primary);">
+              class="dz-1163">
             ${s.label}
           </label>
         `).join('')}
@@ -6667,7 +5980,7 @@ function updatePermCheckbox(username, key, checked, el) {
   // Update border color visually
   if (el) {
     const label = el.closest('label');
-    if (label) label.style.borderColor = checked ? 'var(--primary)' : 'var(--border)';
+    if (label) label.classList.toggle('dz-cb-checked', checked); el.classList.toggle('dz-cb-unchecked', !checked);
   }
 }
 
@@ -6703,8 +6016,8 @@ function savePermissionsForUser(username) {
     _splashDone = true;
     var splash = document.getElementById('dazura-splash');
     if (!splash) return;
-    splash.style.transition = 'opacity 0.5s ease';
-    splash.style.opacity = '0';
+    splash// transition via CSS class
+    splash.classList.add('dz-fade-out');
     setTimeout(function() {
       if (splash.parentNode) splash.parentNode.removeChild(splash);
     }, 520);
@@ -6754,11 +6067,3 @@ function savePermissionsForUser(username) {
   setTimeout(dismissSplash, 3500);
 })();
 
-// Signal that script is ready — flush any queued onclick calls
-window._scriptReady = true;
-if (window._pendingCalls) {
-  window._pendingCalls.forEach(function(c) {
-    if (typeof window[c.fn] === 'function') window[c.fn].apply(null, c.args);
-  });
-  window._pendingCalls = [];
-}
