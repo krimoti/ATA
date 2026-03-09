@@ -677,7 +677,7 @@ function showApp(skipModuleSelector) {
   // Determine roles
   const isAdmin      = currentUser.role === 'admin' || currentUser.role === 'accountant';
   const isManager    = currentUser.role === 'manager' || isAdmin || isUserDeptManager(currentUser.username);
-  const hasAdminAccess = isAdmin || userHasAnyAdminAccess(currentUser.username);
+  const hasAdminAccess = isAdmin; // רק admin ו-accountant רואים כרטיסיית ניהול
 
   document.querySelectorAll('.admin-only').forEach(el => {
     el.style.display = hasAdminAccess ? '' : 'none';
@@ -3634,7 +3634,9 @@ function checkHandoverNeeded() {
   const type = vacs[tomorrowStr];
   if ((type === 'full' || type === 'half') && !sessionStorage.getItem('handoverShown_'+tomorrowStr)) {
     sessionStorage.setItem('handoverShown_'+tomorrowStr, '1');
-    setTimeout(() => openModal('handoverModal'), 1200);
+    // Longer delay on mobile to ensure screen is fully visible
+    const delay = /iPhone|iPad|Android/i.test(navigator.userAgent) ? 2200 : 1200;
+    setTimeout(() => openModal('handoverModal'), delay);
   }
 }
 
