@@ -307,7 +307,7 @@
 
 <!-- CEO Day View Modal -->
 <div class="modal-overlay" id="ceoDayModal">
-  <div class="modal" style="max-width:480px;">
+  <div class="modal" style="max-width:480px;max-height:85vh;overflow-y:auto;display:flex;flex-direction:column;">
     <div class="modal-title">📅 פירוט יום — <span id="ceoDayTitle"></span></div>
     <div id="ceoDayBody" style="max-height:60vh;overflow-y:auto;"></div>
     <div class="modal-footer">
@@ -1589,7 +1589,7 @@
 <div class="modal-overlay" id="splashSelectorModal">
   <div class="modal" style="max-width:480px;">
     <div class="modal-title">🎨 בחירת Splash Screen</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;overflow-y:auto;flex:1;">
       <div class="splash-option" data-splash="1" onclick="selectSplash(1)">
   <div style="height:80px;background:radial-gradient(ellipse at 50% 0%,#6b1a00,#2d0a00,#080200);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;">🔥</div>
   <div style="text-align:center;font-size:12px;font-weight:700;margin-top:6px;">להבת אש</div>
