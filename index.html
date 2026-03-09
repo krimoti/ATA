@@ -641,7 +641,7 @@
           <button onclick="setTCToday()" style="background:var(--primary-light);color:var(--primary);border:none;border-radius:8px;padding:10px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Heebo',sans-serif;white-space:nowrap;">היום</button>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;max-height:60vh;overflow-y:auto;">
           <div>
             <label style="font-size:13px;font-weight:700;color:var(--text-secondary);display:block;margin-bottom:6px;">🟢 שעת כניסה</label>
             <input type="time" id="tcEntry" class="form-input" style="font-size:20px;font-weight:800;text-align:center;letter-spacing:2px;" oninput="calcTCHours()">
