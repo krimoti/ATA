@@ -1931,10 +1931,23 @@ tbody tr:hover { background: var(--surface2); }
 }
 
 /* Splash themes */
-.splash-theme-1 { background: radial-gradient(ellipse at 50% 0%, #0d2060 0%, #060e24 60%, #030710 100%); }
-.splash-theme-2 { background: radial-gradient(ellipse at 50% 0%, #1a0040 0%, #0f0c29 50%, #030710 100%); }
-.splash-theme-3 { background: radial-gradient(ellipse at 50% 0%, #0a3020 0%, #071a10 60%, #030810 100%); }
-.splash-theme-4 { background: radial-gradient(ellipse at 50% 0%, #001840 0%, #001020 60%, #000510 100%); }
+/* 1 — להבת אש / כתום-אדום עז */
+.splash-theme-1 { background: radial-gradient(ellipse at 50% 0%, #6b1a00 0%, #2d0a00 60%, #080200 100%); }
+/* 2 — נאון סגול / סייבר-פאנק */
+.splash-theme-2 { background: radial-gradient(ellipse at 50% 0%, #3d0066 0%, #1a0033 50%, #05000f 100%); }
+/* 3 — ירוק רדיואקטיבי / מטריקס */
+.splash-theme-3 { background: radial-gradient(ellipse at 50% 0%, #003300 0%, #001a00 60%, #000500 100%); }
+/* 4 — כחול קרח עמוק / קוטב */
+.splash-theme-4 { background: radial-gradient(ellipse at 50% 0%, #002244 0%, #000d1a 60%, #000205 100%); }
+/* 5 — אדום דם / מתח */
+.splash-theme-5 { background: radial-gradient(ellipse at 50% 0%, #550000 0%, #220000 60%, #070000 100%); }
+/* 6 — זהב שרוף / מדבר לילה */
+.splash-theme-6 { background: radial-gradient(ellipse at 50% 0%, #4a2e00 0%, #1f1200 60%, #060300 100%); }
+/* 7 — ורוד/מגנטה ניאון */
+.splash-theme-7 { background: radial-gradient(ellipse at 50% 0%, #5c0033 0%, #2a0018 60%, #080005 100%); }
+/* 8 — ציאן קפוא / עתידני */
+.splash-theme-8 { background: radial-gradient(ellipse at 50% 0%, #003344 0%, #001520 60%, #000408 100%); }
+
 
 /* Animated particle stars */
 .splash-particles {
