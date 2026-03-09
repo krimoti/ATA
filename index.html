@@ -72,7 +72,7 @@
       <input type="password" id="loginPassword" class="form-input" placeholder="••••" autocomplete="current-password" dir="ltr" onkeydown="if(event.key==='Enter')doLogin()">
     </div>
     <button class="btn-primary" onclick="doLogin()" style="background:linear-gradient(135deg,rgba(26,86,232,0.9),rgba(15,61,181,0.95));border:1px solid rgba(99,162,255,0.3);box-shadow:0 8px 32px rgba(26,86,232,0.5),0 0 0 1px rgba(255,255,255,0.05) inset;letter-spacing:1px;">
-      <span>כניסה למערכת ←</span>
+      <span>בניסה למערכת ←</span>
     </button>
     <div class="login-first-time">
       כניסה ראשונה? <button class="link-btn" onclick="showRegister()">הירשם כאן</button>
@@ -1511,12 +1511,8 @@
 <div class="toast-container" id="toastContainer"></div>
 
 <!-- ===== AI FLOATING BUTTON ===== -->
-<button id="aiFloatBtn" class="ai-float-btn" onclick="toggleAIPanel()" title="שאל את ה-AI" style="display:none;">
-  <div class="ai-float-inner">
-    <div class="ai-float-rocket">🚀</div>
-    <div class="ai-float-pulse"></div>
-  </div>
-</button>
+<!-- aiFloatBtn removed — AI accessible via AI Card in module selector -->
+<button id="aiFloatBtn" style="display:none!important;pointer-events:none;position:absolute;visibility:hidden;" aria-hidden="true"></button>
 
 <!-- ===== AI PANEL ===== -->
 <div id="aiPanel" class="ai-panel">
