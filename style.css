@@ -1567,6 +1567,49 @@ tbody tr:hover { background: var(--surface2); }
   box-shadow: 0 8px 24px rgba(26,86,232,0.4);
 }
 
+/* ============================================================
+   CEO DASHBOARD CARDS
+   ============================================================ */
+.ceo-card {
+  border-radius: 18px;
+  padding: 16px;
+  cursor: default;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid rgba(255,255,255,0.1);
+  backdrop-filter: blur(12px);
+  transition: transform 0.2s;
+}
+.ceo-card[onclick] { cursor: pointer; }
+.ceo-card[onclick]:hover { transform: translateY(-2px); }
+.ceo-card-blue    { background: linear-gradient(135deg, rgba(29,78,216,0.75), rgba(30,64,175,0.75)); }
+.ceo-card-red     { background: linear-gradient(135deg, rgba(190,18,60,0.75), rgba(159,18,57,0.75)); }
+.ceo-card-green   { background: linear-gradient(135deg, rgba(4,120,87,0.75),  rgba(6,95,70,0.75)); }
+.ceo-card-orange  { background: linear-gradient(135deg, rgba(180,83,9,0.75),  rgba(146,64,14,0.75)); }
+.ceo-card-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.5);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.ceo-card-body {
+  font-size: 13px;
+  color: #fff;
+  font-weight: 600;
+  line-height: 1.75;
+  white-space: pre-line;
+  overflow-y: auto;
+  max-height: 120px;
+}
+.ceo-card-hint {
+  font-size: 10px;
+  color: rgba(255,255,255,0.35);
+  flex-shrink: 0;
+}
+
 /* AI Card — large card at bottom of module selector */
 .ms-ai-card {
   width: 100%;
@@ -1947,7 +1990,6 @@ tbody tr:hover { background: var(--surface2); }
 .splash-theme-7 { background: radial-gradient(ellipse at 50% 0%, #5c0033 0%, #2a0018 60%, #080005 100%); }
 /* 8 — ציאן קפוא / עתידני */
 .splash-theme-8 { background: radial-gradient(ellipse at 50% 0%, #003344 0%, #001520 60%, #000408 100%); }
-
 
 /* Animated particle stars */
 .splash-particles {

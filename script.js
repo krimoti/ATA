@@ -3414,9 +3414,23 @@ function showCeoDashboard() {
   });
   document.getElementById('ceoDashboardScreen').classList.add('active');
   loadTheme();
+
+  // Populate hero card (logo + company name) — same as module selector
+  const s = getSettings();
+  const logoImg  = document.getElementById('ceoLogoImg');
+  const logoIcon = document.getElementById('ceoBrandIcon');
+  if (s.companyLogo && logoImg) {
+    logoImg.src = s.companyLogo; logoImg.style.display = 'block';
+    if (logoIcon) logoIcon.style.display = 'none';
+  } else {
+    if (logoImg) logoImg.style.display = 'none';
+    if (logoIcon) logoIcon.style.display = '';
+  }
+  const cnEl = document.getElementById('ceoCompanyName');
+  if (cnEl && s.companyName) cnEl.textContent = s.companyName;
+
   populateCeoDashboard();
   setTimeout(checkBirthdays, 800);
-  // Check handover for tomorrow's vacationers
   checkHandoverNeeded();
 }
 

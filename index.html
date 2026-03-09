@@ -72,7 +72,7 @@
       <input type="password" id="loginPassword" class="form-input" placeholder="••••" autocomplete="current-password" dir="ltr" onkeydown="if(event.key==='Enter')doLogin()">
     </div>
     <button class="btn-primary" onclick="doLogin()" style="background:linear-gradient(135deg,rgba(26,86,232,0.9),rgba(15,61,181,0.95));border:1px solid rgba(99,162,255,0.3);box-shadow:0 8px 32px rgba(26,86,232,0.5),0 0 0 1px rgba(255,255,255,0.05) inset;letter-spacing:1px;">
-      <span>כניסה למערכת ←</span>
+      <span>כ<div class="splash-optionניסה למערכת ←</span>
     </button>
     <div class="login-first-time">
       כניסה ראשונה? <button class="link-btn" onclick="showRegister()">הירשם כאן</button>
@@ -176,51 +176,69 @@
 
 <!-- ===== CEO DASHBOARD SCREEN ===== -->
 <div id="ceoDashboardScreen" class="screen">
-  <div style="height:100dvh;width:100%;display:flex;flex-direction:column;background:#0f172a;overflow:hidden;box-sizing:border-box;">
+  <div style="height:100dvh;width:100%;display:flex;flex-direction:column;overflow:hidden;box-sizing:border-box;position:relative;background:#0d1b3e;">
 
-    <!-- Header -->
-    <div style="padding:max(env(safe-area-inset-top),14px) 16px 10px;flex-shrink:0;display:flex;justify-content:space-between;align-items:center;">
-      <div style="min-width:0;flex:1;padding-left:10px;">
-        <div id="ceoGreeting" style="font-size:16px;font-weight:800;color:white;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
-        <div id="ceoDate" style="font-size:11px;color:rgba(255,255,255,0.45);margin-top:2px;"></div>
-      </div>
-      <button onclick="doLogout()" style="flex-shrink:0;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.7);border-radius:20px;padding:7px 12px;font-size:12px;cursor:pointer;font-family:'Heebo',sans-serif;white-space:nowrap;">יציאה 🚪</button>
+    <!-- Background orbs (same as module selector) -->
+    <div class="ms-bg-orb ms-bg-orb-1"></div>
+    <div class="ms-bg-orb ms-bg-orb-2"></div>
+    <div class="ms-bg-orb ms-bg-orb-3"></div>
+
+    <!-- Top bar -->
+    <div class="ms-topbar">
+      <button onclick="doLogout()" class="ms-logout-btn">🚪 התנתק</button>
     </div>
 
-    <!-- Cards — fixed height grid, no page scroll, each card scrolls internally -->
-    <div style="flex:1;overflow:hidden;padding:0 12px 16px;display:flex;flex-direction:column;gap:8px;min-height:0;">
+    <!-- Hero card -->
+    <div style="padding:0 20px 14px;flex-shrink:0;position:relative;z-index:2;">
+      <div class="ms-hero-card">
+        <div class="ms-hero-text">
+          <div id="ceoCompanyName" class="ms-hero-company"></div>
+          <div id="ceoGreeting" class="ms-hero-welcome"></div>
+          <div id="ceoDate" style="font-size:11px;color:rgba(255,255,255,0.38);margin-top:3px;font-weight:500;"></div>
+        </div>
+        <div id="ceoBrandIcon" class="ms-hero-icon">👔</div>
+        <img id="ceoLogoImg" class="ms-hero-logo" src="" alt="" style="display:none;">
+      </div>
+    </div>
+
+    <!-- Cards grid — scrollable -->
+    <div style="flex:1;overflow-y:auto;padding:0 14px 20px;display:flex;flex-direction:column;gap:10px;position:relative;z-index:2;">
 
       <!-- Card 1: Today -->
-      <div onclick="openCeoDayView()" style="flex:1;min-height:0;background:linear-gradient(135deg,#1d4ed8,#1e40af);border-radius:14px;padding:14px;cursor:pointer;display:flex;flex-direction:column;">
-        <div style="font-size:9px;font-weight:700;color:rgba(255,255,255,0.5);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;flex-shrink:0;">📅 היום בחברה</div>
-        <div id="ceoTodayText" style="font-size:13px;color:white;font-weight:600;line-height:1.7;overflow-y:auto;flex:1;white-space:pre-line;"></div>
-        <div style="margin-top:4px;font-size:10px;color:rgba(255,255,255,0.4);flex-shrink:0;">לחץ לפירוט ←</div>
+      <div onclick="openCeoDayView()" class="ceo-card ceo-card-blue">
+        <div class="ceo-card-label">📅 היום בחברה</div>
+        <div id="ceoTodayText" class="ceo-card-body"></div>
+        <div class="ceo-card-hint">לחץ לפירוט ←</div>
       </div>
 
       <!-- Card 2: Risk -->
-      <div style="flex:1;min-height:0;background:linear-gradient(135deg,#be123c,#9f1239);border-radius:14px;padding:14px;display:flex;flex-direction:column;">
-        <div style="font-size:9px;font-weight:700;color:rgba(255,255,255,0.5);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;flex-shrink:0;">⚠️ סיכון — שבוע הבא</div>
-        <div id="ceoRiskText" style="font-size:13px;color:white;font-weight:600;line-height:1.7;overflow-y:auto;flex:1;white-space:pre-line;"></div>
+      <div class="ceo-card ceo-card-red">
+        <div class="ceo-card-label">⚠️ סיכון — שבוע הבא</div>
+        <div id="ceoRiskText" class="ceo-card-body"></div>
       </div>
 
       <!-- Card 3: Cost -->
-      <div style="flex:1;min-height:0;background:linear-gradient(135deg,#047857,#065f46);border-radius:14px;padding:14px;display:flex;flex-direction:column;">
-        <div style="font-size:9px;font-weight:700;color:rgba(255,255,255,0.5);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;flex-shrink:0;">💰 עלות חופשות — החודש</div>
-        <div id="ceoCostText" style="font-size:13px;color:white;font-weight:600;line-height:1.7;overflow-y:auto;flex:1;white-space:pre-line;"></div>
+      <div class="ceo-card ceo-card-green">
+        <div class="ceo-card-label">💰 עלות חופשות — החודש</div>
+        <div id="ceoCostText" class="ceo-card-body"></div>
       </div>
 
       <!-- Card 4: Burnout -->
-      <div style="flex:1;min-height:0;background:linear-gradient(135deg,#b45309,#92400e);border-radius:14px;padding:14px;display:flex;flex-direction:column;">
-        <div style="font-size:9px;font-weight:700;color:rgba(255,255,255,0.5);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;flex-shrink:0;">🔥 בריאות הצוות</div>
-        <div id="ceoBurnoutText" style="font-size:13px;color:white;font-weight:600;line-height:1.7;overflow-y:auto;flex:1;white-space:pre-line;"></div>
+      <div class="ceo-card ceo-card-orange">
+        <div class="ceo-card-label">🔥 בריאות הצוות</div>
+        <div id="ceoBurnoutText" class="ceo-card-body"></div>
       </div>
 
       <!-- Card 5: Actions -->
-      <div style="flex-shrink:0;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.09);border-radius:14px;padding:12px;">
-        <div style="display:flex;gap:8px;">
-          <button onclick="openCeoAnnouncementsModal()" style="flex:1;background:rgba(255,255,255,0.07);color:white;border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:11px 10px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Heebo',sans-serif;">📢 הודעות</button>
-          <button onclick="document.getElementById('ceoDashboardScreen').classList.remove('active');enterModule('vacation');" style="flex:1;background:#1d4ed8;color:white;border:none;border-radius:10px;padding:11px 10px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Heebo',sans-serif;">📊 דשבורד מלא</button>
-        </div>
+      <div style="display:flex;gap:10px;flex-shrink:0;">
+        <button onclick="openCeoAnnouncementsModal()" class="ms-module-btn" style="flex:1;justify-content:center;padding:14px 10px;">
+          <div class="ms-btn-icon" style="font-size:22px;">📢</div>
+          <div class="ms-btn-title" style="font-size:14px;">הודעות</div>
+        </button>
+        <button onclick="document.getElementById('ceoDashboardScreen').classList.remove('active');enterModule('vacation');" class="ms-module-btn primary-btn" style="flex:1;justify-content:center;padding:14px 10px;">
+          <div class="ms-btn-icon" style="font-size:22px;">📊</div>
+          <div class="ms-btn-title" style="font-size:14px;">דשבורד מלא</div>
+        </button>
       </div>
 
     </div>
@@ -1555,37 +1573,37 @@
     <div class="modal-title">🎨 בחירת Splash Screen</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
       <div class="splash-option" data-splash="1" onclick="selectSplash(1)">
+        <div style="height:80px;background:linear-gradient(135deg,#0A2342,#1D4E89);border-radius:8px;display:flex;align-items:center;justify-content:center;color:white;font-size:24px;">🌊</div>
+        <div style="text-align:center;font-size:12px;font-weight:700;margin-top:6px;">אוקיינוס</div>
+      </div>
+     <div class="splash-option" data-splash="1" onclick="selectSplash(1)">
   <div style="height:80px;background:radial-gradient(ellipse at 50% 0%,#6b1a00,#2d0a00,#080200);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;">🔥</div>
   <div style="text-align:center;font-size:12px;font-weight:700;margin-top:6px;">להבת אש</div>
 </div>
+
 <div class="splash-option" data-splash="2" onclick="selectSplash(2)">
   <div style="height:80px;background:radial-gradient(ellipse at 50% 0%,#3d0066,#1a0033,#05000f);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;">⚡</div>
   <div style="text-align:center;font-size:12px;font-weight:700;margin-top:6px;">סייבר-פאנק</div>
 </div>
+
 <div class="splash-option" data-splash="3" onclick="selectSplash(3)">
   <div style="height:80px;background:radial-gradient(ellipse at 50% 0%,#003300,#001a00,#000500);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;">☢️</div>
   <div style="text-align:center;font-size:12px;font-weight:700;margin-top:6px;">מטריקס</div>
 </div>
+
 <div class="splash-option" data-splash="4" onclick="selectSplash(4)">
   <div style="height:80px;background:radial-gradient(ellipse at 50% 0%,#002244,#000d1a,#000205);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;">🧊</div>
   <div style="text-align:center;font-size:12px;font-weight:700;margin-top:6px;">קוטב</div>
 </div>
+
 <div class="splash-option" data-splash="5" onclick="selectSplash(5)">
   <div style="height:80px;background:radial-gradient(ellipse at 50% 0%,#550000,#220000,#070000);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;">🩸</div>
   <div style="text-align:center;font-size:12px;font-weight:700;margin-top:6px;">אדום דם</div>
 </div>
+
 <div class="splash-option" data-splash="6" onclick="selectSplash(6)">
   <div style="height:80px;background:radial-gradient(ellipse at 50% 0%,#4a2e00,#1f1200,#060300);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;">🏜️</div>
   <div style="text-align:center;font-size:12px;font-weight:700;margin-top:6px;">מדבר לילה</div>
-</div>
-<div class="splash-option" data-splash="7" onclick="selectSplash(7)">
-  <div style="height:80px;background:radial-gradient(ellipse at 50% 0%,#5c0033,#2a0018,#080005);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;">🌸</div>
-  <div style="text-align:center;font-size:12px;font-weight:700;margin-top:6px;">מגנטה ניאון</div>
-</div>
-<div class="splash-option" data-splash="8" onclick="selectSplash(8)">
-  <div style="height:80px;background:radial-gradient(ellipse at 50% 0%,#003344,#001520,#000408);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;">🌊</div>
-  <div style="text-align:center;font-size:12px;font-weight:700;margin-top:6px;">ציאן קפוא</div>
-</div>
       </div>
     </div>
     <div class="form-group">
