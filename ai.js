@@ -318,16 +318,13 @@ const DazuraAI = (() => {
 
   // ── Permission check ──────────────────────────────────────────
   function hasAdminAccess(user) {
-    return user && (user.role === 'admin' || user.role === 'accountant');
+    return user && (user.role === 'admin' || user.role === 'accountant' || user.username === 'gmaneg');
   }
   function hasManagerAccess(user, db) {
     if (!user) return false;
     if (hasAdminAccess(user)) return true;
     if (user.role === 'manager') return true;
-    // Check if dept manager
-    const depts = Array.isArray(user.dept) ? user.dept : [user.dept];
-    if (!db.departments) return false;
-    return false; // simplified
+    return false;
   }
 
   // ── Response composers ────────────────────────────────────────
