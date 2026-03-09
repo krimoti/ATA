@@ -1,844 +1,626 @@
 // ============================================================
-// DAZURA AI ENGINE — ai.js
-// Natural language HR assistant with full permission system
+// DAZURA AI ENGINE v3.0 — ai.js
+// Smart HR assistant — precise, context-aware, permission-based
 // ============================================================
 
 const DazuraAI = (() => {
 
-  // ── Conversation memory (last 10 messages) ──────────────────
   let conversationHistory = [];
-  const MAX_HISTORY = 10;
+  const MAX_HISTORY = 12;
 
-  // ── Synonyms dictionary (600-800 entries) ───────────────────
-  const SYNONYMS = {
-    // חופשה
-    'חופשה':['חופש','חג','נופש','יציאה לחופש','ימי חופש','ימי מנוחה','vacation','leave','פנאי','מנוחה','הפסקה','חל"ת','חופשת שכר','ימי החופש','חופשות','חופשתי','חופשותי','חופשתך','חופשה שלי','ימים שלקחתי'],
-    // WFH
-    'wfh':['עבודה מהבית','מהבית','home','remote','עבד מהבית','עובד מהבית','בית','מרחוק','עבודה מרחוק','ריחוק','טלוורק','עבודה ביתית','עבודה מרחוק','עובד ביתי','עבד בבית','ממשרד הבית','בישיבת בית'],
-    // מחלה
-    'מחלה':['חולה','מחלה','sick','חולני','לא מרגיש טוב','לא בסדר','ימי מחלה','ימי חולי','בחולי','תעודת מחלה','אישור מחלה','נעדר','היעדרות','חסר','חסרה','מחוסר','מחלות','מחלים','ימי מחלה שלי','כמה מחלתי','מחלתי'],
-    // יתרה
-    'יתרה':['יתרת חופשה','ימים שנשארו','כמה נשאר','כמה ימים נשאר','כמה ימים יש לי','כמה ימים נותרו','ימים שנותרו','balance','יתרת ימים','יתרה שלי','ימים שנשאר לי','כמה ימים אני יכול לקחת','כמה ימים זמינים','ניצול חופשה','ניצול ימים','ימים שנצברו','צבירה','נצבר','צברתי','נצבר לי'],
-    // ניצול
-    'ניצול':['השתמשתי','לקחתי','כמה לקחתי','ימים שניצלתי','ניצלתי','השתמש','שניצל','נוצלו','חופשות שלקחתי','ימי חופש שניצלתי','כמה השתמשתי','פניתי','ניצל','נוצל'],
-    // תחזית
-    'תחזית':['חיזוי','forecast','predict','צפי','עתיד','תכנון','תכנן','מתי אפשר','מתי כדאי','כמה אוכל לקחת','כדאי לקחת','המלצה','מלצי','תמליץ','מה מומלץ','מומלץ','מה כדאי'],
-    // מנהל
-    'מנהל':['מנהלת','boss','manager','ממונה','מנהל שלי','מנהל מחלקה','מנהלת מחלקה','מנהל הצוות','ראש צוות','team lead'],
-    // אישור
-    'אישור':['לאשר','לאשר חופשה','אושר','approved','ממתין לאישור','אושרה','מאושר','מאושרת','אישור חופשה','סטטוס','status','מה הסטטוס','מה מצב','בקשה','בקשת חופשה'],
-    // עובד
-    'עובד':['employee','worker','צוות','צוותי','עמית','עמיתי','חבר צוות','חברי צוות','עובדים','כוח אדם','אנשים','אנשי','staff'],
-    // כמה
-    'כמה':['מה מספר','כמות','מספר','how many','count','סה"כ','סכום','כולל','מנה','ספור','ספר'],
-    // היום
-    'היום':['כיום','today','עכשיו','now','ברגע זה','כרגע','הרגע','בו זמנית','הנוכחי','הנוכחית','כרגע','כעת'],
-    // שבוע
-    'שבוע':['שבועי','week','weekly','השבוע','בשבוע','ימי שבוע','שבוע הבא','שבוע הנוכחי'],
-    // חודש
-    'חודש':['חודשי','monthly','month','בחודש','החודש','הרבעון','חודש הבא','חודש קודם','חודשים','חודש ה','ב-חודש'],
-    // שנה
-    'שנה':['שנתי','year','annual','yearly','השנה','בשנה','שנת','השנה הנוכחית','שנה הבאה'],
-    // דוח
-    'דוח':['report','דוחות','סיכום','סיכוי','תמצית','תקציר','נתונים','export','ייצוא'],
-    // חג
-    'חג':['holiday','חגים','מועד','ערב חג','חג לאומי','יום טוב','שבת','שבתות','מנוחה','ימי חג'],
-    // מחלקה
-    'מחלקה':['department','dept','יחידה','אגף','מחלקות','הצוות שלי','הצוות','קבוצה'],
-    // שחיקה
-    'שחיקה':['burnout','עייפות','עומס','לחץ','עומסים','שחוק','כבד','עמוס'],
-    // עלות
-    'עלות':['cost','מחיר','תמחיר','חבות','עלויות','תקציב','כסף','ₓ','₪','שכר'],
-    // נוכחות
-    'נוכחות':['attendance','present','נמצא','נמצאת','במשרד','office','פיזי','פיזית','בעבודה','בחברה'],
-    // בקשה
-    'בקשה':['request','פנייה','פניה','שאלתי','ביקשתי','ביקש','שאלה','בקשה שלי'],
-    // ממתין
-    'ממתין':['pending','waiting','מחכה','טרם אושר','טרם','בהמתנה','ממתינה'],
-    // אמש / אתמול
-    'אתמול':['yesterday','אמש','לילה שעבר','האתמול'],
-    // מחר
-    'מחר':['tomorrow','הבא','יום הבא','למחר'],
-    // שאלה כללית
-    'מי אני':['מי אני','מה שמי','מהו שמי','זהות שלי','פרטים שלי','הפרופיל שלי','מידע עלי','אני','אחי','אחרי'],
-    // הצג
-    'הצג':['show','display','הראה','תראה לי','תן לי','הכן','הפק','צג','הצג לי','אני רוצה לראות','רוצה לדעת'],
-    // ניהול משאבים
-    'ניהול':['manage','administration','ניהולי','ניהולית','בקרה','ממשל','שלטון','פיקוח'],
-    // חיסכון
-    'חיסכון':['save','חוסך','לחסוך','חסכוני','תכנון','אופטימיזציה'],
-    // הסעות
-    'הסעות':['transportation','תחבורה','שאטל','נסיעה','הסעה','רכב'],
-    // חשמל
-    'חשמל':['electricity','energy','אנרגיה','חשמל','כח','מתח'],
-    // ציון
-    'ציון':['score','grade','דירוג','rank','מדד','מדרג','נקודה','מדרגה'],
-    // רווחה
-    'רווחה':['welfare','wellbeing','אושר','שביעות רצון','איכות חיים','מצב רוח','כושר','בריאות'],
-    // מפת חום
-    'מפת חום':['heatmap','heat map','heat-map','מפה','מדד חום','צפיפות','פיזור','תרשים'],
-    // מחסור
-    'מחסור':['shortage','deficit','חוסר','פגיעה','קיצור','הורדה','כח אדם'],
-    // הצטרפות
-    'הצטרפות':['join','registration','הרשמה','רישום','קליטה','כניסה ראשונה'],
-    // לוח שנה
-    'לוח שנה':['calendar','diary','schedule','אג"ב','תכנית','תכנון','לו"ז','לוז'],
-    // חצי יום
-    'חצי יום':['half day','half','חצי','חלקי','חצי-יום','פחות יום'],
-    // מעקב
-    'מעקב':['tracking','log','audit','רישום','יומן','ניטור','מעקב אחר'],
-    // עדכון
-    'עדכון':['update','refresh','חידוש','תיקון','שינוי','עריכה'],
-    // ביטול
-    'ביטול':['cancel','delete','remove','מחיקה','ביטול חופשה','הסרה'],
-    // אחריות
-    'אחריות':['delegate','האצלה','העברה','מאציל','מעביר'],
-    // הרשאה
-    'הרשאה':['permission','access','גישה','זכות','אישור גישה','הרשאות','role'],
-    // פרטי
-    'פרטי':['private','personal','אישי','סודי','מוגן','פרטיות'],
-    // סיסמה
-    'סיסמה':['password','pass','קוד','מפתח'],
-    // לוג
-    'לוג':['log','audit log','יומן','רשומה','רשומות','היסטוריה','תיעוד','ביומן'],
-    // הודעה
-    'הודעה':['message','notification','הודעות','הודע','הודיע','התראה'],
-    // כל העובדים
-    'כל העובדים':['כולם','all employees','כל הצוות','כל אנשי','מצבת','עובדים כולם','כלל העובדים','כל המחלקות'],
-    // 90 יום
-    '90 יום':['שלושה חודשים','3 חודשים','quarter','רבעון','ללא חופש'],
-    // צבירה
-    'צבירה':['accrual','accumulate','נצבר','מצטבר','נצברו','צובר'],
-    // מכסה
-    'מכסה':['quota','annual quota','מכסה שנתית','מכסה חודשית','מכסת חופשה','ימי זכות'],
-    // ימי בריאות
-    'ימי בריאות':['sick days','health days','ימי מחלה','ימי חולה'],
-    // כניסה
-    'כניסה':['login','signin','כנס','להיכנס','כנסתי','כניסה למערכת'],
-    // יציאה
-    'יציאה':['logout','signout','יצא','התנתקות','עזיבה'],
-    // סנכרון
-    'סנכרון':['sync','synchronize','firebase','עדכון נתונים','סינכרון','רענון'],
-    // תאריך
-    'תאריך':['date','יום','ביום','לתאריך','בתאריך','תאריך התחלה','תאריך סיום'],
-  };
-
-  // ── Intent patterns with regex + keyword matching ───────────
-  const INTENTS = [
-    // פרטים אישיים
-    { name: 'who_am_i',       pattern: /מי אני|מה שמי|שמי|פרטים שלי|הפרופיל שלי|אני (מי|איזה)|זהות/ },
-    { name: 'my_dept',        pattern: /באיזה מחלקה|מחלקה שלי|איזה צוות|הצוות שלי|אני ב/ },
-    // יתרות וצבירה
-    { name: 'my_balance',     pattern: /יתרת|יתרה|כמה ימים (יש לי|נשאר|נותר|זמין)|כמה נשאר|ימים שנשאר|balance|כמה חופשה|מה היתרה|ימים שנצבר|ימים צבורים|מה הצבירה|כמה צברתי|מה צברתי/ },
-    { name: 'my_used',        pattern: /כמה ניצלתי|כמה לקחתי|ימים שניצלתי|ניצול|ימים שהשתמשתי|כמה ימים הולכתי|ימים שהלכתי|כמה השתמשתי/ },
-    { name: 'my_quota',       pattern: /מכסה (שלי|שנתית)|כמה ימי חופש מגיע|ימי חופש שמגיע|מה המכסה|זכאי ל/ },
-    { name: 'my_monthly',     pattern: /כמה (ימים|יום) בחודש|צבירה חודשית|חודשי/ },
-    // תחזית ותכנון
-    { name: 'forecast',       pattern: /תחזית|חיזוי|תכנון|כמה (ימים|יום) אוכל לקחת|מה מומלץ|מתי כדאי|מומלץ לקחת|תמליץ|המלצה לניצול|קצב ניצול|האם בקצב/ },
-    { name: 'eoy_projection', pattern: /סוף שנה|בסוף השנה|עד סוף|עד דצמבר|כמה יישאר|כמה יהיה לי|עד סוף ה/ },
-    // סטטוס בקשות
-    { name: 'request_status', pattern: /סטטוס (בקשה|חופשה)|הבקשה (שלי|אחרונה)|אושרה הבקשה|נדחה|ממתין לאישור|מה מצב הבקשה|מצב בקשת|אושר|מאושר|pending/ },
-    // WHO IS WHERE TODAY
-    { name: 'who_vacation_today', pattern: /מי (ב|הוא|היא|נמצא|נמצאת)(חופשה|חופש|בחופש|בחופשה)|מי יצא לחופש|מי חופשה היום/ },
-    { name: 'who_wfh_today',      pattern: /מי (עובד מהבית|ב-?wfh|מהבית|remote) (היום|כרגע|עכשיו)|wfh היום|מי מהבית/ },
-    { name: 'who_sick_today',     pattern: /מי חולה|מי (ב|בחולי|מחלה) היום|מי נעדר|מי חסר|מחלה היום/ },
-    { name: 'who_office_today',   pattern: /מי במשרד|מי (בחברה|בעבודה) היום|נוכחות היום|מי פיזי/ },
-    { name: 'team_today',         pattern: /מי (מהצוות|מהמחלקה) (שלי|נמצא|היום)|מצב הצוות|הצוות היום/ },
-    // היסטוריה
-    { name: 'my_history_month',   pattern: /חופשה ב(חודש|ינואר|פברואר|מרץ|אפריל|מאי|יוני|יולי|אוגוסט|ספטמבר|אוקטובר|נובמבר|דצמבר)|כמה (ימים|יום) (לקחתי|ניצלתי) ב/ },
-    { name: 'my_history_date',    pattern: /בתאריך|ביום|ב-\d{1,2}\/\d{1,2}|בחודש \d/ },
-    // ניהול - CEO/ADMIN only
-    { name: 'all_wfh',        pattern: /כמה עובדים מהבית|רשימת wfh|עובדי wfh|כל מי שb-?wfh|רשימת עובדי בית/ },
-    { name: 'all_sick',       pattern: /כמה עובדים חולים|רשימת חולים|כל החולים|עובדים במחלה/ },
-    { name: 'all_vacation',   pattern: /כמה עובדים בחופשה|רשימת חופשות|כל החופשות|עובדים בחופש/ },
-    { name: 'burnout_risk',   pattern: /שחיקה|90 יום|לא לקח חופש|ללא חופש|סכנת שחיקה|burnout|לא לקחו חופש/ },
-    { name: 'cost_analysis',  pattern: /עלות|עלויות|חבות|כסף|שכר|תקציב|כמה עולה|עלות חופשות/ },
-    { name: 'pending_48',     pattern: /48 שעות|ממתין(ות)? לאישור|בקשות (ממתינות|שלא אושרו)|מעל 48|אישור עולה/ },
-    { name: 'dept_overload',  pattern: /מחלקה עמוסה|עומס מחלקה|מחלקה עם (הכי|הרבה|יותר)|מחלקה בעומס/ },
-    { name: 'heatmap',        pattern: /מפת חום|heatmap|heat map|פיזור חופשות|עומסי חופשה/ },
-    { name: 'forecast_load',  pattern: /עומסי חופשה צפויים|חיזוי עומס|8 שבועות|שבועות הבא|עתיד קרוב/ },
-    { name: 'headcount',      pattern: /כמה עובדים|סה"כ עובדים|מצבת עובדים|כמה אנשים בחברה|כמה נפשות/ },
-    { name: 'departments',    pattern: /כמה מחלקות|אילו מחלקות|מה המחלקות|רשימת מחלקות/ },
-    { name: 'audit_log',      pattern: /לוג|audit|יומן|מי שינה|מי ביצע|מי גישה|מי ראה|היסטוריית פעולות|תיעוד/ },
-    { name: 'permissions',    pattern: /הרשאות|מי (יש לו|יש לה) הרשאה|הרשאת גישה|מי יכול/ },
-    { name: 'emp_balance',    pattern: /יתרת (ה?עובד|החופשה של|ה?ימים של)|כמה (ימים של|חופש ל)|הצג יתרה של/ },
-    { name: 'emp_history',    pattern: /היסטוריית (עובד|חיסורים|חופשות) של|חיסורי|כמה חסר/ },
-    { name: 'welfare_score',  pattern: /ציון רווחה|welfare|ציוני עובדים|מצב רוח|איכות חיים/ },
-    { name: 'shortage_forecast', pattern: /מחסור (כוח אדם|עובדים)|חוסר (עובדים|כוח)|shortage|חיזוי מחסור/ },
-    // לוח חגים
-    { name: 'holidays',       pattern: /חג|מועד|חגים|ערב חג|פסח|ראש השנה|שבועות|סוכות|ת"א|חנוכה|לאומי|פורים|עצמאות|יום כיפור/ },
-    // מידע צוות
-    { name: 'team_info',      pattern: /מי מ(ה?)צוות|מצוות שלי|חברי הצוות|עמיתים/ },
-    // האצלת סמכויות
-    { name: 'delegate',       pattern: /האצל|מאציל|להאציל|העבר|להעביר|אחריות|מי ממלא|ממלא מקומי/ },
-    // ברכות
-    { name: 'greeting',       pattern: /שלום|היי|הי|בוקר טוב|ערב טוב|צהריים|תקשורת|מה נשמע|מה מצבך|מה קורה/ },
-    // עזרה
-    { name: 'help',           pattern: /עזרה|help|מה (אתה|את) יכול|מה (יכולות|יכולת)|מה אפשר לשאול|מה ניתן לשאול|ה-?ai יכול/ },
-    // שאלות לא רלוונטיות
-    { name: 'off_topic',      pattern: /מזג אוויר|בישול|מתכון|חדשות|ספורט|קוד|תכנות|פוליטיקה|כלכלה|crypto|ביטקוין|מניות|weather/ },
-  ];
-
-  // ── Hebrew month names ────────────────────────────────────────
   const MONTH_NAMES = ['','ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
-  const MONTH_NAMES_SHORT = ['','ינו','פבר','מרץ','אפר','מאי','יונ','יול','אוג','ספט','אוק','נוב','דצמ'];
+  const DAY_NAMES   = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+  const TYPE_LABEL  = { full:'יום חופש מלא', half:'חצי יום חופש', wfh:'עבודה מהבית', sick:'יום מחלה' };
+  const TYPE_STATUS = { full:'בחופשה', half:'בחצי יום חופש', wfh:'עובד/ת מהבית', sick:'ביום מחלה' };
 
-  // ── NLP helpers ───────────────────────────────────────────────
+  // ============================================================
+  // DATE PARSER
+  // ============================================================
+  function parseTargetDate(text) {
+    const now = new Date();
+    const t = text.toLowerCase();
 
-  function normalize(text) {
-    return text.toLowerCase().trim()
-      .replace(/[?,!.;:]/g, ' ')
-      .replace(/\s+/g, ' ');
-  }
-
-  function expandSynonyms(text) {
-    let expanded = text;
-    for (const [canonical, syns] of Object.entries(SYNONYMS)) {
-      for (const syn of syns) {
-        if (expanded.includes(syn.toLowerCase())) {
-          expanded = expanded + ' ' + canonical;
-        }
+    if (/\bמחר\b|tomorrow/.test(t)) {
+      const d = new Date(now); d.setDate(d.getDate()+1);
+      return { date:d, label:'מחר', single:true };
+    }
+    if (/\bאתמול\b|yesterday/.test(t)) {
+      const d = new Date(now); d.setDate(d.getDate()-1);
+      return { date:d, label:'אתמול', single:true };
+    }
+    if (/\bהיום\b|\bעכשיו\b|\bכרגע\b|today/.test(t)) {
+      return { date:new Date(now), label:'היום', single:true };
+    }
+    // יום שלישי הקרוב וכו
+    const dayMatch = t.match(/(ב?יום\s+)?(ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת)/);
+    if (dayMatch) {
+      const dayMap = {ראשון:0,שני:1,שלישי:2,רביעי:3,חמישי:4,שישי:5,שבת:6};
+      const td = dayMap[dayMatch[2]];
+      if (td !== undefined) {
+        const d = new Date(now);
+        let diff = td - d.getDay(); if (diff <= 0) diff += 7;
+        d.setDate(d.getDate()+diff);
+        return { date:d, label:`יום ${dayMatch[2]} הקרוב`, single:true };
       }
     }
-    return expanded;
+    // DD/MM or DD/MM/YYYY
+    const dmMatch = text.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?/);
+    if (dmMatch) {
+      const d=parseInt(dmMatch[1]), m=parseInt(dmMatch[2]), y=dmMatch[3]?parseInt(dmMatch[3]):now.getFullYear();
+      return { date:new Date(y,m-1,d), label:`${d}/${m}/${y}`, single:true };
+    }
+    // שבוע הבא
+    if (/שבוע הבא/.test(t)) {
+      const start=new Date(now); start.setDate(now.getDate()+(7-now.getDay()+1)%7+1);
+      const end=new Date(start); end.setDate(start.getDate()+6);
+      return { dateStart:start, dateEnd:end, label:'שבוע הבא', single:false, range:true };
+    }
+    // השבוע
+    if (/\bהשבוע\b/.test(t)) {
+      const start=new Date(now); start.setDate(now.getDate()-now.getDay());
+      const end=new Date(start); end.setDate(start.getDate()+6);
+      return { dateStart:start, dateEnd:end, label:'השבוע', single:false, range:true };
+    }
+    // חודש ספציפי
+    const mns=['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+    for (let i=0;i<mns.length;i++) {
+      if (t.includes(mns[i])) {
+        const y=extractYear(text);
+        return { dateStart:new Date(y,i,1), dateEnd:new Date(y,i+1,0), label:`${mns[i]} ${y}`, month:i+1, year:y, single:false, range:false, isMonth:true };
+      }
+    }
+    return { date:new Date(now), label:'היום', single:true, isDefault:true };
   }
+
+  function dateToKey(d) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+  function formatDateHeb(d) {
+    return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()} (${DAY_NAMES[d.getDay()]})`;
+  }
+  function extractYear(text) {
+    const m=text.match(/20[2-3]\d/); return m?parseInt(m[0]):new Date().getFullYear();
+  }
+
+  // ============================================================
+  // INTENT DETECTION — scored rules
+  // ============================================================
+  const INTENT_RULES = [
+    { name:'who_am_i',      score: t=>/מי אני|שמי|הפרופיל שלי|זהות|פרטים שלי/.test(t)?10:0 },
+    { name:'my_dept',       score: t=>/מחלקה שלי|באיזה מחלקה|הצוות שלי|אני ב/.test(t)?10:0 },
+    { name:'my_balance',    score: t=>/יתרה|יתרת|כמה (ימים|יום) (יש|נשאר|נותר|זמין)|balance|כמה חופשה|מה היתרה/.test(t)?10:0 },
+    { name:'my_used',       score: t=>/ניצלתי|לקחתי|השתמשתי|ניצול|ימים שניצלתי|כמה (השתמשתי|לקחתי)/.test(t)?10:0 },
+    { name:'my_quota',      score: t=>/מכסה|כמה ימי חופש מגיע|זכאי ל/.test(t)?10:0 },
+    { name:'my_monthly',    score: t=>/צבירה חודשית|כמה (ימים|יום) בחודש/.test(t)?10:0 },
+    { name:'forecast',      score: t=>/תחזית|חיזוי|מומלץ|תמליץ|המלצה|קצב ניצול|כמה אוכל לקחת|מתי כדאי/.test(t)?10:0 },
+    { name:'eoy_projection',score: t=>/סוף שנה|בסוף השנה|עד דצמבר|כמה יישאר/.test(t)?10:0 },
+    { name:'request_status',score: t=>/סטטוס|הבקשה (שלי|אחרונה)|אושרה|נדחה|ממתין לאישור|מצב הבקשה/.test(t)?10:0 },
+    { name:'my_history',    score: t=>/(חופשה|ניצלתי|לקחתי|הייתי) ב(ינואר|פברואר|מרץ|אפריל|מאי|יוני|יולי|אוגוסט|ספטמבר|אוקטובר|נובמבר|דצמבר|\d{1,2}\/\d{1,2})/.test(t)?10:0 },
+    // WHO + any date
+    { name:'who_vacation',  score: t=>/מי (ב|הוא|היא|נמצא|יצא|בחופשה|חופש)|מי חופשה|מי יצא לחופש/.test(t)?10:0 },
+    { name:'who_wfh',       score: t=>/מי (עובד מהבית|ב.?wfh|מהבית|remote)|wfh|מי מהבית/.test(t)?10:0 },
+    { name:'who_sick',      score: t=>/מי חולה|מי (ב)?מחלה|מי נעדר|מי חסר/.test(t)?10:0 },
+    { name:'who_office',    score: t=>/מי במשרד|מי (בחברה|בעבודה)|נוכחות|מי (פיזי|מגיע)/.test(t)?10:0 },
+    { name:'team_status',   score: t=>/מצב הצוות|הצוות (היום|מחר|השבוע)|עמיתי|חברי הצוות/.test(t)?10:0 },
+    // Admin
+    { name:'emp_balance',   score: t=>/(יתרה|יתרת|ימים|חופשה) (של|ל)[^\s]|הצג יתרה של/.test(t)?10:0 },
+    { name:'emp_vacation',  score: t=>/(חופשות|ניצול|היסטוריה) (של|ל)[^\s]/.test(t)?10:0 },
+    { name:'burnout_risk',  score: t=>/שחיקה|90 יום|ללא חופש|לא לקח חופש|burnout/.test(t)?10:0 },
+    { name:'cost_analysis', score: t=>/עלות|חבות|כסף|תקציב|עלויות חופשות|כמה עולה/.test(t)?10:0 },
+    { name:'pending_48',    score: t=>/48|ממתינות לאישור|בקשות שלא אושרו|מעל 48/.test(t)?10:0 },
+    { name:'dept_overload', score: t=>/מחלקה עמוסה|עומס מחלקה|מחלקה עם (הכי|הרבה)/.test(t)?10:0 },
+    { name:'heatmap',       score: t=>/מפת חום|heatmap|פיזור חופשות/.test(t)?10:0 },
+    { name:'headcount',     score: t=>/כמה עובדים|מצבת|כמה אנשים בחברה|סה.?כ עובדים/.test(t)?10:0 },
+    { name:'departments',   score: t=>/כמה מחלקות|אילו מחלקות|מה המחלקות|רשימת מחלקות/.test(t)?10:0 },
+    { name:'audit_log',     score: t=>/לוג|audit|יומן|מי שינה|היסטוריית פעולות/.test(t)?10:0 },
+    { name:'permissions',   score: t=>/הרשאות|מי יכול|הרשאת גישה/.test(t)?10:0 },
+    { name:'welfare_score', score: t=>/ציון רווחה|welfare|ציוני עובדים/.test(t)?10:0 },
+    { name:'shortage',      score: t=>/מחסור|חיזוי עומס|8 שבועות|חוסר עובדים/.test(t)?10:0 },
+    { name:'handovers',     score: t=>/פרוטוקול|העברת מקל|handover/.test(t)?10:0 },
+    { name:'holidays',      score: t=>/חג|חגים|פסח|ראש השנה|סוכות|חנוכה|פורים|עצמאות|כיפור|שבועות/.test(t)?10:0 },
+    { name:'team_info',     score: t=>/חברי הצוות|מי מ(ה?)צוות|עמיתים/.test(t)?10:0 },
+    { name:'greeting',      score: t=>/^(שלום|היי|הי|בוקר|ערב|צהריים|מה נשמע|מה מצבך|מה קורה)\s*/.test(t)?10:0 },
+    { name:'help',          score: t=>/עזרה|help|מה אתה יכול|מה ניתן לשאול|מה אפשר/.test(t)?10:0 },
+    { name:'off_topic',     score: t=>/מזג אוויר|בישול|מתכון|חדשות|ספורט|פוליטיקה|crypto|ביטקוין/.test(t)?10:0 },
+  ];
 
   function detectIntent(text) {
-    const norm = normalize(expandSynonyms(text));
-    for (const intent of INTENTS) {
-      if (intent.pattern.test(norm)) return intent.name;
+    const t = text.toLowerCase().trim();
+    let best=null, bestScore=0;
+    for (const r of INTENT_RULES) {
+      const s=r.score(t); if(s>bestScore){bestScore=s;best=r.name;}
     }
-    return 'unknown';
+    return best||'unknown';
   }
 
-  function extractYear(text) {
-    const m = text.match(/20[23]\d/);
-    return m ? parseInt(m[0]) : new Date().getFullYear();
-  }
-
-  function extractMonth(text) {
-    const names = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
-    for (let i = 0; i < names.length; i++) {
-      if (text.includes(names[i])) return i + 1;
-    }
-    const m = text.match(/ב-?0?(\d{1,2})\/|\bחודש\s+0?(\d{1,2})\b/);
-    if (m) return parseInt(m[1] || m[2]);
-    return new Date().getMonth() + 1;
-  }
-
+  // ============================================================
+  // EMPLOYEE NAME EXTRACTOR
+  // ============================================================
   function extractEmployeeName(text, db) {
-    if (!db || !db.users) return null;
-    const lowerText = text.toLowerCase();
-    for (const [uname, user] of Object.entries(db.users)) {
-      const nameParts = user.fullName.toLowerCase().split(' ');
-      for (const part of nameParts) {
-        if (part.length > 1 && lowerText.includes(part)) return uname;
+    if (!db?.users) return null;
+    const t = text.toLowerCase();
+    for (const [uname,user] of Object.entries(db.users)) {
+      if (t.includes(user.fullName.toLowerCase())) return uname;
+    }
+    for (const [uname,user] of Object.entries(db.users)) {
+      for (const part of user.fullName.split(' ').filter(p=>p.length>2)) {
+        if (t.includes(part.toLowerCase())) return uname;
       }
     }
     return null;
   }
 
-  function todayKey() {
-    const n = new Date();
-    return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
-  }
-
-  function formatDate(dateStr) {
-    const d = new Date(dateStr + 'T00:00:00');
-    const days = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
-    return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()} (${days[d.getDay()]})`;
-  }
-
-  // ── Get today's status for all users ─────────────────────────
-  function getTodayStats(db) {
-    const today = todayKey();
-    let vacation = [], wfh = [], sick = [], office = [];
-    for (const [uname, user] of Object.entries(db.users || {})) {
-      if (!user.fullName) continue;
-      const type = (db.vacations?.[uname] || {})[today];
-      if (type === 'full' || type === 'half') vacation.push(user.fullName);
-      else if (type === 'wfh') wfh.push(user.fullName);
-      else if (type === 'sick') sick.push(user.fullName);
-      else if (user.status !== 'pending') office.push(user.fullName);
-    }
-    return { vacation, wfh, sick, office };
-  }
-
+  // ============================================================
+  // STATS HELPERS
+  // ============================================================
   function getStatsForDate(db, dateStr) {
-    let vacation = [], wfh = [], sick = [], office = [];
-    for (const [uname, user] of Object.entries(db.users || {})) {
-      if (!user.fullName) continue;
-      const type = (db.vacations?.[uname] || {})[dateStr];
-      if (type === 'full' || type === 'half') vacation.push(user.fullName);
-      else if (type === 'wfh') wfh.push(user.fullName);
-      else if (type === 'sick') sick.push(user.fullName);
-      else if (user.status !== 'pending') office.push(user.fullName);
+    const vacation=[],wfh=[],sick=[],office=[];
+    for (const [uname,user] of Object.entries(db.users||{})) {
+      if (!user.fullName||user.status==='pending') continue;
+      const type=(db.vacations?.[uname]||{})[dateStr];
+      if (type==='full'||type==='half') vacation.push(user.fullName);
+      else if (type==='wfh') wfh.push(user.fullName);
+      else if (type==='sick') sick.push(user.fullName);
+      else office.push(user.fullName);
     }
-    return { vacation, wfh, sick, office };
+    return {vacation,wfh,sick,office};
   }
 
-  // ── Balance calculation (mirrors script.js calcBalance) ───────
+  function filterToDept(stats, db, managerUser) {
+    if (hasAdminAccess(managerUser)) return stats;
+    const myDepts = Object.entries(db.deptManagers||{}).filter(([,v])=>v===managerUser.username).map(([k])=>k);
+    if (!myDepts.length && managerUser.role!=='manager') return stats;
+    const inDept = name => {
+      const u=Object.values(db.users).find(u=>u.fullName===name);
+      if (!u) return false;
+      if (!myDepts.length) return true; // manager with no dept assignment — sees all
+      const d=Array.isArray(u.dept)?u.dept:[u.dept];
+      return d.some(dep=>myDepts.includes(dep));
+    };
+    return {
+      vacation: stats.vacation.filter(inDept),
+      wfh:      stats.wfh.filter(inDept),
+      sick:     stats.sick.filter(inDept),
+      office:   stats.office.filter(inDept),
+    };
+  }
+
+  // ============================================================
+  // BALANCE CALCULATION
+  // ============================================================
   function calcBalanceAI(username, year, db) {
-    const user = db.users[username];
-    if (!user) return null;
-    const quota = (user.quotas || {})[String(year)] || { annual: 0, initialBalance: 0 };
-    const vacs = db.vacations?.[username] || {};
-
-    let full = 0, half = 0, wfh = 0, sick = 0;
-    for (const [dt, type] of Object.entries(vacs)) {
-      if (dt.startsWith(String(year))) {
-        if (type === 'full') full++;
-        else if (type === 'half') half++;
-        else if (type === 'wfh') wfh++;
-        else if (type === 'sick') sick++;
-      }
+    const user=db.users[username]; if(!user)return null;
+    const quota=(user.quotas||{})[String(year)]||{annual:0,initialBalance:0};
+    const vacs=db.vacations?.[username]||{};
+    let full=0,half=0,wfh=0,sick=0;
+    for (const [dt,type] of Object.entries(vacs)) {
+      if (!dt.startsWith(String(year)))continue;
+      if(type==='full')full++;else if(type==='half')half++;else if(type==='wfh')wfh++;else if(type==='sick')sick++;
     }
-    const used = full + half * 0.5;
-
-    const annual = quota.annual || 0;
-    const monthly = annual / 12;
-    const now = new Date();
-    let loadMonth = 1, knownBal = quota.initialBalance || 0;
-
+    const used=full+half*0.5, annual=quota.annual||0, monthly=annual/12;
+    const now=new Date();
+    let loadMonth=1, knownBal=quota.initialBalance||0;
     if (quota.balanceDate) {
-      const bd = new Date(quota.balanceDate + 'T00:00:00');
-      if (bd.getFullYear() === year) loadMonth = bd.getMonth() + 1;
-      if (quota.knownBalance !== null && quota.knownBalance !== undefined) knownBal = quota.knownBalance;
+      const bd=new Date(quota.balanceDate+'T00:00:00');
+      if(bd.getFullYear()===year)loadMonth=bd.getMonth()+1;
+      if(quota.knownBalance!=null)knownBal=quota.knownBalance;
     }
-
-    const currentMonth = now.getFullYear() === year ? now.getMonth() + 1 : (year < now.getFullYear() ? 12 : loadMonth);
-    const monthsElapsed = Math.max(0, currentMonth - loadMonth);
-    const accrued = knownBal + monthly * monthsElapsed;
-    const balance = accrued - used;
-    const endOfYearAccrued = knownBal + monthly * Math.max(0, 12 - loadMonth);
-    const projectedEndBalance = endOfYearAccrued - used;
-
-    return { annual, monthly, knownBal, accrued, balance, used, full, half, wfh, sick, projectedEndBalance, endOfYearAccrued, currentMonth, loadMonth };
+    const currentMonth=now.getFullYear()===year?now.getMonth()+1:(year<now.getFullYear()?12:loadMonth);
+    const monthsElapsed=Math.max(0,currentMonth-loadMonth);
+    const accrued=knownBal+monthly*monthsElapsed;
+    const balance=accrued-used;
+    const eoy=knownBal+monthly*Math.max(0,12-loadMonth);
+    return {annual,monthly,accrued,balance,used,full,half,wfh,sick,projectedEndBalance:eoy-used,currentMonth,loadMonth};
   }
 
-  // ── Permission check ──────────────────────────────────────────
+  // ============================================================
+  // PERMISSIONS
+  // ============================================================
   function hasAdminAccess(user) {
-    return user && (user.role === 'admin' || user.role === 'accountant' || user.username === 'gmaneg');
+    return user&&(user.role==='admin'||user.role==='accountant'||user.username==='gmaneg');
   }
-  function hasManagerAccess(user, db) {
-    if (!user) return false;
-    if (hasAdminAccess(user)) return true;
-    if (user.role === 'manager') return true;
-    return false;
+  function hasManagerAccess(user) {
+    return user&&(hasAdminAccess(user)||user.role==='manager');
   }
 
-  // ── Response composers ────────────────────────────────────────
-
+  // ============================================================
+  // RESPONSE COMPOSERS
+  // ============================================================
   function respondWhoAmI(user, db) {
-    const cb = calcBalanceAI(user.username, new Date().getFullYear(), db);
-    const dept = Array.isArray(user.dept) ? user.dept.join(', ') : (user.dept || 'לא מוגדר');
-    const roleLabel = user.role === 'admin' ? 'מנהל מערכת' : user.role === 'manager' ? 'מנהל מחלקה' : user.role === 'accountant' ? 'חשבות' : 'עובד';
-    return `שמך הוא **${user.fullName}**, שם משתמש: ${user.username}. אתה משמש כ${roleLabel} במחלקת ${dept}. יתרת החופשה הנוכחית שלך לשנת ${new Date().getFullYear()} עומדת על **${cb ? cb.balance.toFixed(1) : '?'} ימים**.`;
+    const y=new Date().getFullYear(), cb=calcBalanceAI(user.username,y,db);
+    const dept=Array.isArray(user.dept)?user.dept.join(', '):(user.dept||'לא מוגדר');
+    const role={admin:'מנהל מערכת',manager:'מנהל מחלקה',accountant:'חשב/ת',employee:'עובד/ת'}[user.role]||'עובד/ת';
+    return `שמך **${user.fullName}** (${user.username}), ${role} במחלקת **${dept}**.\nיתרת חופשה ${y}: **${cb?cb.balance.toFixed(1):'?'} ימים**.`;
   }
 
   function respondMyBalance(user, db, year) {
-    const cb = calcBalanceAI(user.username, year, db);
-    if (!cb) return 'לא נמצאו נתוני יתרה עבורך.';
-    const monthName = MONTH_NAMES[cb.currentMonth] || '';
-    return `יתרת החופשה שלך לשנת ${year}: כרגע עומדת על **${cb.balance.toFixed(1)} ימים** (נכון ל${monthName}). מכסה שנתית: ${cb.annual} ימים, ניצלת עד כה: ${cb.used.toFixed(1)} ימים, נצבר: ${cb.accrued.toFixed(1)} ימים. תחזית לסוף השנה: **${cb.projectedEndBalance.toFixed(1)} ימים**.`;
+    const cb=calcBalanceAI(user.username,year,db);
+    if(!cb)return 'לא נמצאו נתוני יתרה.';
+    return `יתרת חופשה ${year}: **${cb.balance.toFixed(1)} ימים**\nניצלת: ${cb.used.toFixed(1)} | נצבר: ${cb.accrued.toFixed(1)} | מכסה: ${cb.annual} ימים/שנה\nתחזית סוף שנה: **${cb.projectedEndBalance.toFixed(1)} ימים**`;
   }
 
   function respondMyUsed(user, db, year) {
-    const cb = calcBalanceAI(user.username, year, db);
-    if (!cb) return 'לא נמצאו נתוני ניצול.';
-    return `בשנת ${year} ניצלת **${cb.used.toFixed(1)} ימי חופשה** — מתוכם ${cb.full} ימים מלאים ו-${cb.half} חצאי ימים. בנוסף, דיווחת על ${cb.wfh} ימי עבודה מהבית ו-${cb.sick} ימי מחלה.`;
+    const cb=calcBalanceAI(user.username,year,db);
+    if(!cb)return 'לא נמצאו נתוני ניצול.';
+    return `שנת ${year}: ניצלת **${cb.used.toFixed(1)} ימי חופשה** — ${cb.full} מלאים, ${cb.half} חצאי ימים.\nWFH: ${cb.wfh} | מחלה: ${cb.sick}`;
   }
 
   function respondForecast(user, db, year) {
-    const cb = calcBalanceAI(user.username, year, db);
-    if (!cb) return 'לא ניתן לחשב תחזית ללא נתונים.';
-    const remaining = 12 - cb.currentMonth;
-    const expected = cb.balance;
-    let rec = '';
-    if (expected > 10) rec = `מומלץ לתכנן **${Math.floor(expected / (remaining || 1) + 0.5)} ימי חופש בחודש** בממוצע כדי לנצל את יתרתך. תאריכים מומלצים: ימים לפני חגים (חנוכה, פסח).`;
-    else if (expected < 0) rec = '⚠️ אתה בחוסר ימי חופש — מומלץ להמנע מחופשות נוספות.';
-    else rec = `הקצב שלך סביר. מומלץ לתכנן חופשה קצרה לפני החגים הבאים.`;
-    return `תחזית ניצול חופש לשנת ${year}: יתרה נוכחית **${cb.balance.toFixed(1)} ימים**, עד סוף השנה צפויים **${cb.projectedEndBalance.toFixed(1)} ימים**. ${rec}`;
+    const cb=calcBalanceAI(user.username,year,db);
+    if(!cb)return 'לא ניתן לחשב תחזית — אין נתוני מכסה.';
+    const rem=12-cb.currentMonth;
+    const rec=cb.balance>10?`מומלץ לתכנן **${Math.ceil(cb.balance/Math.max(rem,1))} ימים בחודש** בממוצע.`:cb.balance<0?'⚠️ אתה בחוסר — הימנע מחופשות נוספות.':'הקצב שלך סביר.';
+    return `תחזית ${year}:\nיתרה: **${cb.balance.toFixed(1)} ימים** | סוף שנה: **${cb.projectedEndBalance.toFixed(1)} ימים**\n${rec}`;
   }
 
-  function respondHolidays(year, db) {
-    const HOL = typeof HOLIDAYS !== 'undefined' ? HOLIDAYS : {};
-    const upcoming = [];
-    const now = new Date();
-    for (const [key, h] of Object.entries(HOL)) {
-      const parts = key.split('-');
-      const y = parseInt(parts[0]), m = parseInt(parts[1]), d = parseInt(parts[2]);
-      if (y === year) {
-        const dt = new Date(y, m-1, d);
-        if (dt >= now) upcoming.push({ name: h.n, date: `${d}/${m}/${y}`, blocked: h.blocked, half: h.half });
-      }
-    }
-    upcoming.sort((a,b) => a.date.localeCompare(b.date));
-    if (!upcoming.length) return `לא נמצאו חגים עתידיים לשנת ${year}.`;
-    const top = upcoming.slice(0, 6).map(h => `• ${h.name} — ${h.date}${h.blocked ? ' (יום חג רשמי)' : ''}${h.half ? ' (יום קצר)' : ''}`).join('\n');
-    return `החגים הקרובים בשנת ${year}:\n${top}`;
-  }
+  // WHO IS WHERE — single date
+  function respondWhoAt(db, dateInfo, currentUser, filterType) {
+    const isAdmin=hasAdminAccess(currentUser), isManager=hasManagerAccess(currentUser);
+    const dateStr=dateToKey(dateInfo.date||new Date());
+    const label=dateInfo.label;
+    const allStats=getStatsForDate(db,dateStr);
 
-  function respondRequestStatus(user, db) {
-    const reqs = (db.approvalRequests || []).filter(r => r.username === user.username);
-    if (!reqs.length) return 'לא נמצאו בקשות חופשה על שמך במערכת.';
-    const last = reqs[reqs.length - 1];
-    const statusMap = { pending: '⏳ ממתינה לאישור', approved: '✅ אושרה', rejected: '❌ נדחתה', changed: '⚠️ ימים שונו — יש לשלוח מחדש' };
-    const statusText = statusMap[last.status] || last.status;
-    return `הבקשה האחרונה שלך לחודש ${MONTH_NAMES[last.month] || last.month}/${last.year} — סטטוס: **${statusText}**${last.rejectReason ? `. סיבת הדחייה: ${last.rejectReason}` : ''}.`;
-  }
-
-  function respondTeamToday(user, db) {
-    const today = todayKey();
-    const userDept = Array.isArray(user.dept) ? user.dept[0] : user.dept;
-    const teamMembers = Object.values(db.users || {}).filter(u => {
-      const d = Array.isArray(u.dept) ? u.dept[0] : u.dept;
-      return d === userDept && u.username !== user.username;
-    });
-    if (!teamMembers.length) return `לא נמצאו עמיתים נוספים במחלקת ${userDept}.`;
-    const result = teamMembers.map(u => {
-      const type = (db.vacations?.[u.username] || {})[today];
-      const status = type === 'full' || type === 'half' ? 'בחופשה' : type === 'wfh' ? 'עובד מהבית' : type === 'sick' ? 'במחלה' : 'במשרד';
-      return `• ${u.fullName}: ${status}`;
-    }).join('\n');
-    return `מצב עמיתי הצוות שלך (${userDept}) להיום:\n${result}`;
-  }
-
-  function respondWhoWFH(db, dateStr, isAdmin) {
-    if (!isAdmin) return 'אין לך הרשאה לצפות בנתוני כלל העובדים.';
-    const stats = getStatsForDate(db, dateStr);
-    if (!stats.wfh.length) return `לא נמצאו עובדים ב-WFH בתאריך ${formatDate(dateStr)}.`;
-    return `עובדים המדווחים על עבודה מהבית בתאריך ${formatDate(dateStr)} (${stats.wfh.length} עובדים):\n${stats.wfh.map(n=>`• ${n}`).join('\n')}`;
-  }
-
-  function respondBurnout(db) {
-    const ninetyDaysAgo = new Date();
-    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-    const atRisk = [];
-    for (const [uname, user] of Object.entries(db.users || {})) {
-      if (user.role === 'admin') continue;
-      const vacs = db.vacations?.[uname] || {};
-      const hasRecent = Object.keys(vacs).some(dt => {
-        const d = new Date(dt + 'T00:00:00');
-        const type = vacs[dt];
-        return d >= ninetyDaysAgo && (type === 'full' || type === 'half');
+    // Employee: only own team
+    if (!isAdmin&&!isManager) {
+      const dept=Array.isArray(currentUser.dept)?currentUser.dept[0]:currentUser.dept;
+      const myTeam=Object.values(db.users).filter(u=>{
+        const d=Array.isArray(u.dept)?u.dept[0]:u.dept;
+        return d===dept&&u.username!==currentUser.username&&u.status!=='pending';
       });
-      if (!hasRecent) atRisk.push(user.fullName);
+      if (!myTeam.length) return `אין עמיתים נוספים במחלקת ${dept}.`;
+      return `מצב הצוות ${label} (${dept}):\n`+myTeam.map(u=>{
+        const type=(db.vacations?.[u.username]||{})[dateStr];
+        return `• ${u.fullName}: ${type?TYPE_STATUS[type]:'במשרד'}`;
+      }).join('\n');
     }
-    if (!atRisk.length) return 'כל העובדים לקחו חופשה במהלך 90 הימים האחרונים. אין חשש לשחיקה כרגע.';
-    return `⚠️ **${atRisk.length} עובדים** לא לקחו חופשה ב-90 הימים האחרונים — קיים סיכון לשחיקה:\n${atRisk.map(n=>`• ${n}`).join('\n')}\nמומלץ לפנות אליהם לעידוד לקיחת חופש.`;
-  }
 
-  function respondCostAnalysis(db) {
-    let totalCost = 0;
-    const details = [];
-    for (const [uname, user] of Object.entries(db.users || {})) {
-      const dailySalary = user.dailySalary || 0;
-      if (!dailySalary) continue;
-      const cb = calcBalanceAI(uname, new Date().getFullYear(), db);
-      if (!cb) continue;
-      const accruedCost = cb.balance * dailySalary;
-      totalCost += accruedCost;
-      if (accruedCost > 0) details.push({ name: user.fullName, days: cb.balance.toFixed(1), cost: accruedCost });
+    const stats=isAdmin?allStats:filterToDept(allStats,db,currentUser);
+    const scope=isAdmin?'':' (המחלקות שלך)';
+    const TYPE_SETS={
+      vacation:{list:stats.vacation,label:`בחופשה ${label}`,empty:`אין עובדים בחופשה ${label}`},
+      wfh:     {list:stats.wfh,    label:`WFH ${label}`,   empty:`אין עובדים ב-WFH ${label}`},
+      sick:    {list:stats.sick,   label:`ביום מחלה ${label}`,empty:`אין עובדים ביום מחלה ${label}`},
+      office:  {list:stats.office, label:`במשרד ${label}`, empty:`אין נוכחים ${label}`},
+    };
+    if (filterType&&TYPE_SETS[filterType]) {
+      const t=TYPE_SETS[filterType];
+      return t.list.length?`**${t.label}**${scope} (${t.list.length}):\n${t.list.map(n=>`• ${n}`).join('\n')}`:t.empty+scope+'.';
     }
-    if (!details.length) return 'לא הוגדרו נתוני שכר לעובדים — לא ניתן לחשב עלות חופשות.';
-    const top = details.sort((a,b)=>b.cost-a.cost).slice(0,5).map(d=>`• ${d.name}: ${d.days} ימים — ₪${Math.round(d.cost).toLocaleString()}`).join('\n');
-    return `חבות חופשות צבורות לכלל העובדים: **₪${Math.round(totalCost).toLocaleString()}**\nהעובדים עם החבות הגבוהה ביותר:\n${top}`;
+    // All
+    const lines=[];
+    if(stats.office.length)   lines.push(`📍 **במשרד (${stats.office.length}):** ${stats.office.join(', ')}`);
+    if(stats.wfh.length)      lines.push(`🏠 **מהבית (${stats.wfh.length}):** ${stats.wfh.join(', ')}`);
+    if(stats.vacation.length) lines.push(`🏖️ **בחופשה (${stats.vacation.length}):** ${stats.vacation.join(', ')}`);
+    if(stats.sick.length)     lines.push(`🤒 **מחלה (${stats.sick.length}):** ${stats.sick.join(', ')}`);
+    return lines.length?`**מצב עובדים ${label}**${scope}:\n${lines.join('\n')}`:(`אין נתוני נוכחות ל${label}.`);
   }
 
-  function respondPending48(db) {
-    const now = new Date();
-    const fortyEightAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
-    const pending = (db.approvalRequests || []).filter(r => r.status === 'pending' && new Date(r.createdAt) < fortyEightAgo);
-    if (!pending.length) return 'אין בקשות ממתינות מעל 48 שעות. כל הבקשות טופלו בזמן.';
-    const list = pending.map(r => {
-      const user = db.users[r.username];
-      const name = user ? user.fullName : r.username;
-      const hours = Math.floor((now - new Date(r.createdAt)) / 3600000);
-      return `• ${name} — ${MONTH_NAMES[r.month]}/${r.year} (ממתין ${hours} שעות)`;
-    }).join('\n');
-    return `⚠️ **${pending.length} בקשות** ממתינות לאישור מעל 48 שעות:\n${list}`;
-  }
-
-  function respondHeadcount(db) {
-    const active = Object.values(db.users || {}).filter(u => u.status !== 'pending');
-    const depts = db.departments || [];
-    const today = getTodayStats(db);
-    return `בחברה פעילים **${active.length} עובדים** ב-**${depts.length} מחלקות**: ${depts.join(', ')}.\nהיום: ${today.office.length} במשרד, ${today.wfh.length} מהבית, ${today.vacation.length} בחופשה, ${today.sick.length} חולים.`;
-  }
-
-  function respondDepartmentOverload(db) {
-    const depts = {};
-    const today = todayKey();
-    for (const [uname, user] of Object.entries(db.users || {})) {
-      const dept = Array.isArray(user.dept) ? user.dept[0] : user.dept;
-      if (!dept) continue;
-      if (!depts[dept]) depts[dept] = { total: 0, away: 0 };
-      depts[dept].total++;
-      const type = (db.vacations?.[uname] || {})[today];
-      if (type && type !== 'wfh') depts[dept].away++;
+  // WHO IS WHERE — date range
+  function respondWhoAtRange(db, dateInfo, currentUser, filterType) {
+    const isAdmin=hasAdminAccess(currentUser);
+    const seen={vacation:new Set(),wfh:new Set(),sick:new Set()};
+    const start=new Date(dateInfo.dateStart), end=new Date(dateInfo.dateEnd);
+    for (let d=new Date(start);d<=end;d.setDate(d.getDate()+1)) {
+      const s=getStatsForDate(db,dateToKey(d));
+      s.vacation.forEach(n=>seen.vacation.add(n));
+      s.wfh.forEach(n=>seen.wfh.add(n));
+      s.sick.forEach(n=>seen.sick.add(n));
     }
-    const sorted = Object.entries(depts)
-      .filter(([,v]) => v.total > 0)
-      .map(([k,v]) => ({ dept: k, pct: Math.round(v.away / v.total * 100), away: v.away, total: v.total }))
-      .sort((a,b) => b.pct - a.pct);
-    if (!sorted.length) return 'אין נתוני מחלקות זמינים.';
-    const top = sorted.slice(0,3).map(d => `• ${d.dept}: ${d.away}/${d.total} עובדים נעדרים (${d.pct}%)`).join('\n');
-    return `המחלקות עם עומס הנעדרים הגבוה ביותר היום:\n${top}`;
-  }
-
-  function respondAuditLog(db) {
-    const logs = (db.auditLog || []).slice(0, 10);
-    if (!logs.length) return 'לוג הפעולות ריק.';
-    const list = logs.map(l => {
-      const d = new Date(l.ts);
-      const time = `${d.getDate()}/${d.getMonth()+1} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
-      return `• ${time} — ${l.user}: ${l.details || l.action}`;
-    }).join('\n');
-    return `10 הפעולות האחרונות במערכת:\n${list}`;
-  }
-
-  function respondWelfareScore(db) {
-    const scores = [];
-    for (const [uname, user] of Object.entries(db.users || {})) {
-      const cb = calcBalanceAI(uname, new Date().getFullYear(), db);
-      if (!cb) continue;
-      const utilizationRate = cb.annual > 0 ? (cb.used / (cb.accrued || 1)) * 100 : 0;
-      const score = Math.min(100, Math.round(utilizationRate));
-      scores.push({ name: user.fullName, score, used: cb.used.toFixed(1), balance: cb.balance.toFixed(1) });
+    if (!isAdmin) {
+      const dept=Array.isArray(currentUser.dept)?currentUser.dept[0]:currentUser.dept;
+      const inDept=name=>Object.values(db.users).some(u=>u.fullName===name&&(Array.isArray(u.dept)?u.dept[0]:u.dept)===dept);
+      ['vacation','wfh','sick'].forEach(k=>{seen[k]=new Set([...seen[k]].filter(inDept));});
     }
-    scores.sort((a,b) => a.score - b.score);
-    const avg = scores.length ? Math.round(scores.reduce((s,x)=>s+x.score,0)/scores.length) : 0;
-    const bottom = scores.slice(0,3).map(s=>`• ${s.name}: ציון ${s.score} (ניצל ${s.used} ימים, יתרה ${s.balance})`).join('\n');
-    return `ציון רווחת עובדים ממוצע: **${avg}/100**\nעובדים הזקוקים לתשומת לב (ניצול חופש נמוך):\n${bottom}\n\nעובדים עם ניצול נמוך נמצאים בסיכון לשחיקה — מומלץ לעודד אותם לקחת חופש.`;
+    if (filterType&&seen[filterType]) {
+      const arr=[...seen[filterType]];
+      return arr.length?`**${filterType==='vacation'?'בחופשה':filterType==='wfh'?'WFH':'מחלה'} ב${dateInfo.label} (${arr.length}):**\n${arr.map(n=>`• ${n}`).join('\n')}`:(`אין נעדרים ב${dateInfo.label}.`);
+    }
+    const lines=[];
+    if(seen.vacation.size)lines.push(`🏖️ **בחופשה ב${dateInfo.label} (${seen.vacation.size}):** ${[...seen.vacation].join(', ')}`);
+    if(seen.wfh.size)     lines.push(`🏠 **WFH ב${dateInfo.label} (${seen.wfh.size}):** ${[...seen.wfh].join(', ')}`);
+    if(seen.sick.size)    lines.push(`🤒 **מחלה ב${dateInfo.label} (${seen.sick.size}):** ${[...seen.sick].join(', ')}`);
+    return lines.length?lines.join('\n'):(`לא נמצאו נעדרים ב${dateInfo.label}.`);
   }
 
-  function respondShortage(db) {
-    const now = new Date();
-    const weeks = [];
-    for (let w = 0; w < 8; w++) {
-      const weekStart = new Date(now);
-      weekStart.setDate(now.getDate() + w * 7);
-      const weekEnd = new Date(weekStart);
-      weekEnd.setDate(weekStart.getDate() + 6);
-      let awayCount = 0;
-      for (const [uname] of Object.entries(db.users || {})) {
-        let d = new Date(weekStart);
-        while (d <= weekEnd) {
-          const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-          const type = (db.vacations?.[uname] || {})[key];
-          if (type === 'full' || type === 'half' || type === 'sick') { awayCount++; break; }
-          d.setDate(d.getDate() + 1);
-        }
-      }
-      const d1 = `${weekStart.getDate()}/${weekStart.getMonth()+1}`;
-      const d2 = `${weekEnd.getDate()}/${weekEnd.getMonth()+1}`;
-      weeks.push({ label: `${d1}–${d2}`, away: awayCount });
+  function respondMyHistory(user, db, dateInfo) {
+    const vacs=db.vacations?.[user.username]||{};
+    let days=[];
+    if (dateInfo.isMonth) {
+      const prefix=`${dateInfo.year}-${String(dateInfo.month).padStart(2,'0')}`;
+      days=Object.entries(vacs).filter(([dt])=>dt.startsWith(prefix));
+    } else if (dateInfo.single) {
+      const key=dateToKey(dateInfo.date);
+      const type=vacs[key];
+      return type?`ב${dateInfo.label} (${formatDateHeb(dateInfo.date)}) דיווחת: **${TYPE_LABEL[type]||type}**.`:`ב${dateInfo.label} (${formatDateHeb(dateInfo.date)}) אין דיווח.`;
+    } else if (dateInfo.range) {
+      const s=dateInfo.dateStart,e=dateInfo.dateEnd;
+      days=Object.entries(vacs).filter(([dt])=>{const d=new Date(dt+'T00:00:00');return d>=s&&d<=e;});
     }
-    const list = weeks.map((w,i) => `• שבוע ${i+1} (${w.label}): ${w.away} נעדרים`).join('\n');
-    const maxWeek = weeks.reduce((a,b)=>a.away>b.away?a:b);
-    return `חיזוי נוכחות ל-8 השבועות הבאים:\n${list}\n\n⚠️ עומס הנעדרים הגבוה ביותר: **${maxWeek.label}** עם ${maxWeek.away} נעדרים. מומלץ לתגבר כוח אדם בתקופה זו.`;
+    if (!days.length) return `לא נמצאו ימי חופשה ב${dateInfo.label}.`;
+    const count=days.reduce((s,[,t])=>s+(t==='full'?1:t==='half'?0.5:0),0);
+    const list=days.sort((a,b)=>a[0].localeCompare(b[0])).map(([dt,t])=>`• ${formatDateHeb(new Date(dt+'T00:00:00'))}: ${TYPE_LABEL[t]||t}`).join('\n');
+    return `חופשות ב${dateInfo.label} (${count} ימים):\n${list}`;
   }
 
   function respondEmpBalance(targetUser, db, year) {
-    const cb = calcBalanceAI(targetUser.username, year, db);
-    if (!cb) return `לא נמצאו נתונים עבור ${targetUser.fullName}.`;
-    return `**${targetUser.fullName}** — יתרת חופשה לשנת ${year}: **${cb.balance.toFixed(1)} ימים**. ניצל: ${cb.used.toFixed(1)}, נצבר: ${cb.accrued.toFixed(1)}, מכסה שנתית: ${cb.annual}.`;
+    const cb=calcBalanceAI(targetUser.username,year,db);
+    if(!cb)return `לא נמצאו נתונים עבור ${targetUser.fullName}.`;
+    return `**${targetUser.fullName}** — יתרה ${year}: **${cb.balance.toFixed(1)} ימים** | ניצל: ${cb.used.toFixed(1)} | נצבר: ${cb.accrued.toFixed(1)} | מכסה: ${cb.annual}`;
   }
 
-  function respondMyHistoryMonth(user, db, month, year) {
-    const vacs = db.vacations?.[user.username] || {};
-    const monthStr = String(month).padStart(2,'0');
-    const prefix = `${year}-${monthStr}`;
-    const days = Object.entries(vacs).filter(([dt]) => dt.startsWith(prefix));
-    if (!days.length) return `לא נמצאו ימי חופשה בחודש ${MONTH_NAMES[month]}/${year}.`;
-    const count = days.reduce((s,[,t]) => s + (t==='full'?1:t==='half'?0.5:0), 0);
-    const list = days.sort((a,b)=>a[0].localeCompare(b[0])).map(([dt,t])=>`• ${formatDate(dt)}: ${t==='full'?'יום מלא':t==='half'?'חצי יום':t==='wfh'?'WFH':'מחלה'}`).join('\n');
-    return `חופשות בחודש ${MONTH_NAMES[month]}/${year} (${count} ימים):\n${list}`;
+  function respondRequestStatus(user, db) {
+    const reqs=(db.approvalRequests||[]).filter(r=>r.username===user.username);
+    if(!reqs.length)return 'לא נמצאו בקשות חופשה על שמך.';
+    const last=reqs[reqs.length-1];
+    const sm={pending:'⏳ ממתינה לאישור',approved:'✅ אושרה',rejected:'❌ נדחתה'};
+    return `הבקשה האחרונה (${MONTH_NAMES[last.month]}/${last.year}): **${sm[last.status]||last.status}**${last.rejectReason?`\nסיבת דחייה: ${last.rejectReason}`:''}`;
   }
 
-  function respondDelegate(user) {
-    return `להאצלת סמכויות ומשימות בזמן חופשה, מומלץ:\n• פנה למנהל שלך דרך הודעה מהאפליקציה לפני היציאה לחופשה\n• ציין אילו משימות פתוחות יש להעביר ולמי\n• הגדר תאריכי תחלופה ברורים\n• וודא שנמסרו כל סיסמאות וגישות לממלא מקום\n\nהאצלת סמכויות נכונה מאפשרת לך ליהנות מהחופשה ללא הפרעות.`;
+  function respondBurnout(db) {
+    const ago=new Date(); ago.setDate(ago.getDate()-90);
+    const atRisk=Object.entries(db.users||{})
+      .filter(([,u])=>u.role!=='admin'&&u.status!=='pending')
+      .filter(([uname])=>!Object.keys(db.vacations?.[uname]||{}).some(dt=>{
+        const d=new Date(dt+'T00:00:00');
+        return d>=ago&&(db.vacations[uname][dt]==='full'||db.vacations[uname][dt]==='half');
+      })).map(([,u])=>u.fullName);
+    return atRisk.length
+      ?`⚠️ **${atRisk.length} עובדים** לא לקחו חופשה ב-90 יום:\n${atRisk.map(n=>`• ${n}`).join('\n')}`
+      :'✅ כל העובדים לקחו חופשה ב-90 הימים האחרונים.';
+  }
+
+  function respondCostAnalysis(db) {
+    let total=0; const details=[];
+    for (const [uname,user] of Object.entries(db.users||{})) {
+      if(!user.dailySalary)continue;
+      const cb=calcBalanceAI(uname,new Date().getFullYear(),db);
+      if(!cb||cb.balance<=0)continue;
+      const cost=cb.balance*user.dailySalary;
+      total+=cost; details.push({name:user.fullName,days:cb.balance.toFixed(1),cost});
+    }
+    if(!details.length)return 'לא הוגדרו נתוני שכר.';
+    const top=details.sort((a,b)=>b.cost-a.cost).slice(0,5).map(d=>`• ${d.name}: ${d.days} ימים — ₪${Math.round(d.cost).toLocaleString()}`).join('\n');
+    return `חבות חופשות: **₪${Math.round(total).toLocaleString()}**\nגבוהה ביותר:\n${top}`;
+  }
+
+  function respondPending48(db) {
+    const ago=new Date(Date.now()-48*3600000);
+    const list=(db.approvalRequests||[]).filter(r=>r.status==='pending'&&new Date(r.createdAt)<ago)
+      .map(r=>{const u=db.users[r.username];const h=Math.floor((Date.now()-new Date(r.createdAt))/3600000);return `• ${u?.fullName||r.username} — ${MONTH_NAMES[r.month]}/${r.year} (${h} שעות)`;});
+    return list.length?`⚠️ **${list.length} בקשות** ממתינות מעל 48 שעות:\n${list.join('\n')}`:'✅ אין בקשות ממתינות מעל 48 שעות.';
+  }
+
+  function respondDeptOverload(db) {
+    const today=dateToKey(new Date()), depts={};
+    for (const [uname,user] of Object.entries(db.users||{})) {
+      const dept=Array.isArray(user.dept)?user.dept[0]:user.dept; if(!dept)continue;
+      if(!depts[dept])depts[dept]={total:0,away:0};
+      depts[dept].total++;
+      const type=(db.vacations?.[uname]||{})[today];
+      if(type&&type!=='wfh')depts[dept].away++;
+    }
+    const top=Object.entries(depts).filter(([,v])=>v.total>0)
+      .map(([k,v])=>({dept:k,pct:Math.round(v.away/v.total*100),away:v.away,total:v.total}))
+      .sort((a,b)=>b.pct-a.pct).slice(0,3)
+      .map(d=>`• ${d.dept}: ${d.away}/${d.total} נעדרים (${d.pct}%)`).join('\n');
+    return top?`מחלקות עם הנעדרים הגבוהים היום:\n${top}`:'אין נתוני מחלקות.';
+  }
+
+  function respondHeadcount(db) {
+    const active=Object.values(db.users||{}).filter(u=>u.status!=='pending');
+    const t=getStatsForDate(db,dateToKey(new Date()));
+    return `**${active.length} עובדים פעילים** ב-${(db.departments||[]).length} מחלקות.\nהיום: ${t.office.length} במשרד | ${t.wfh.length} מהבית | ${t.vacation.length} חופשה | ${t.sick.length} מחלה`;
+  }
+
+  function respondWelfareScore(db) {
+    const scores=Object.entries(db.users||{}).filter(([,u])=>u.role!=='admin'&&u.status!=='pending')
+      .map(([uname,user])=>{
+        const cb=calcBalanceAI(uname,new Date().getFullYear(),db);
+        const score=cb?.annual>0?Math.min(100,Math.round((cb.used/(cb.accrued||1))*100)):0;
+        return {name:user.fullName,score,used:cb?.used?.toFixed(1)||0};
+      }).sort((a,b)=>a.score-b.score);
+    const avg=scores.length?Math.round(scores.reduce((s,x)=>s+x.score,0)/scores.length):0;
+    return `ציון רווחה ממוצע: **${avg}/100**\nזקוקים לתשומת לב:\n${scores.slice(0,3).map(s=>`• ${s.name}: ${s.score}/100 (ניצל ${s.used} ימים)`).join('\n')}`;
+  }
+
+  function respondShortage(db) {
+    const now=new Date();
+    const weeks=Array.from({length:8},(_,w)=>{
+      const s=new Date(now); s.setDate(now.getDate()+w*7);
+      const e=new Date(s); e.setDate(s.getDate()+6);
+      let away=0;
+      for (const uname of Object.keys(db.users||{})) {
+        for (let d=new Date(s);d<=e;d.setDate(d.getDate()+1)) {
+          const t=(db.vacations?.[uname]||{})[dateToKey(d)];
+          if(t==='full'||t==='half'||t==='sick'){away++;break;}
+        }
+      }
+      return {label:`${s.getDate()}/${s.getMonth()+1}–${e.getDate()}/${e.getMonth()+1}`,away};
+    });
+    const max=weeks.reduce((a,b)=>a.away>b.away?a:b);
+    return `חיזוי נוכחות 8 שבועות:\n${weeks.map((w,i)=>`• שבוע ${i+1} (${w.label}): ${w.away} נעדרים`).join('\n')}\n⚠️ עומס שיא: **${max.label}** — ${max.away} נעדרים`;
+  }
+
+  function respondHandovers(db, currentUser) {
+    const today=dateToKey(new Date());
+    const isAdmin=hasAdminAccess(currentUser);
+    const list=Object.values(db.handovers||{})
+      .filter(h=>(isAdmin||h.managerUsername===currentUser.username||currentUser.role==='manager')&&h.date>=today)
+      .sort((a,b)=>a.date.localeCompare(b.date));
+    if(!list.length)return 'אין פרוטוקולי העברת מקל ממתינים.';
+    return list.map(h=>{
+      const d=new Date(h.date+'T00:00:00');
+      return `• **${h.fullName}** (${d.getDate()}/${d.getMonth()+1}): ${h.tasks.join(' | ')}`;
+    }).join('\n');
+  }
+
+  function respondHolidays(year) {
+    const HOL=typeof HOLIDAYS!=='undefined'?HOLIDAYS:{};
+    const now=new Date();
+    const upcoming=Object.entries(HOL)
+      .filter(([k])=>k.startsWith(String(year)))
+      .map(([k,h])=>({...h,date:new Date(k+'T00:00:00'),key:k}))
+      .filter(h=>h.date>=now).sort((a,b)=>a.key.localeCompare(b.key)).slice(0,6);
+    if(!upcoming.length)return `לא נמצאו חגים עתידיים לשנת ${year}.`;
+    return `חגים קרובים ${year}:\n${upcoming.map(h=>`• ${h.n} — ${h.date.getDate()}/${h.date.getMonth()+1}${h.blocked?' (יום חג)':''}`).join('\n')}`;
+  }
+
+  function respondAuditLog(db) {
+    const logs=(db.auditLog||[]).slice(0,10); if(!logs.length)return 'יומן הפעולות ריק.';
+    return '10 פעולות אחרונות:\n'+logs.map(l=>{
+      const d=new Date(l.ts);
+      return `• ${d.getDate()}/${d.getMonth()+1} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')} — ${l.user}: ${l.details||l.action}`;
+    }).join('\n');
   }
 
   function respondGreeting(user) {
-    const hour = new Date().getHours();
-    const greet = hour < 12 ? 'בוקר טוב' : hour < 17 ? 'שלום' : 'ערב טוב';
-    return `${greet} ${user.fullName}! אני כאן לעזור לך בכל שאלה הקשורה לחופשות, נוכחות ומידע ארגוני. מה תרצה לדעת?`;
+    const h=new Date().getHours(), g=h<12?'בוקר טוב':h<17?'שלום':'ערב טוב';
+    return `${g} ${user.fullName}! מה תרצה לדעת?`;
   }
 
   function respondHelp(user) {
-    const isAdmin = hasAdminAccess(user);
-    const basic = `**מה שאני יכול לעשות עבורך:**\n• יתרת ימי חופשה ותחזית שנתית\n• ניצול חופשות לפי חודש או תאריך\n• סטטוס בקשת האישור האחרונה שלך\n• מצב חברי הצוות היום (חופשה/WFH/מחלה)\n• לוח חגים וימי שיא\n• המלצות לניצול חופש`;
-    const admin = isAdmin ? `\n\n**בתור מנהל, גם:**\n• רשימות WFH/חופשה/מחלה לכל תאריך\n• ניתוח שחיקה (90 יום ללא חופש)\n• עלות חופשות צבורות בחברה\n• בקשות ממתינות מעל 48 שעות\n• עומס מחלקות וחיזוי מחסור\n• ציוני רווחת עובדים\n• לוג פעולות ואירועים` : '';
-    return basic + admin + '\n\n**שאל אותי בחופשיות — מבין עברית טבעית!**';
+    const a=hasAdminAccess(user);
+    return `**מה אני יכול לעשות:**\n• יתרת חופשה, ניצול, תחזית\n• מי בחופשה / WFH / מחלה — **היום, מחר, יום שלישי, 15/3 וכו'**\n• מצב הצוות שלך\n• סטטוס בקשת אישור | לוח חגים`
+      +(a?`\n\n**מנהל:**\n• נתוני עובד לפי שם | ניתוח שחיקה\n• עלויות | עומס מחלקות | תחזית מחסור\n• בקשות ממתינות | לוג | פרוטוקולי העברת מקל`:'')
+      +'\n\n**כתוב בחופשיות — מבין עברית טבעית!**';
   }
 
-  // ── Main AI response function ─────────────────────────────────
-  function respond(rawInput, currentUser, db) {
-    if (!rawInput || !rawInput.trim()) return 'בבקשה הקלד שאלה.';
-    if (!currentUser) return 'יש להתחבר למערכת כדי לשאול שאלות.';
-
-    // Add to history
-    conversationHistory.push({ role: 'user', text: rawInput });
-    if (conversationHistory.length > MAX_HISTORY * 2) {
-      conversationHistory = conversationHistory.slice(-MAX_HISTORY * 2);
+  function respondUnknown(rawInput, currentUser, db) {
+    if (hasAdminAccess(currentUser)) {
+      const uname=extractEmployeeName(rawInput,db);
+      if(uname)return respondEmpBalance(db.users[uname],db,new Date().getFullYear());
     }
+    if (/\d{1,2}\/\d{1,2}/.test(rawInput)) {
+      return respondMyHistory(currentUser,db,parseTargetDate(rawInput));
+    }
+    return `לא הבנתי. לדוגמה:\n• "מה יתרת החופשה שלי?"\n• "מי בחופשה מחר?"\n• "מי עובד מהבית ביום שלישי?"\n• "כמה ניצלתי ביוני?"`;
+  }
 
-    const text = normalize(rawInput);
-    const intent = detectIntent(rawInput);
-    const year = extractYear(rawInput);
-    const month = extractMonth(rawInput);
-    const isAdmin = hasAdminAccess(currentUser);
-    const isManager = hasManagerAccess(currentUser, db);
+  // ============================================================
+  // MAIN
+  // ============================================================
+  function respond(rawInput, currentUser, db) {
+    if(!rawInput?.trim())return 'בבקשה הקלד שאלה.';
+    if(!currentUser)return 'יש להתחבר למערכת.';
 
-    let response = '';
+    conversationHistory.push({role:'user',text:rawInput});
+    if(conversationHistory.length>MAX_HISTORY*2) conversationHistory=conversationHistory.slice(-MAX_HISTORY*2);
 
-    // ── Handle intents ────────────────────────────────────────
-    switch (intent) {
-      case 'greeting':
-        response = respondGreeting(currentUser); break;
-      case 'help':
-        response = respondHelp(currentUser); break;
-      case 'who_am_i':
-        response = respondWhoAmI(currentUser, db); break;
+    const isAdmin=hasAdminAccess(currentUser), isManager=hasManagerAccess(currentUser);
+    const intent=detectIntent(rawInput);
+    const dateInfo=parseTargetDate(rawInput);
+    const year=dateInfo.year||extractYear(rawInput);
+
+    let response='';
+    switch(intent) {
+      case 'greeting':        response=respondGreeting(currentUser); break;
+      case 'help':            response=respondHelp(currentUser); break;
+      case 'who_am_i':        response=respondWhoAmI(currentUser,db); break;
       case 'my_dept': {
-        const dept = Array.isArray(currentUser.dept) ? currentUser.dept.join(', ') : (currentUser.dept || 'לא מוגדר');
-        response = `אתה משויך למחלקת **${dept}**.`; break;
+        const dept=Array.isArray(currentUser.dept)?currentUser.dept.join(', '):(currentUser.dept||'לא מוגדר');
+        response=`אתה משויך למחלקת **${dept}**.`; break;
       }
-      case 'my_balance':
-        response = respondMyBalance(currentUser, db, year); break;
-      case 'my_used':
-        response = respondMyUsed(currentUser, db, year); break;
+      case 'my_balance':      response=respondMyBalance(currentUser,db,year); break;
+      case 'my_used':         response=respondMyUsed(currentUser,db,year); break;
       case 'my_quota': {
-        const cb = calcBalanceAI(currentUser.username, year, db);
-        response = cb ? `המכסה השנתית שלך לשנת ${year} היא **${cb.annual} ימים** (${cb.monthly.toFixed(2)} ימים לחודש).` : 'לא נמצאה מכסה.'; break;
+        const cb=calcBalanceAI(currentUser.username,year,db);
+        response=cb?`מכסה שנתית ${year}: **${cb.annual} ימים** (${cb.monthly.toFixed(2)}/חודש)`:'לא נמצאה מכסה.'; break;
       }
       case 'my_monthly': {
-        const cb = calcBalanceAI(currentUser.username, year, db);
-        response = cb ? `אתה צובר **${cb.monthly.toFixed(2)} ימי חופש בחודש** (מכסה שנתית: ${cb.annual} ימים / 12).` : 'לא נמצאו נתונים.'; break;
+        const cb=calcBalanceAI(currentUser.username,year,db);
+        response=cb?`אתה צובר **${cb.monthly.toFixed(2)} ימים לחודש** (${cb.annual}/12).`:'לא נמצאו נתונים.'; break;
       }
-      case 'forecast':
-        response = respondForecast(currentUser, db, year); break;
+      case 'forecast':        response=respondForecast(currentUser,db,year); break;
       case 'eoy_projection': {
-        const cb = calcBalanceAI(currentUser.username, year, db);
-        response = cb ? `תחזית יתרת החופשה שלך בסוף שנת ${year}: **${cb.projectedEndBalance.toFixed(1)} ימים**.${cb.projectedEndBalance < 0 ? ' ⚠️ אתה בחוסר — מומלץ להסדיר!' : cb.projectedEndBalance > 15 ? ' ניצול יתר — כדאי לתכנן חופשות!' : ' הניצול שלך תקין.'}` : 'לא נמצאו נתונים.'; break;
+        const cb=calcBalanceAI(currentUser.username,year,db);
+        response=cb?`תחזית יתרה לסוף ${year}: **${cb.projectedEndBalance.toFixed(1)} ימים**.${cb.projectedEndBalance<0?' ⚠️ בחוסר!':cb.projectedEndBalance>15?' כדאי לתכנן!':' תקין.'}`:'לא נמצאו נתונים.'; break;
       }
-      case 'request_status':
-        response = respondRequestStatus(currentUser, db); break;
-      case 'team_today':
-        response = respondTeamToday(currentUser, db); break;
-      case 'who_wfh_today':
-        if (!isAdmin) {
-          response = respondTeamToday(currentUser, db);
-        } else {
-          response = respondWhoWFH(db, todayKey(), true);
-        }
-        break;
-      case 'who_vacation_today': {
-        const stats = getTodayStats(db);
-        if (!isAdmin) {
-          response = respondTeamToday(currentUser, db);
-        } else {
-          response = stats.vacation.length
-            ? `עובדים בחופשה היום (${stats.vacation.length}):\n${stats.vacation.map(n=>`• ${n}`).join('\n')}`
-            : 'אין עובדים בחופשה היום.';
-        }
-        break;
+      case 'request_status':  response=respondRequestStatus(currentUser,db); break;
+      case 'my_history':      response=respondMyHistory(currentUser,db,dateInfo); break;
+
+      // WHO — all date-aware
+      case 'who_vacation':
+        response=dateInfo.range?respondWhoAtRange(db,dateInfo,currentUser,'vacation'):respondWhoAt(db,dateInfo,currentUser,'vacation'); break;
+      case 'who_wfh':
+        response=dateInfo.range?respondWhoAtRange(db,dateInfo,currentUser,'wfh'):respondWhoAt(db,dateInfo,currentUser,'wfh'); break;
+      case 'who_sick':
+        response=dateInfo.range?respondWhoAtRange(db,dateInfo,currentUser,'sick'):respondWhoAt(db,dateInfo,currentUser,'sick'); break;
+      case 'who_office':
+        response=dateInfo.range?respondWhoAtRange(db,dateInfo,currentUser,'office'):respondWhoAt(db,dateInfo,currentUser,'office'); break;
+      case 'team_status':
+        response=dateInfo.range?respondWhoAtRange(db,dateInfo,currentUser,null):respondWhoAt(db,dateInfo,currentUser,null); break;
+
+      // Admin/Manager
+      case 'emp_balance': {
+        if(!isManager){response='מידע על עובדים אחרים זמין למנהלים בלבד.';break;}
+        const uname=extractEmployeeName(rawInput,db);
+        if(!uname){response='לא זיהיתי שם עובד. נסה עם שם מלא.';break;}
+        response=respondEmpBalance(db.users[uname],db,year); break;
       }
-      case 'who_sick_today': {
-        if (!isAdmin) {
-          const dept = Array.isArray(currentUser.dept) ? currentUser.dept[0] : currentUser.dept;
-          // Only show "absent" without revealing sick reason to non-admins
-          const stats = getStatsForDate(db, todayKey());
-          const deptSick = Object.entries(db.users || {}).filter(([,u]) => {
-            const d = Array.isArray(u.dept) ? u.dept[0] : u.dept;
-            return d === dept && (db.vacations?.[u.username]||{})[todayKey()] === 'sick';
-          }).map(([,u]) => u.fullName);
-          response = deptSick.length ? `${deptSick.length} עמית/ים ממחלקתך נעדרים היום.` : 'אין נעדרים במחלקתך היום.';
-        } else {
-          const stats = getTodayStats(db);
-          response = stats.sick.length
-            ? `עובדים ביום מחלה היום (${stats.sick.length}):\n${stats.sick.map(n=>`• ${n}`).join('\n')}`
-            : 'אין עובדים ביום מחלה היום.';
-        }
-        break;
+      case 'emp_vacation': {
+        if(!isManager){response='מידע על עובדים אחרים זמין למנהלים בלבד.';break;}
+        const uname=extractEmployeeName(rawInput,db);
+        if(!uname){response='לא זיהיתי שם עובד.';break;}
+        response=respondMyHistory({username:uname},db,dateInfo); break;
       }
-      case 'who_office_today': {
-        const stats = getTodayStats(db);
-        if (!isAdmin) {
-          response = respondTeamToday(currentUser, db);
-        } else {
-          response = stats.office.length
-            ? `עובדים במשרד היום (${stats.office.length}):\n${stats.office.map(n=>`• ${n}`).join('\n')}`
-            : 'לא נמצאו עובדים המדווחים כנוכחים במשרד היום.';
-        }
-        break;
-      }
-      case 'all_wfh':
-        if (!isAdmin) { response = 'אין לך הרשאה לצפות ברשימה זו.'; break; }
-        response = respondWhoWFH(db, todayKey(), true); break;
-      case 'all_sick':
-        if (!isAdmin) { response = 'אין לך הרשאה לצפות ברשימה זו.'; break; }
-        const stats2 = getTodayStats(db);
-        response = stats2.sick.length ? `עובדים ביום מחלה היום:\n${stats2.sick.map(n=>`• ${n}`).join('\n')}` : 'אין עובדים ביום מחלה.';
-        break;
-      case 'all_vacation':
-        if (!isAdmin) { response = 'אין לך הרשאה לצפות ברשימה זו.'; break; }
-        const stats3 = getTodayStats(db);
-        response = stats3.vacation.length ? `עובדים בחופשה היום:\n${stats3.vacation.map(n=>`• ${n}`).join('\n')}` : 'אין עובדים בחופשה היום.';
-        break;
       case 'burnout_risk':
-        if (!isAdmin) { response = 'מידע זה זמין למנהלים בלבד.'; break; }
-        response = respondBurnout(db); break;
+        if(!isManager){response='מידע זה זמין למנהלים בלבד.';break;}
+        response=respondBurnout(db); break;
       case 'cost_analysis':
-        if (!isAdmin) { response = 'מידע כספי זמין למנהלים בלבד.'; break; }
-        response = respondCostAnalysis(db); break;
+        if(!isAdmin){response='מידע כספי זמין למנהלים בלבד.';break;}
+        response=respondCostAnalysis(db); break;
       case 'pending_48':
-        if (!isAdmin) { response = 'מידע זה זמין למנהלים בלבד.'; break; }
-        response = respondPending48(db); break;
+        if(!isManager){response='מידע זה זמין למנהלים בלבד.';break;}
+        response=respondPending48(db); break;
       case 'dept_overload':
-        if (!isAdmin) { response = 'מידע זה זמין למנהלים בלבד.'; break; }
-        response = respondDepartmentOverload(db); break;
+        if(!isManager){response='מידע זה זמין למנהלים בלבד.';break;}
+        response=respondDeptOverload(db); break;
       case 'heatmap':
-        if (!isAdmin) { response = 'מידע זה זמין למנהלים בלבד.'; break; }
-        response = respondHeatmap(db); break;
+        if(!isManager){response='מידע זה זמין למנהלים בלבד.';break;}
+        response=respondShortage(db); break;
       case 'headcount':
-        if (!isAdmin) { response = 'מידע זה זמין למנהלים בלבד.'; break; }
-        response = respondHeadcount(db); break;
+        if(!isManager){response='מידע זה זמין למנהלים בלבד.';break;}
+        response=respondHeadcount(db); break;
       case 'departments': {
-        const depts = db.departments || [];
-        response = `בחברה קיימות **${depts.length} מחלקות**: ${depts.join(', ')}.`; break;
+        const d=db.departments||[];
+        response=`בחברה ${d.length} מחלקות: ${d.join(', ')}.`; break;
       }
       case 'audit_log':
-        if (!isAdmin) { response = 'לוג פעולות זמין למנהלים בלבד.'; break; }
-        response = respondAuditLog(db); break;
-      case 'permissions':
-        if (!isAdmin) { response = 'מידע הרשאות זמין למנהלים בלבד.'; break; }
-        response = respondPermissions(db); break;
-      case 'emp_balance': {
-        if (!isAdmin) { response = 'מידע על עובדים אחרים זמין למנהלים בלבד.'; break; }
-        const targetUname = extractEmployeeName(rawInput, db);
-        if (!targetUname) { response = 'לא זיהיתי את שם העובד. נסח מחדש עם שם מלא.'; break; }
-        response = respondEmpBalance(db.users[targetUname], db, year); break;
+        if(!isAdmin){response='לוג זמין למנהלים בלבד.';break;}
+        response=respondAuditLog(db); break;
+      case 'permissions': {
+        if(!isAdmin){response='מידע הרשאות זמין למנהלים בלבד.';break;}
+        const perms=db.permissions||{};
+        const summary=Object.entries(perms).map(([u,p])=>{
+          const user=db.users[u]; if(!user)return null;
+          const list=Object.entries(p).filter(([,v])=>v).map(([k])=>k).join(', ');
+          return list?`• ${user.fullName}: ${list}`:null;
+        }).filter(Boolean);
+        response=summary.length?`הרשאות מיוחדות:\n${summary.join('\n')}`:'לא הוגדרו הרשאות מיוחדות.'; break;
       }
-      case 'emp_history': {
-        if (!isAdmin) { response = 'מידע היסטורי על עובדים אחרים זמין למנהלים בלבד.'; break; }
-        const targetUname = extractEmployeeName(rawInput, db);
-        if (!targetUname) { response = 'לא זיהיתי את שם העובד.'; break; }
-        response = respondMyHistoryMonth(db.users[targetUname] ? { username: targetUname } : currentUser, db, month, year); break;
-      }
-      case 'my_history_month':
-        response = respondMyHistoryMonth(currentUser, db, month, year); break;
-      case 'my_history_date': {
-        const dateMatch = rawInput.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?/);
-        if (dateMatch) {
-          const d = dateMatch[1].padStart(2,'0'), m2 = dateMatch[2].padStart(2,'0'), y2 = dateMatch[3] || new Date().getFullYear();
-          const dt = `${y2}-${m2}-${d}`;
-          const vacs = db.vacations?.[currentUser.username] || {};
-          const type = vacs[dt];
-          response = type ? `בתאריך ${d}/${m2}/${y2} דיווחת: **${type==='full'?'יום חופש מלא':type==='half'?'חצי יום חופש':type==='wfh'?'עבודה מהבית':'מחלה'}**.` : `לא נמצא דיווח לתאריך ${d}/${m2}/${y2}.`;
-        } else {
-          response = 'לא זיהיתי תאריך בשאלה. נסה לכתוב בפורמט DD/MM/YYYY.';
-        }
-        break;
-      }
-      case 'holidays':
-        response = respondHolidays(year, db); break;
-      case 'team_info': {
-        const dept = Array.isArray(currentUser.dept) ? currentUser.dept[0] : currentUser.dept;
-        const team = Object.values(db.users || {}).filter(u => {
-          const d = Array.isArray(u.dept) ? u.dept[0] : u.dept;
-          return d === dept;
-        });
-        response = `מחלקת ${dept} מונה **${team.length} עובדים**: ${team.map(u=>u.fullName).join(', ')}.`; break;
-      }
-      case 'delegate':
-        response = respondDelegate(currentUser); break;
       case 'welfare_score':
-        if (!isAdmin) { response = 'מידע זה זמין למנהלים בלבד.'; break; }
-        response = respondWelfareScore(db); break;
-      case 'forecast_load':
-        if (!isAdmin) { response = 'מידע זה זמין למנהלים בלבד.'; break; }
-        response = respondShortage(db); break;
-      case 'shortage_forecast':
-        if (!isAdmin) { response = 'מידע זה זמין למנהלים בלבד.'; break; }
-        response = respondShortage(db); break;
-      case 'off_topic':
-        response = 'אני מוגבל לנושאים הקשורים למערכת ניהול חופשות ונוכחות. לשאלות כלליות, פנה למקורות אחרים.'; break;
-      default:
-        response = respondUnknown(rawInput, currentUser, db); break;
+        if(!isManager){response='מידע זה זמין למנהלים בלבד.';break;}
+        response=respondWelfareScore(db); break;
+      case 'shortage':
+        if(!isManager){response='מידע זה זמין למנהלים בלבד.';break;}
+        response=respondShortage(db); break;
+      case 'handovers':
+        if(!isManager){response='מידע זה זמין למנהלים בלבד.';break;}
+        response=respondHandovers(db,currentUser); break;
+      case 'holidays':        response=respondHolidays(year); break;
+      case 'team_info': {
+        const dept=Array.isArray(currentUser.dept)?currentUser.dept[0]:currentUser.dept;
+        const team=Object.values(db.users||{}).filter(u=>(Array.isArray(u.dept)?u.dept[0]:u.dept)===dept);
+        response=`מחלקת ${dept}: **${team.length} עובדים** — ${team.map(u=>u.fullName).join(', ')}.`; break;
+      }
+      case 'off_topic':       response='אני מוגבל לנושאי חופשות ונוכחות.'; break;
+      default:                response=respondUnknown(rawInput,currentUser,db); break;
     }
 
-    // Add response to history
-    conversationHistory.push({ role: 'ai', text: response });
-
+    conversationHistory.push({role:'ai',text:response});
     return response;
   }
 
-  function respondHeatmap(db) {
-    const weeks = {};
-    const now = new Date();
-    for (let w = 0; w < 12; w++) {
-      const d = new Date(now);
-      d.setDate(now.getDate() + w * 7);
-      const key = `${d.getDate()}/${d.getMonth()+1}`;
-      let count = 0;
-      for (const [uname] of Object.entries(db.users || {})) {
-        const dt = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-        const type = (db.vacations?.[uname] || {})[dt];
-        if (type === 'full' || type === 'half') count++;
-      }
-      const bar = '█'.repeat(Math.min(count, 10)) + '░'.repeat(Math.max(0, 10 - count));
-      weeks[key] = { count, bar };
-    }
-    const list = Object.entries(weeks).map(([k,v]) => `• ${k}: ${v.bar} (${v.count})`).join('\n');
-    return `מפת חום חופשות — 12 שבועות קדימה:\n${list}\n\n(כל █ = עובד אחד בחופשה)`;
-  }
-
-  function respondPermissions(db) {
-    const perms = db.permissions || {};
-    const summary = Object.entries(perms).map(([uname, p]) => {
-      const user = db.users[uname];
-      if (!user) return null;
-      const permList = Object.entries(p).filter(([,v])=>v).map(([k])=>k).join(', ');
-      return permList ? `• ${user.fullName}: ${permList}` : null;
-    }).filter(Boolean);
-    return summary.length ? `הרשאות מיוחדות בחברה:\n${summary.join('\n')}` : 'לא הוגדרו הרשאות מיוחדות לאף עובד.';
-  }
-
-  function respondUnknown(text, user, db) {
-    // Try to provide useful context-based answer
-    const lowerText = text.toLowerCase();
-
-    // Check if asking about a specific employee by name (admin only)
-    if (hasAdminAccess(user)) {
-      const targetUname = extractEmployeeName(text, db);
-      if (targetUname && db.users[targetUname]) {
-        return respondEmpBalance(db.users[targetUname], db, new Date().getFullYear());
-      }
-    }
-
-    // Check if contains a date
-    if (/\d{1,2}\/\d{1,2}/.test(text)) {
-      const dateMatch = text.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?/);
-      if (dateMatch) {
-        const d = dateMatch[1].padStart(2,'0'), m = dateMatch[2].padStart(2,'0'), y = dateMatch[3] || new Date().getFullYear();
-        const dt = `${y}-${m}-${d}`;
-        const vacs = db.vacations?.[user.username] || {};
-        const type = vacs[dt];
-        return type ? `בתאריך ${d}/${m}/${y} דיווחת: **${type==='full'?'יום חופש מלא':type==='half'?'חצי יום':type==='wfh'?'WFH':'מחלה'}**.` : `לא נמצא דיווח לתאריך ${d}/${m}/${y}.`;
-      }
-    }
-
-    return `לא הצלחתי להבין את השאלה. נסה לנסח אחרת, לדוגמה:\n• "מה יתרת החופשה שלי?"\n• "מי עובד מהבית היום?"\n• "כמה ימי חופש ניצלתי בינואר?"\n\nאני מבין עברית טבעית — כתוב בחופשיות.`;
-  }
-
-  function clearHistory() {
-    conversationHistory = [];
-  }
-
-  // ── Public API ───────────────────────────────────────────────
+  function clearHistory() { conversationHistory=[]; }
   return { respond, clearHistory };
-
 })();
