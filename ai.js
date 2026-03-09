@@ -20,15 +20,15 @@ const DazuraAI = (() => {
     const now = new Date();
     const t = text.toLowerCase();
 
-    if (/\bמחר\b|tomorrow/.test(t)) {
+    if (/מחר|tomorrow/.test(t)) {
       const d = new Date(now); d.setDate(d.getDate()+1);
       return { date:d, label:'מחר', single:true };
     }
-    if (/\bאתמול\b|yesterday/.test(t)) {
+    if (/אתמול|yesterday/.test(t)) {
       const d = new Date(now); d.setDate(d.getDate()-1);
       return { date:d, label:'אתמול', single:true };
     }
-    if (/\bהיום\b|\bעכשיו\b|\bכרגע\b|today/.test(t)) {
+    if (/היום|עכשיו|כרגע|today/.test(t)) {
       return { date:new Date(now), label:'היום', single:true };
     }
     // יום שלישי הקרוב וכו
@@ -49,14 +49,14 @@ const DazuraAI = (() => {
       const d=parseInt(dmMatch[1]), m=parseInt(dmMatch[2]), y=dmMatch[3]?parseInt(dmMatch[3]):now.getFullYear();
       return { date:new Date(y,m-1,d), label:`${d}/${m}/${y}`, single:true };
     }
-    // שבוע הבא
+    // שבוע הבא — חייב לפני השבוע
     if (/שבוע הבא/.test(t)) {
       const start=new Date(now); start.setDate(now.getDate()+(7-now.getDay()+1)%7+1);
       const end=new Date(start); end.setDate(start.getDate()+6);
       return { dateStart:start, dateEnd:end, label:'שבוע הבא', single:false, range:true };
     }
     // השבוע
-    if (/\bהשבוע\b/.test(t)) {
+    if (/השבוע/.test(t)) {
       const start=new Date(now); start.setDate(now.getDate()-now.getDay());
       const end=new Date(start); end.setDate(start.getDate()+6);
       return { dateStart:start, dateEnd:end, label:'השבוע', single:false, range:true };
@@ -122,6 +122,40 @@ const DazuraAI = (() => {
     { name:'greeting',      score: t=>/^(שלום|היי|הי|בוקר|ערב|צהריים|מה נשמע|מה מצבך|מה קורה)\s*/.test(t)?10:0 },
     { name:'help',          score: t=>/עזרה|help|מה אתה יכול|מה ניתן לשאול|מה אפשר/.test(t)?10:0 },
     { name:'off_topic',     score: t=>/מזג אוויר|בישול|מתכון|חדשות|ספורט|פוליטיקה|crypto|ביטקוין/.test(t)?10:0 },
+    // ── FAQ — system knowledge ──────────────────────────────
+    { name:'faq_company_name',    score: t=>/שם החברה|איזו חברה|לאיזה חברה|שם מקום עבודה/.test(t)?10:0 },
+    { name:'faq_version',         score: t=>/גרסה|מעודכן|version|עדכון אחרון|תאריך עדכון/.test(t)?10:0 },
+    { name:'faq_send_message',    score: t=>/שולחים הודעה|שלח הודעה|איך לשלוח הודעה|לשלוח הודעה|שליחת הודעה/.test(t)?10:0 },
+    { name:'faq_time_who',        score: t=>/למי מדווח(ים)? שעות|מי (עוקב|רואה|בודק) (אחרי|את) השעות|מי עוקב/.test(t)?10:0 },
+    { name:'faq_time_fix',        score: t=>/טעיתי.{0,20}שעות|שעות.{0,20}(שגויות|לא נכונות|טעות)|תקן.{0,10}שעות|לתקן.{0,10}שעות|לשנות.{0,10}שעות/.test(t)?10:0 },
+    { name:'faq_reports_who',     score: t=>/מורשה.{0,15}דוחות|מוציא.{0,10}דוחות|מי (יכול|מוציא|מורשה) (להוציא|לייצא)/.test(t)?10:0 },
+    { name:'faq_how_vacation',    score: t=>/איך (בוחרים|בוחר|לבחור) חופשה|איך (מגישים|מגיש|להגיש) (בקשת?|חופשה)|איך לקחת חופש/.test(t)?10:0 },
+    { name:'faq_half_day',        score: t=>/חצי יום|יום מלא או חצי|full.*half|half.*full/.test(t)?10:0 },
+    { name:'faq_holiday_pay',     score: t=>/חג.{0,20}(תשלום|נחשב|יום חופש)|תשלום.{0,15}חג|ערב חג|יום חג|חג לאומי/.test(t)?10:0 },
+    { name:'faq_fix_request',     score: t=>/שלחתי.{0,20}(טעיתי|טעות|שגיאה)|טעיתי.{0,20}בקשה|לתקן.{0,15}בקשה|לבטל.{0,15}בקשה/.test(t)?10:0 },
+    { name:'faq_usage_by_month',  score: t=>/ניצול.{0,15}חודשים|לפי חודשים|פירוט חודשי|חודש אחר חודש/.test(t)?10:0 },
+    { name:'faq_upcoming_vacation',score: t=>/חופשות קרובות|ימי חופשה קרובים|מה הולך לקרות|חופשות הבאות/.test(t)?10:0 },
+    { name:'faq_recommended_days',score: t=>/ימים מומלצים|מה מומלץ לקחת|המלצות (לקחת|לחופש)|טביעת אצבע|לוח המומלצות/.test(t)?10:0 },
+    { name:'faq_pending_check',   score: t=>/איך בודקים? בקשות ממתינות|בקשות (שלא|טרם) אושרו|איפה (רואים|רואה) ממתינות/.test(t)?10:0 },
+    { name:'faq_team_upcoming',   score: t=>/חופשות.{0,10}(צוות|מחלקה)|מחלקה.{0,10}חופשות קרובות/.test(t)?10:0 },
+    { name:'faq_all_upcoming',    score: t=>/חופשות.{0,10}(כל|כלל).{0,10}(עובדים|חברה)|כלל.{0,10}חופשות/.test(t)?10:0 },
+    { name:'faq_team_balance',    score: t=>/סקירת יתרות|יתרות צוות|יתרות.{0,10}(כולם|עובדים)/.test(t)?10:0 },
+    { name:'faq_shortage',        score: t=>/תחזה.{0,10}מחסור|מחסור.{0,10}כוח אדם|חיזוי מחסור|shortage forecast/.test(t)?10:0 },
+    { name:'faq_welfare',         score: t=>/ציוני עובד|ציון של.{0,15}עובד|welfare score|מצב רוח עובדים/.test(t)?10:0 },
+    { name:'faq_who_dept',        score: t=>/מי מגדיר מחלקה|מי יוצר מחלקה|מי מוסיף מחלקה/.test(t)?10:0 },
+    { name:'faq_who_manager',     score: t=>/מי מגדיר מנהל|מי ממנה מנהל|מי קובע מנהל/.test(t)?10:0 },
+    { name:'faq_change_password', score: t=>/משנים? סיסמה|לשנות סיסמה|איך (לאפס|לשנות) סיסמה|סיסמה חדשה/.test(t)?10:0 },
+    { name:'faq_update_birthday', score: t=>/מעדכנים? תאריך לידה|לעדכן.{0,10}לידה|שינוי.{0,10}לידה/.test(t)?10:0 },
+    { name:'faq_update_email',    score: t=>/מעדכנים? (אימייל|מייל|email)|לעדכן.{0,10}(מייל|אימייל)|שינוי.{0,10}מייל/.test(t)?10:0 },
+    { name:'faq_who_logs',        score: t=>/מי (רואה|מורשה).{0,10}לוגים|מי (מורשה|יכול).{0,10}לוג|לוגים.{0,10}הרשאה/.test(t)?10:0 },
+    { name:'faq_who_reset',       score: t=>/מי מורשה לאפס|מי (יכול|מורשה).{0,10}לאפס/.test(t)?10:0 },
+    { name:'faq_who_backup',      score: t=>/מי מורה לגבות|מי (יכול|מורשה).{0,10}לגבות|גיבוי נתונים|מי מגבה/.test(t)?10:0 },
+    { name:'faq_who_quota',       score: t=>/מי טוען מכסות|טעינת מכסות|מי מגדיר מכסה|מכסה שנתית.*מי/.test(t)?10:0 },
+    { name:'faq_quota_format',    score: t=>/מה חשוב.{0,20}(טבלה|אקסל|קובץ).{0,20}מכסות|פורמט.{0,10}מכסות|עמודות.{0,10}מכסות/.test(t)?10:0 },
+    { name:'faq_who_permissions', score: t=>/מי מנהל הרשאות|מי (קובע|מגדיר|מנהל).{0,10}הרשאות/.test(t)?10:0 },
+    { name:'faq_who_logo',        score: t=>/מי מחליף לוגו|מי (מעלה|משנה).{0,10}לוגו|לוגו.{0,10}חברה.*מי/.test(t)?10:0 },
+    { name:'faq_firebase',        score: t=>/מי (מנתק|מחבר|מגדיר).{0,10}firebase|firebase.{0,10}(חיבור|ניתוק)/.test(t)?10:0 },
+    { name:'faq_dept_map',        score: t=>/מי (מויף|ממפה|מגדיר) מחלקה|מיפוי מחלקה/.test(t)?10:0 },
   ];
 
   function detectIntent(text) {
@@ -473,6 +507,188 @@ const DazuraAI = (() => {
     }).join('\n');
   }
 
+  // ============================================================
+  // FAQ — SYSTEM KNOWLEDGE BASE
+  // ============================================================
+  function respondFAQ(intent, currentUser, db) {
+    const isAdmin   = hasAdminAccess(currentUser);
+    const isManager = hasManagerAccess(currentUser);
+    const settings  = db.settings || {};
+    const companyName = settings.companyName || 'החברה שלי';
+
+    switch (intent) {
+
+      case 'faq_company_name':
+        return `אתה עובד בחברת **${companyName}**.`;
+
+      case 'faq_version':
+        return `המערכת היא **Dazura** — מערכת ניהול חופשות ונוכחות.\nגרסה: **v3.0** | עדכון אחרון: **מרץ 2026**.`;
+
+      case 'faq_send_message':
+        if (!isManager) return 'שליחת הודעות לעובדים זמינה למנהלים ואדמין בלבד.';
+        return `**איך לשלוח הודעה לכלל העובדים:**\n1. בחן/י את **לוח הבחירה** (המסך הראשי לאחר הכניסה)\n2. לחץ/י על הכרטיס **"שלח הודעה"** (הכרטיס הכחול בשורת הסטטיסטיקות)\n3. כתוב/י את תוכן ההודעה בשדה הטקסט\n4. לחץ/י **"שלח"** — ההודעה תופיע לכל העובדים בכניסה הבאה שלהם`;
+
+      case 'faq_time_who':
+        return `**שעות העבודה היומיות מדווחות על ידי העובד עצמו** דרך לשונית **"שעון נוכחות"**.\n\nמי רואה את הנתונים:\n• **העובד** — רואה את הדיווחים שלו בלבד\n• **מנהל מחלקה** — רואה את דיווחי הצוות שלו בלשונית "לוח מנהל"\n• **אדמין / חשבות** — רואה את כל הדיווחים ויכול לייצא לאקסל`;
+
+      case 'faq_time_fix':
+        return `**תיקון שעות שגויות:**\n1. עבור/י ללשונית **"שעון נוכחות"** (בתפריט התחתון)\n2. שנה/י את **התאריך** לתאריך שבו הייתה הטעות\n3. עדכן/י את שעת **הכניסה** ו/או **היציאה** לערכים הנכונים\n4. ניתן להוסיף **הערה** להסבר השינוי\n5. לחץ/י **"שמור"** — הדיווח יתעדכן מיד\n\n📌 ניתן לתקן כל תאריך — גם ימים קודמים.`;
+
+      case 'faq_reports_who':
+        return `**מי מורשה להוציא דוחות:**\n• **אדמין** — כל הדוחות: שכר, חודשי, גיבוי מלא\n• **חשבות** — דוח שכר וייצוא נוכחות\n• **מנהל מחלקה** — דוח חודשי ויתרות הצוות שלו\n• **עובד** — יכול לייצא את הנתונים האישיים שלו בלבד\n\nהדוחות נמצאים בלשונית **"ניהול"** → קטע סקירת יתרות, ובלשונית **"לוח מנהל"**.`;
+
+      case 'faq_how_vacation': {
+        return `**איך מגישים בקשת חופשה:**\n1. פתח/י את **לוח השנה** (לשונית "לוח שנה" בתחתית)\n2. לחץ/י על **היום הרצוי** — ייפתח חלון בחירה\n3. בחר/י את סוג הדיווח: **יום חופש מלא / חצי יום / WFH / מחלה**\n4. לחץ/י **"שמור"**\n5. אם המערכת מוגדרת לדרוש אישור — הבקשה תישלח למנהל ותסומן **⏳ ממתין לאישור**`;
+      }
+
+      case 'faq_half_day':
+        return `**יום מלא לעומת חצי יום:**\n• **יום מלא** — נספר כ-1 יום חופש מהיתרה\n• **חצי יום** — נספר כ-0.5 יום חופש מהיתרה\n\nלבחירה: בלוח השנה לחץ/י על התאריך → בחר/י **"חצי יום"** בחלון שנפתח.`;
+
+      case 'faq_holiday_pay':
+        return `**חגים ותשלום:**\n• **יום חג רשמי** (מסומן בלוח כ"יום חג") — **לא נחשב ליום חופש** מהיתרה. אינו מנוכה מהמכסה.\n• **ערב חג** — בהתאם להגדרות החברה: אם מוגדר כ"חצי יום" — ינוכה 0.5 יום אם ביקשת חופש. אם לא עבדת ביום רגיל — אינו מנוכה.\n\nלצפייה בחגים הקרובים — שאל אותי: "מה החגים הקרובים?"`;
+
+      case 'faq_fix_request':
+        return `**תיקון בקשה שנשלחה:**\n• אם הבקשה עדיין **ממתינה לאישור** — ניתן לבטל אותה דרך לוח השנה: לחץ/י על אותו יום → בחר/י **"הסר דיווח"** → שלח/י מחדש עם הבחירה הנכונה.\n• אם הבקשה **אושרה כבר** — פנה/י למנהל או לאדמין לביטול ידני.\n\n📌 שינוי ימים שאושרו מתעד את הפעולה ב-Audit Log.`;
+
+      case 'faq_usage_by_month': {
+        const year = new Date().getFullYear();
+        const vacs = db.vacations?.[currentUser.username] || {};
+        const byMonth = {};
+        for (const [dt, type] of Object.entries(vacs)) {
+          if (!dt.startsWith(String(year))) continue;
+          const m = parseInt(dt.split('-')[1]);
+          if (!byMonth[m]) byMonth[m] = 0;
+          byMonth[m] += type==='full'?1:type==='half'?0.5:0;
+        }
+        const used = Object.entries(byMonth).sort((a,b)=>a[0]-b[0]);
+        if (!used.length) return `לא נמצאו ימי חופשה בשנת ${year}.`;
+        const total = used.reduce((s,[,v])=>s+v,0);
+        return `ניצול חופשה לפי חודשים (${year}):\n${used.map(([m,d])=>`• ${MONTH_NAMES[parseInt(m)]}: ${d} ימים`).join('\n')}\n\nסה"כ: **${total} ימים**`;
+      }
+
+      case 'faq_upcoming_vacation': {
+        const today = dateToKey(new Date());
+        const vacs = db.vacations?.[currentUser.username] || {};
+        const upcoming = Object.entries(vacs)
+          .filter(([dt,t])=>dt>=today&&(t==='full'||t==='half'))
+          .sort((a,b)=>a[0].localeCompare(b[0])).slice(0,8);
+        if (!upcoming.length) return 'אין חופשות מתוכננות בקרוב.';
+        return `חופשות קרובות שלך:\n${upcoming.map(([dt,t])=>`• ${formatDateHeb(new Date(dt+'T00:00:00'))}: ${TYPE_LABEL[t]}`).join('\n')}`;
+      }
+
+      case 'faq_recommended_days': {
+        const year = new Date().getFullYear();
+        const cb = calcBalanceAI(currentUser.username, year, db);
+        if (!cb) return 'לא נמצאו נתוני מכסה.';
+        const rem = 12 - new Date().getMonth();
+        const perMonth = cb.balance > 0 ? (cb.balance / Math.max(rem,1)).toFixed(1) : 0;
+        return `**המלצות ניצול חופש — ${currentUser.fullName}:**\n• יתרה נוכחית: **${cb.balance.toFixed(1)} ימים**\n• חודשים שנותרו בשנה: ${rem}\n• **מומלץ לתכנן: ${perMonth} ימים לחודש**\n\nתקופות מומלצות לחופשה:\n• ימים לפני חגים (פסח, ראש השנה)\n• סוף שבוע ארוך (מחבר יום חג + שישי)\n• ימי "גשר" בין יום חג לסוף שבוע`;
+      }
+
+      case 'faq_pending_check':
+        if (!isManager) return `בקשות ממתינות לאישור נמצאות בלשונית **"לוח מנהל"** — פעולה זו מוגבלת למנהלים.`;
+        return `**איך לבדוק בקשות ממתינות:**\n• עבור/י ללשונית **"לוח מנהל"**\n• קטע **"בקשות ממתינות לאישור"** מציג את כל הבקשות הפתוחות\n• לחץ/י ✅ לאישור או ❌ לדחייה\n• ניתן לראות גם בדשבורד ה-CEO אם רלוונטי`;
+
+      case 'faq_team_upcoming': {
+        if (!isManager) {
+          const dept = Array.isArray(currentUser.dept)?currentUser.dept[0]:currentUser.dept;
+          const today = dateToKey(new Date());
+          const teamVacs = [];
+          Object.values(db.users||{}).forEach(u => {
+            const d = Array.isArray(u.dept)?u.dept[0]:u.dept;
+            if (d!==dept) return;
+            const vacs = db.vacations?.[u.username]||{};
+            Object.entries(vacs).filter(([dt,t])=>dt>=today&&(t==='full'||t==='half'))
+              .slice(0,2).forEach(([dt,t])=>teamVacs.push({name:u.fullName,dt,t}));
+          });
+          teamVacs.sort((a,b)=>a.dt.localeCompare(b.dt));
+          return teamVacs.length ? `חופשות קרובות במחלקה (${dept}):\n${teamVacs.slice(0,8).map(v=>`• ${v.name}: ${formatDateHeb(new Date(v.dt+'T00:00:00'))} — ${TYPE_LABEL[v.t]}`).join('\n')}` : 'אין חופשות מתוכננות בצוות בקרוב.';
+        }
+        return respondShortage(db);
+      }
+
+      case 'faq_all_upcoming': {
+        if (!isAdmin) return 'מידע על חופשות כלל העובדים זמין לאדמין בלבד.';
+        const today = dateToKey(new Date());
+        const allVacs = [];
+        Object.entries(db.users||{}).forEach(([uname,user])=>{
+          const vacs = db.vacations?.[uname]||{};
+          Object.entries(vacs).filter(([dt,t])=>dt>=today&&(t==='full'||t==='half'))
+            .slice(0,2).forEach(([dt,t])=>allVacs.push({name:user.fullName,dt,t}));
+        });
+        allVacs.sort((a,b)=>a.dt.localeCompare(b.dt));
+        return allVacs.length ? `חופשות קרובות בחברה (הקרובות ביותר):\n${allVacs.slice(0,12).map(v=>`• ${v.name}: ${v.dt}`).join('\n')}` : 'אין חופשות מתוכננות קרוב.';
+      }
+
+      case 'faq_team_balance': {
+        if (!isManager) return 'סקירת יתרות צוות זמינה ללשונית "לוח מנהל" עבור מנהלים.';
+        const year = new Date().getFullYear();
+        const dept = Array.isArray(currentUser.dept)?currentUser.dept[0]:currentUser.dept;
+        const team = Object.values(db.users||{}).filter(u=>{
+          const d=Array.isArray(u.dept)?u.dept[0]:u.dept;
+          return (isAdmin||d===dept)&&u.status!=='pending';
+        }).slice(0,10);
+        if (!team.length) return 'לא נמצאו עובדים לסקירה.';
+        const rows = team.map(u=>{
+          const cb=calcBalanceAI(u.username,year,db);
+          return `• ${u.fullName}: יתרה **${cb?cb.balance.toFixed(1):'?'}** ימים`;
+        }).join('\n');
+        return `סקירת יתרות צוות — ${year}:\n${rows}`;
+      }
+
+      case 'faq_shortage':
+        if (!isManager) return 'תחזית מחסור זמינה למנהלים בלבד.';
+        return respondShortage(db);
+
+      case 'faq_welfare':
+        if (!isManager) return 'ציוני עובדים זמינים למנהלים בלבד.';
+        return respondWelfareScore(db);
+
+      case 'faq_who_dept':
+        return `**מי מגדיר מחלקות:**\nרק **אדמין** יכול ליצור, לשנות ולמחוק מחלקות.\nנמצא בלשונית **"ניהול"** → קטע **"הגדרות חברה"** → שדה "מחלקות".`;
+
+      case 'faq_who_manager':
+        return `**מי ממנה מנהל מחלקה:**\nרק **אדמין** יכול לשייך מנהל למחלקה.\nנמצא בלשונית **"ניהול"** → קטע **"הגדרות חברה"** → בחר מחלקה → הגדר מנהל.`;
+
+      case 'faq_change_password':
+        return `**איך משנים סיסמה:**\n1. לחץ/י על **שם המשתמש** (בפינה השמאלית של הכותרת)\n2. בחר/י **"עריכת פרופיל"**\n3. לחץ/י **"שנה סיסמה"** — תתבקש/י להזין סיסמה נוכחית וחדשה\n\nאם שכחת את הסיסמה — לחץ/י **"שכחתי סיסמה"** במסך הכניסה.`;
+
+      case 'faq_update_birthday':
+        return `**איך מעדכנים תאריך לידה:**\n1. לחץ/י על **שם המשתמש** → **"עריכת פרופיל"**\n2. עדכן/י את שדה **"תאריך לידה"**\n3. לחץ/י **"שמור"**\n\n📌 שנת הלידה לא מוצגת לאחרים — מוצגים יום וחודש בלבד לברכות.`;
+
+      case 'faq_update_email':
+        return `**איך מעדכנים כתובת מייל:**\n1. לחץ/י על **שם המשתמש** → **"עריכת פרופיל"**\n2. עדכן/י את שדה **"מייל"**\n3. לחץ/י **"שמור"**\n\nהמייל משמש לשחזור סיסמה ולקבלת התראות.`;
+
+      case 'faq_who_logs':
+        return `**מי רשאי לצפות בלוגים (Audit Log):**\nרק **אדמין** רואה את יומן הפעולות המלא.\nנמצא בלשונית **"ניהול"** → קטע **"יומן שינויים (Audit Log)"**.`;
+
+      case 'faq_who_reset':
+        return `**מי מורשה לאפס נתונים:**\nרק **אדמין** יכול לאפס נתונים מקומיים.\nנמצא בלשונית **"ניהול"** → קטע **"כלי מנהל"** → כפתור "אפס נתונים מקומיים".\n\n⚠️ פעולה זו בלתי הפיכה — מומלץ לגבות לפני!`;
+
+      case 'faq_who_backup':
+        return `**מי יכול לגבות נתונים:**\nרק **אדמין** יכול לייצא גיבוי מלא.\nנמצא בלשונית **"ניהול"** → כפתור **"ייצא גיבוי"** — מוריד קובץ JSON עם כל הנתונים.`;
+
+      case 'faq_who_quota':
+      case 'faq_dept_map':
+        return `**מי טוען מכסות שנתיות:**\nרק **אדמין** יכול לטעון ולעדכן מכסות.\nשתי דרכים:\n• **ידנית** — לשונית "ניהול" → רשימת עובדים → עריכת עובד → שדה "מכסה"\n• **מאקסל** — לשונית "ניהול" → "טען מכסות מאקסל" — מאפשר עדכון מרוכז של כולם`;
+
+      case 'faq_quota_format':
+        return `**פורמט קובץ מכסות (Excel/CSV):**\nהקובץ חייב לכלול את העמודות הבאות:\n• **שם משתמש** — זהה לשם הכניסה במערכת\n• **מכסה שנתית** — מספר ימי החופש לשנה\n• **יתרת פתיחה** — ימי חופש שנצברו מהשנה הקודמת (אופציונלי)\n• **תאריך יתרה** — תאריך שממנו מתחיל החישוב (אופציונלי)\n\nשורה ראשונה = כותרות, מהשורה השנייה — נתוני עובדים.`;
+
+      case 'faq_who_permissions':
+        return `**מי מנהל הרשאות:**\nרק **אדמין** יכול להגדיר הרשאות מיוחדות לעובדים.\nנמצא בלשונית **"ניהול"** → קטע **"הרשאות עובדים"** — ניתן להעניק לעובד גישה לסקציות ספציפיות.`;
+
+      case 'faq_who_logo':
+        return `**מי יכול להחליף לוגו חברה:**\nרק **אדמין** יכול להעלות/לשנות את לוגו החברה.\nנמצא בלשונית **"ניהול"** → קטע **"הגדרות חברה"** → **"לוגו החברה"** → לחץ להעלאה.`;
+
+      case 'faq_firebase':
+        return `**חיבור/ניתוק Firebase:**\nרק **אדמין** יכול לנהל את חיבור Firebase.\n• **חיבור** — לחץ/י על **כפתור Firebase** (בפינה השמאלית של הכותרת) → הזן/י את פרטי ה-Project\n• **ניתוק** — אותו כפתור → **"נתק"**\n\nFirebase מאפשר סנכרון נתונים בין מכשירים ומשתמשים בזמן אמת.`;
+
+      default:
+        return null;
+    }
+  }
+
   function respondGreeting(user) {
     const h=new Date().getHours(), g=h<12?'בוקר טוב':h<17?'שלום':'ערב טוב';
     return `${g} ${user.fullName}! מה תרצה לדעת?`;
@@ -614,6 +830,42 @@ const DazuraAI = (() => {
         response=`מחלקת ${dept}: **${team.length} עובדים** — ${team.map(u=>u.fullName).join(', ')}.`; break;
       }
       case 'off_topic':       response='אני מוגבל לנושאי חופשות ונוכחות.'; break;
+
+      // ── FAQ — all cases routed to respondFAQ ──────────────
+      case 'faq_company_name':
+      case 'faq_version':
+      case 'faq_send_message':
+      case 'faq_time_who':
+      case 'faq_time_fix':
+      case 'faq_reports_who':
+      case 'faq_how_vacation':
+      case 'faq_half_day':
+      case 'faq_holiday_pay':
+      case 'faq_fix_request':
+      case 'faq_usage_by_month':
+      case 'faq_upcoming_vacation':
+      case 'faq_recommended_days':
+      case 'faq_pending_check':
+      case 'faq_team_upcoming':
+      case 'faq_all_upcoming':
+      case 'faq_team_balance':
+      case 'faq_shortage':
+      case 'faq_welfare':
+      case 'faq_who_dept':
+      case 'faq_who_manager':
+      case 'faq_change_password':
+      case 'faq_update_birthday':
+      case 'faq_update_email':
+      case 'faq_who_logs':
+      case 'faq_who_reset':
+      case 'faq_who_backup':
+      case 'faq_who_quota':
+      case 'faq_quota_format':
+      case 'faq_who_permissions':
+      case 'faq_who_logo':
+      case 'faq_firebase':
+      case 'faq_dept_map':
+        response = respondFAQ(intent, currentUser, db) || respondUnknown(rawInput, currentUser, db); break;
       default:                response=respondUnknown(rawInput,currentUser,db); break;
     }
 
