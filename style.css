@@ -2066,7 +2066,7 @@ tbody tr:hover { background: var(--surface2); }
 }
 
 /* Stats bar */
-#dazura-splash .dazura-stats {
+.dazura-stats {
   display: flex;
   align-items: center;
   justify-content: center;
