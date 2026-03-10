@@ -3654,50 +3654,60 @@ function saveHandover() {
 
   const db = getDB();
   if (!db.handovers) db.handovers = {};
+
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
   const tomorrowStr = tomorrow.toISOString().split('T')[0];
   const dateHeb = tomorrow.toLocaleDateString('he-IL', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
 
-  // Find manager
+  // ── Find manager ─────────────────────────────────────────────
   const managerUsername = getDeptManagerForUser(currentUser.username);
   const managerUser = managerUsername ? db.users[managerUsername] : null;
-  const managerName = managerUser?.fullName || 'המנהל';
-  const managerEmail = managerUser?.email || '';
+  const managerName = managerUser ? managerUser.fullName : '';
+  const managerEmail = managerUser ? (managerUser.email || '') : '';
 
-  db.handovers[currentUser.username + '_' + tomorrowStr] = {
-    user: currentUser.username, fullName: currentUser.fullName,
-    date: tomorrowStr, tasks, contact,
-    managerUsername, seenByManager: false,
+  // ── Save to DB (this is what the manager actually reads) ─────
+  const key = currentUser.username + '_' + tomorrowStr;
+  db.handovers[key] = {
+    user: currentUser.username,
+    fullName: currentUser.fullName,
+    date: tomorrowStr,
+    tasks,
+    contact,
+    managerUsername: managerUsername || null,
+    seenByManager: false,
     createdAt: new Date().toISOString()
   };
   saveDB(db);
   closeModal('handoverModal');
   auditLog('handover', `${currentUser.fullName} הגיש פרוטוקול העברת מקל ל-${tomorrowStr}`);
 
-  // ── Build mailto ──
-  const subject = encodeURIComponent(`📋 פרוטוקול העברת מקל — ${currentUser.fullName} (${dateHeb})`);
-  let body = `שלום ${managerName},\n\n`;
-  body += `${currentUser.fullName} יצא/ת לחופשה ביום ${dateHeb}.\n`;
-  body += `להלן המשימות הדורשות טיפול:\n\n`;
-  tasks.forEach((t, i) => { body += `${i+1}. ${t}\n`; });
-  if (contact) body += `\nמחליף/ה: ${contact}\n`;
-  body += `\nהפרוטוקול נשמר במערכת Dazura.\n\nבברכה,\n${currentUser.fullName}`;
-
-  const mailto = `mailto:${managerEmail}?subject=${subject}&body=${encodeURIComponent(body)}`;
-
+  // ── Notify manager if has email ──────────────────────────────
   if (managerEmail) {
-    // Open mail app
-    window.location.href = mailto;
-    showToast(`✅ פרוטוקול נשמר — נפתח מייל ל-${managerName}`, 'success');
+    const subject = encodeURIComponent('📋 פרוטוקול העברת מקל — ' + currentUser.fullName + ' (' + dateHeb + ')');
+    let body = 'שלום ' + (managerName || 'המנהל') + ',\n\n';
+    body += currentUser.fullName + ' יצא/ת לחופשה ביום ' + dateHeb + '.\n';
+    body += 'להלן המשימות הדורשות טיפול:\n\n';
+    tasks.forEach((t, i) => { body += (i+1) + '. ' + t + '\n'; });
+    if (contact) body += '\nמחליף/ה: ' + contact + '\n';
+    body += '\nהפרוטוקול נשמר במערכת Dazura — ניתן לראות אותו בלוח המנהל.\n\nבברכה,\n' + currentUser.fullName;
+    const mailto = 'mailto:' + managerEmail + '?subject=' + subject + '&body=' + encodeURIComponent(body);
+    window.open(mailto, '_blank');
+    showToast('✅ פרוטוקול נשמר ונשלח ל-' + managerName, 'success');
+  } else if (managerUsername) {
+    // Manager has no email — DB notification only (will appear on next login)
+    showToast('✅ פרוטוקול נשמר — ' + (managerName || 'המנהל') + ' יראה אותו בכניסה הבאה למערכת', 'success');
   } else {
-    // No email on file — show toast with fallback
-    showToast(`✅ פרוטוקול נשמר — למנהל אין מייל במערכת, ${managerName} יראה בכניסה הבאה`, 'warning');
+    // No manager defined for this dept
+    showToast('✅ פרוטוקול נשמר — לא הוגדר מנהל למחלקה שלך, הפרוטוקול נשמר לאדמין', 'warning');
   }
 }
 
 // ── Show pending handovers to manager on login ──────────────────
 function checkPendingHandovers() {
   if (!currentUser) return;
+  const isManager = currentUser.role === 'manager' || currentUser.role === 'admin' || isUserDeptManager(currentUser.username);
+  if (!isManager) return;
+
   const db = getDB();
   const handovers = db.handovers || {};
   const today = new Date().toISOString().split('T')[0];
@@ -3709,56 +3719,78 @@ function checkPendingHandovers() {
     h.date >= today
   );
 
+  // Also collect for admin: unseen handovers with no manager set
+  if (currentUser.role === 'admin') {
+    Object.values(handovers).forEach(h => {
+      if (!h.managerUsername && !h.seenByManager && h.date >= today && !mine.includes(h)) {
+        mine.push(h);
+      }
+    });
+  }
+
   if (!mine.length) return;
 
-  // Mark all as seen
-  mine.forEach(h => {
-    const key = h.user + '_' + h.date;
-    if (db.handovers[key]) db.handovers[key].seenByManager = true;
-  });
-  saveDB(db);
-
-  // Build popup content
+  // Build popup content — cards with PDF button, mark seen on open
   let html = '';
   mine.forEach(h => {
-    const dateHeb = new Date(h.date).toLocaleDateString('he-IL', { weekday:'long', day:'numeric', month:'long' });
+    const dateHeb = new Date(h.date + 'T12:00:00').toLocaleDateString('he-IL', { weekday:'long', day:'numeric', month:'long' });
+    const key = encodeURIComponent(h.user + '_' + h.date);
     html += `<div style="background:var(--surface2);border-radius:12px;padding:14px;margin-bottom:12px;border-right:4px solid var(--primary);">`;
-    html += `<div style="font-weight:800;font-size:15px;margin-bottom:6px;">👤 ${h.fullName} — ${dateHeb}</div>`;
+    html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">`;
+    html += `<div style="font-weight:800;font-size:15px;">👤 ${h.fullName} — ${dateHeb}</div>`;
+    html += `<button onclick="exportHandoverPDF('${key}')" style="background:var(--primary);color:#fff;border:none;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:12px;white-space:nowrap;">📄 PDF</button>`;
+    html += `</div>`;
     h.tasks.forEach((t,i) => {
       html += `<div style="font-size:13px;color:var(--text-secondary);margin-bottom:4px;">${i+1}. ${t}</div>`;
     });
-    if (h.contact) html += `<div style="font-size:12px;color:var(--text-muted);margin-top:6px;">📞 מחליף: ${h.contact}</div>`;
+    if (h.contact) html += `<div style="font-size:12px;color:var(--text-muted);margin-top:6px;">📞 מחליף/ה: ${h.contact}</div>`;
     html += `</div>`;
   });
 
-  // Show in a modal
-  showHandoverNotificationModal(html, mine.length);
+  showHandoverNotificationModal(html, mine.length, mine);
 }
 
-function showHandoverNotificationModal(html, count) {
-  // Reuse or create a simple notification modal
+function showHandoverNotificationModal(html, count, handoverList) {
   let modal = document.getElementById('handoverNotifModal');
   if (!modal) {
     modal = document.createElement('div');
     modal.id = 'handoverNotifModal';
     modal.className = 'modal-overlay';
     modal.innerHTML = `
-      <div class="modal" style="max-width:460px;">
-        <div class="modal-title">📋 פרוטוקולי העברת מקל</div>
-        <div id="handoverNotifBody" style="max-height:55vh;overflow-y:auto;"></div>
-        <div class="modal-footer">
-          <button class="btn btn-primary" onclick="closeModal('handoverNotifModal')">✅ הבנתי</button>
+      <div class="modal" style="max-width:480px;">
+        <div class="modal-title">📋 פרוטוקולי העברת מקל חדשים</div>
+        <div id="handoverNotifBody" style="max-height:60vh;overflow-y:auto;"></div>
+        <div class="modal-footer" style="gap:10px;">
+          <button class="btn btn-outline" onclick="showTab('manager');closeModal('handoverNotifModal');">👁️ לוח מנהל</button>
+          <button class="btn btn-primary" onclick="markHandoversSeen();closeModal('handoverNotifModal');">✅ הבנתי</button>
         </div>
       </div>`;
     document.body.appendChild(modal);
-    // Close on overlay click
     modal.addEventListener('click', function(e) {
       if (e.target === this) this.classList.remove('open');
     });
   }
+
+  // Store list for markHandoversSeen
+  modal._handoverList = handoverList || [];
+
   document.getElementById('handoverNotifBody').innerHTML =
-    `<div style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">יש לך ${count} פרוטוקול${count>1?'ות':''} ממתין${count>1?'ים':''} לעיון:</div>` + html;
+    `<div style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">יש לך <strong>${count}</strong> פרוטוקול${count>1?'ות':''} חד${count>1?'שים':'ש'} ממתינ${count>1?'ים':''}:</div>` + html;
+
   setTimeout(() => openModal('handoverNotifModal'), 1800);
+}
+
+function markHandoversSeen() {
+  const modal = document.getElementById('handoverNotifModal');
+  const list = modal ? modal._handoverList : [];
+  if (!list.length) return;
+  const db = getDB();
+  list.forEach(h => {
+    const key = h.user + '_' + h.date;
+    if (db.handovers && db.handovers[key]) db.handovers[key].seenByManager = true;
+  });
+  saveDB(db);
+  if (typeof renderHandoverList === 'function') renderHandoverList();
 }
 
 
@@ -6345,14 +6377,25 @@ function renderHandoverList() {
     return;
   }
 
+  // Mark unseen handovers as seen by this manager
+  let changed = false;
+  list.forEach(h => {
+    if (!h.seenByManager && (h.managerUsername === currentUser.username || isAdmin)) {
+      const key = h.user + '_' + h.date;
+      if (db.handovers[key]) { db.handovers[key].seenByManager = true; changed = true; }
+    }
+  });
+  if (changed) saveDB(db);
+
   el.innerHTML = list.map(h => {
-    const dateHeb = new Date(h.date).toLocaleDateString('he-IL', { weekday:'long', day:'numeric', month:'long' });
+    const dateHeb = new Date(h.date + 'T12:00:00').toLocaleDateString('he-IL', { weekday:'long', day:'numeric', month:'long' });
     const isPast = h.date < today;
     const seen = h.seenByManager ? '<span style="color:var(--success);font-size:11px;">✅ נקרא</span>' : '<span style="color:var(--warning);font-size:11px;">🔔 חדש</span>';
     const pastTag = isPast ? '<span style="color:var(--text-muted);font-size:11px;">• עבר</span>' : '';
     const tasks = h.tasks.map((t,i) => `<div style="font-size:13px;color:var(--text-secondary);padding:3px 0;">${i+1}. ${t}</div>`).join('');
     const contact = h.contact ? `<div style="font-size:12px;color:var(--text-muted);margin-top:6px;">📞 מחליף/ה: ${h.contact}</div>` : '';
     const key = h.user + '_' + h.date;
+    const encKey = encodeURIComponent(key);
     return `
       <div style="background:var(--surface2);border-radius:14px;padding:16px;margin-bottom:10px;border-right:4px solid ${isPast ? 'var(--border-strong)' : 'var(--primary)'};opacity:${isPast ? 0.6 : 1}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
@@ -6360,14 +6403,104 @@ function renderHandoverList() {
             <div style="font-weight:800;font-size:15px;">👤 ${h.fullName}</div>
             <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">📅 ${dateHeb} ${pastTag}</div>
           </div>
-          <div style="display:flex;align-items:center;gap:10px;">
+          <div style="display:flex;align-items:center;gap:8px;">
             ${seen}
-            <button onclick="deleteHandover('${key}')" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--danger);padding:4px;" title="מחק">🗑️</button>
+            <button onclick="exportHandoverPDF('${encKey}')" style="background:none;border:none;cursor:pointer;font-size:15px;padding:4px;" title="ייצא PDF">📄</button>
+            <button onclick="deleteHandover('${key}')" style="background:none;border:none;cursor:pointer;font-size:15px;color:var(--danger);padding:4px;" title="מחק">🗑️</button>
           </div>
         </div>
         <div style="border-top:1px solid var(--border);padding-top:10px;">${tasks}${contact}</div>
       </div>`;
   }).join('');
+}
+
+function exportHandoverPDF(encodedKey) {
+  const key = decodeURIComponent(encodedKey);
+  const db = getDB();
+  const h = db.handovers && db.handovers[key];
+  if (!h) { showToast('פרוטוקול לא נמצא', 'warning'); return; }
+
+  const dateHeb = new Date(h.date + 'T12:00:00').toLocaleDateString('he-IL', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  const companyName = (db.settings && db.settings.companyName) || 'Dazura HR';
+  const createdHeb = new Date(h.createdAt).toLocaleDateString('he-IL', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
+
+  const tasksHTML = h.tasks.map((t,i) =>
+    `<tr><td style="padding:10px 14px;border-bottom:1px solid #eee;color:#555;width:36px;font-weight:600;">${i+1}</td>
+     <td style="padding:10px 14px;border-bottom:1px solid #eee;">${t}</td></tr>`
+  ).join('');
+
+  const contactRow = h.contact
+    ? `<p style="margin:8px 0;font-size:14px;"><strong>מחליף/ה:</strong> ${h.contact}</p>` : '';
+
+  const managerUser = h.managerUsername ? (db.users[h.managerUsername] || null) : null;
+  const managerName = managerUser ? managerUser.fullName : (h.managerUsername || '—');
+
+  const html = `<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="UTF-8">
+<title>פרוטוקול העברת מקל — ${h.fullName}</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; direction: rtl; margin: 0; padding: 40px; color: #222; background: #fff; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; padding-bottom: 18px; border-bottom: 3px solid #6C63FF; }
+  .company { font-size: 22px; font-weight: 800; color: #6C63FF; }
+  .doc-title { font-size: 13px; color: #888; margin-top: 4px; }
+  .badge { background: #6C63FF; color: #fff; border-radius: 8px; padding: 6px 14px; font-size: 13px; font-weight: 700; }
+  .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 24px; }
+  .meta-box { background: #f8f8ff; border-radius: 10px; padding: 14px 16px; border-right: 4px solid #6C63FF; }
+  .meta-label { font-size: 11px; color: #888; margin-bottom: 4px; text-transform: uppercase; }
+  .meta-value { font-size: 16px; font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+  th { background: #6C63FF; color: #fff; padding: 10px 14px; text-align: right; font-size: 14px; }
+  .section-title { font-size: 15px; font-weight: 800; margin: 22px 0 10px; color: #333; border-right: 4px solid #6C63FF; padding-right: 10px; }
+  .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #ddd; display: flex; justify-content: space-between; font-size: 12px; color: #aaa; }
+  .sig-line { border-top: 1px solid #999; width: 180px; margin-top: 40px; font-size: 12px; color: #666; padding-top: 6px; }
+  @media print { body { padding: 20px; } }
+</style>
+</head>
+<body>
+<div class="header">
+  <div>
+    <div class="company">📋 ${companyName}</div>
+    <div class="doc-title">פרוטוקול העברת מקל — מסמך רשמי</div>
+  </div>
+  <div class="badge">Dazura HR</div>
+</div>
+
+<div class="meta-grid">
+  <div class="meta-box"><div class="meta-label">שם העובד</div><div class="meta-value">👤 ${h.fullName}</div></div>
+  <div class="meta-box"><div class="meta-label">תאריך חופשה</div><div class="meta-value">📅 ${dateHeb}</div></div>
+  <div class="meta-box"><div class="meta-label">מנהל ממונה</div><div class="meta-value">👔 ${managerName}</div></div>
+  <div class="meta-box"><div class="meta-label">הוגש בתאריך</div><div class="meta-value">🕐 ${createdHeb}</div></div>
+</div>
+
+${h.contact ? `<div class="section-title">פרטי מחליף/ה</div><p style="font-size:14px;background:#fff8e1;padding:10px 14px;border-radius:8px;">📞 ${h.contact}</p>` : ''}
+
+<div class="section-title">משימות לטיפול</div>
+<table>
+  <thead><tr><th style="width:40px;">#</th><th>תיאור המשימה</th></tr></thead>
+  <tbody>${tasksHTML}</tbody>
+</table>
+
+<div style="display:flex;justify-content:space-between;margin-top:50px;">
+  <div class="sig-line">חתימת העובד</div>
+  <div class="sig-line">חתימת המנהל</div>
+</div>
+
+<div class="footer">
+  <span>Dazura HR System — מסמך זה הופק אוטומטית</span>
+  <span>הופק: ${new Date().toLocaleDateString('he-IL')}</span>
+</div>
+</body>
+</html>`;
+
+  const win = window.open('', '_blank');
+  if (!win) { showToast('אפשר הוצאת חלונות קופצים בדפדפן', 'warning'); return; }
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => { win.print(); }, 600);
 }
 
 function deleteHandover(key) {
