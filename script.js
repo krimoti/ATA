@@ -3436,6 +3436,7 @@ function showCeoDashboard() {
   setTimeout(checkBirthdays, 800);
   checkHandoverNeeded();
   setTimeout(checkPendingHandovers, 2500);
+  setTimeout(updateHandoverBadge, 2600);
 }
 
 function exitCeoDashboard() {
@@ -3681,25 +3682,14 @@ function saveHandover() {
   closeModal('handoverModal');
   auditLog('handover', `${currentUser.fullName} הגיש פרוטוקול העברת מקל ל-${tomorrowStr}`);
 
-  // ── Notify manager if has email ──────────────────────────────
-  if (managerEmail) {
-    const subject = encodeURIComponent('📋 פרוטוקול העברת מקל — ' + currentUser.fullName + ' (' + dateHeb + ')');
-    let body = 'שלום ' + (managerName || 'המנהל') + ',\n\n';
-    body += currentUser.fullName + ' יצא/ת לחופשה ביום ' + dateHeb + '.\n';
-    body += 'להלן המשימות הדורשות טיפול:\n\n';
-    tasks.forEach((t, i) => { body += (i+1) + '. ' + t + '\n'; });
-    if (contact) body += '\nמחליף/ה: ' + contact + '\n';
-    body += '\nהפרוטוקול נשמר במערכת Dazura — ניתן לראות אותו בלוח המנהל.\n\nבברכה,\n' + currentUser.fullName;
-    const mailto = 'mailto:' + managerEmail + '?subject=' + subject + '&body=' + encodeURIComponent(body);
-    window.open(mailto, '_blank');
-    showToast('✅ פרוטוקול נשמר ונשלח ל-' + managerName, 'success');
-  } else if (managerUsername) {
-    // Manager has no email — DB notification only (will appear on next login)
-    showToast('✅ פרוטוקול נשמר — ' + (managerName || 'המנהל') + ' יראה אותו בכניסה הבאה למערכת', 'success');
-  } else {
-    // No manager defined for this dept
-    showToast('✅ פרוטוקול נשמר — לא הוגדר מנהל למחלקה שלך, הפרוטוקול נשמר לאדמין', 'warning');
-  }
+  // ── Refresh manager view if already logged in ─────────────────
+  if (typeof renderHandoverList === 'function') renderHandoverList();
+  // Update badge on manager tab
+  updateHandoverBadge();
+
+  // ── Toast confirmation ──────────────────────────────────────
+  const toMsg = managerName ? ' — ' + managerName + ' יראה אותו בלוח המנהל' : '';
+  showToast('✅ פרוטוקול נשמר' + toMsg, 'success');
 }
 
 // ── Show pending handovers to manager on login ──────────────────
@@ -3778,6 +3768,34 @@ function showHandoverNotificationModal(html, count, handoverList) {
     `<div style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">יש לך <strong>${count}</strong> פרוטוקול${count>1?'ות':''} חד${count>1?'שים':'ש'} ממתינ${count>1?'ים':''}:</div>` + html;
 
   setTimeout(() => openModal('handoverNotifModal'), 1800);
+}
+
+function updateHandoverBadge() {
+  // Show red badge on manager tab when there are unseen handovers
+  const db = getDB();
+  if (!db.handovers || !currentUser) return;
+  const today = new Date().toISOString().split('T')[0];
+  const unseen = Object.values(db.handovers).filter(h =>
+    h.managerUsername === currentUser.username &&
+    !h.seenByManager &&
+    h.date >= today
+  ).length;
+
+  // Find manager tab button
+  const tabBtn = document.querySelector('[data-tab="manager"]');
+  if (!tabBtn) return;
+
+  // Remove existing badge
+  const existing = tabBtn.querySelector('.handover-badge');
+  if (existing) existing.remove();
+
+  if (unseen > 0) {
+    const badge = document.createElement('span');
+    badge.className = 'handover-badge';
+    badge.textContent = unseen;
+    badge.style.cssText = 'background:#e53935;color:#fff;border-radius:50%;font-size:10px;font-weight:700;padding:1px 5px;margin-right:5px;vertical-align:middle;';
+    tabBtn.prepend(badge);
+  }
 }
 
 function markHandoversSeen() {
