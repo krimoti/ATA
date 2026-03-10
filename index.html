@@ -338,29 +338,32 @@
 
 <!-- Handover Modal -->
 <div class="modal-overlay" id="handoverModal">
-  <div class="modal" style="max-width:460px;">
-    <div style="text-align:center;font-size:40px;margin-bottom:8px;">📋</div>
-    <div class="modal-title">פרוטוקול העברת מקל</div>
-    <div style="background:var(--warning-light);border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:#78350f;">
-      ⏰ מחר אתה בחופשה! לפני שתצא — שתף את הצוות במה שחשוב.
+  <div class="modal" style="max-width:460px;max-height:min(90vh,580px);">
+    <div class="modal-title" style="margin-bottom:12px;">
+      <span>📋</span> פרוטוקול העברת מקל
     </div>
-    <div class="form-group">
-      <label class="form-label">1. משימה דחופה ראשונה</label>
-      <input type="text" id="handover1" class="form-input" placeholder="לדוגמה: לסיים הצעת מחיר ללקוח X" dir="rtl">
+    <div style="overflow-y:auto;flex:1;padding-right:2px;">
+      <div style="background:var(--warning-light);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:#78350f;">
+        ⏰ מחר אתה בחופשה! לפני שתצא — שתף את הצוות במה שחשוב.
+      </div>
+      <div class="form-group">
+        <label class="form-label">1. משימה דחופה ראשונה</label>
+        <input type="text" id="handover1" class="form-input" placeholder="לדוגמה: לסיים הצעת מחיר ללקוח X" dir="rtl">
+      </div>
+      <div class="form-group">
+        <label class="form-label">2. משימה דחופה שנייה</label>
+        <input type="text" id="handover2" class="form-input" placeholder="לדוגמה: לאשר PR מס' 142" dir="rtl">
+      </div>
+      <div class="form-group">
+        <label class="form-label">3. משימה דחופה שלישית</label>
+        <input type="text" id="handover3" class="form-input" placeholder="לדוגמה: פגישה עם ספק ביום ג'" dir="rtl">
+      </div>
+      <div class="form-group" style="margin-bottom:4px;">
+        <label class="form-label">מי מחליף אותך? (אופציונלי)</label>
+        <input type="text" id="handoverContact" class="form-input" placeholder="שם + טלפון / מייל" dir="rtl">
+      </div>
     </div>
-    <div class="form-group">
-      <label class="form-label">2. משימה דחופה שנייה</label>
-      <input type="text" id="handover2" class="form-input" placeholder="לדוגמה: לאשר PR מס' 142" dir="rtl">
-    </div>
-    <div class="form-group">
-      <label class="form-label">3. משימה דחופה שלישית</label>
-      <input type="text" id="handover3" class="form-input" placeholder="לדוגמה: פגישה עם ספק ביום ג'" dir="rtl">
-    </div>
-    <div class="form-group">
-      <label class="form-label">מי מחליף אותך? (אופציונלי)</label>
-      <input type="text" id="handoverContact" class="form-input" placeholder="שם + טלפון / מייל" dir="rtl">
-    </div>
-    <div class="modal-footer">
+    <div class="modal-footer" style="flex-shrink:0;margin-top:12px;">
       <button class="btn btn-outline" onclick="closeModal('handoverModal')">אחר כך</button>
       <button class="btn btn-primary" onclick="saveHandover()">💾 שמור ושלח לצוות</button>
     </div>

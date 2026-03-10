@@ -467,23 +467,39 @@ function dateToStr(y, m, d) {
 function doLogin() {
   const username = document.getElementById('loginUsername').value.trim();
   const password = document.getElementById('loginPassword').value;
-  
+
   if (!username || !password) {
     showLoginError('נא למלא שם משתמש וסיסמה');
     return;
   }
-  
+
   const db = getDB();
   const user = db.users[username.toLowerCase()] || db.users[username];
 
   if (!user) {
-    showLoginError('שם משתמש לא קיים במערכת');
+    // User not found locally — try pulling from Firebase first
+    if (firebaseConnected && firebaseDB) {
+      showLoginError('⏳ מאמת...');
+      pullFromFirebase().then(() => {
+        const db2 = getDB();
+        const user2 = db2.users[username.toLowerCase()] || db2.users[username];
+        if (!user2) { showLoginError('שם משתמש לא קיים במערכת'); return; }
+        if (user2.password !== hashPass(password)) { showLoginError('סיסמה שגויה'); return; }
+        _finishLogin(user2, password);
+      }).catch(() => showLoginError('שם משתמש לא קיים במערכת'));
+    } else {
+      showLoginError('שם משתמש לא קיים במערכת');
+    }
     return;
   }
   if (user.password !== hashPass(password)) {
     showLoginError('סיסמה שגויה');
     return;
   }
+  _finishLogin(user, password);
+}
+
+function _finishLogin(user, password) {
 
   currentUser = user;
   hideLoginError();
@@ -505,14 +521,14 @@ function doLogin() {
   }
 
   // Firebase Auth sign-in (background — non-blocking)
-  if (user.email) {
+  const fbEmail = user.firebaseEmail || user.email || '';
+  if (fbEmail) {
     ensureFirebaseAuth().then(auth => {
-      auth.signInWithEmailAndPassword(user.email, password).catch(() => {});
+      auth.signInWithEmailAndPassword(fbEmail, password).catch(() => {});
     }).catch(() => {});
   }
 
   document.getElementById('loginScreen').classList.remove('active');
-  // ── Reset AI chat completely on new login ──
   if (typeof DazuraAI !== 'undefined') DazuraAI.clearHistory();
   const aiMsgs = document.getElementById('aiMessages');
   if (aiMsgs) aiMsgs.innerHTML = '<div class="ai-welcome"><div class="ai-welcome-icon">🤖</div><p>שלום! אני Dazura AI. שאל אותי כל שאלה הקשורה לחופשות, נוכחות ומידע ארגוני.</p></div>';
@@ -6437,6 +6453,7 @@ function renderHandoverList() {
   const db = getDB();
   const handovers = db.handovers || {};
   const today = new Date().toISOString().split('T')[0];
+  console.log('[Handover] DB has', Object.keys(handovers).length, 'protocols. User:', currentUser?.username, 'role:', currentUser?.role);
 
   const isAdmin = currentUser.role === 'admin' || currentUser.role === 'accountant';
   const isManager = currentUser.role === 'manager' || isUserDeptManager(currentUser.username);
