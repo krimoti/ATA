@@ -1543,12 +1543,14 @@
       <strong>🔐 העברת משתמשים ל-Firebase Auth</strong><br>
       לחץ להעברת כל העובדים הקיימים. כל עובד יקבל סיסמה זמנית ויידרש לאפס בכניסה הבאה.
     </div>
-    <div class="modal-footer" style="flex-wrap:wrap;">
-      <button class="btn btn-outline" style="flex-shrink:0;" onclick="closeModal('firebaseModal')">סגור</button>
-      <button class="btn btn-outline" onclick="disconnectFirebase()" id="fbDisconnectBtn" style="display:none;flex-shrink:0;">🔌 התנתק</button>
-      <button class="btn btn-outline" onclick="resetFirebase()" id="fbResetBtn" style="display:none;flex-shrink:0;background:var(--danger-light);color:var(--danger);border-color:var(--danger);">🗑️ אפס Firebase</button>
-      <button class="btn btn-outline" onclick="migrateExistingUsersToFirebase()" style="flex-shrink:0;background:#e8f5e9;color:#2e7d32;border-color:#2e7d32;">🔐 העבר עובדים ל-Auth</button>
-      <button class="btn btn-primary" onclick="connectFirebase()" style="flex-shrink:0;background:linear-gradient(135deg,#f59e0b,#d97706);color:white;border:none;box-shadow:0 4px 12px rgba(245,158,11,0.3);">🔥 התחבר ל-Firebase</button>
+    <div style="display:flex;flex-direction:column;gap:8px;padding:16px 0 0;">
+      <button class="btn btn-primary" onclick="connectFirebase()" style="width:100%;background:linear-gradient(135deg,#f59e0b,#d97706);color:white;border:none;box-shadow:0 4px 12px rgba(245,158,11,0.3);">🔥 התחבר ל-Firebase</button>
+      <button class="btn btn-outline" onclick="migrateExistingUsersToFirebase()" style="width:100%;background:#e8f5e9;color:#2e7d32;border-color:#2e7d32;">🔐 העבר עובדים ל-Auth</button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-outline" style="flex:1;" onclick="closeModal('firebaseModal')">סגור</button>
+        <button class="btn btn-outline" onclick="disconnectFirebase()" id="fbDisconnectBtn" style="display:none;flex:1;">🔌 התנתק</button>
+        <button class="btn btn-outline" onclick="resetFirebase()" id="fbResetBtn" style="display:none;flex:1;background:var(--danger-light);color:var(--danger);border-color:var(--danger);">🗑️ אפס</button>
+      </div>
     </div>
   </div>
 </div>

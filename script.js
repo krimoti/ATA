@@ -6451,8 +6451,9 @@ function renderHandoverList() {
 
   const list = Object.values(handovers).filter(h => {
     if (isAdmin) return true; // admin sees all
-    // Manager sees: explicitly assigned to them, OR employee in their dept
+    // Manager sees: explicitly assigned to them, OR employee in their dept, OR no manager set
     if (h.managerUsername === currentUser.username) return true;
+    if (!h.managerUsername && isManager) return true; // no manager set — show to all managers
     if (isManager && myDepts.length > 0) {
       const empUser = db.users[h.user];
       if (empUser) {

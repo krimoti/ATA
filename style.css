@@ -2180,6 +2180,19 @@ tbody tr:hover { background: var(--surface2); }
   }
   .ai-panel.open { transform: translateY(0); }
 }
+@media (min-width: 768px) {
+  .ai-panel {
+    left: 50%;
+    transform: translateX(-50%) translateY(100%);
+    bottom: 24px;
+    width: 460px;
+    max-width: 460px;
+    max-height: 75dvh;
+  }
+  .ai-panel.open {
+    transform: translateX(-50%) translateY(0);
+  }
+}
 
 .ai-panel-header {
   padding: 16px 18px 12px;
