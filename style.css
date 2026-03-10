@@ -949,7 +949,7 @@ tbody tr:hover { background: var(--surface2); }
   position: fixed;
   inset: 0;
   background: rgba(6,10,26,0.65);
-  z-index: 2000;
+  z-index: 1000;
   align-items: center;
   justify-content: center;
   padding: 20px;
@@ -1979,7 +1979,6 @@ tbody tr:hover { background: var(--surface2); }
   overflow: hidden;
 }
 
-/* Splash themes */
 /* Splash themes */
 .splash-theme-1 { background: radial-gradient(ellipse at 50% 0%, #6b1a00 0%, #2d0a00 60%, #080200 100%); }
 .splash-theme-2 { background: radial-gradient(ellipse at 50% 0%, #3d0066 0%, #1a0033 50%, #05000f 100%); }
