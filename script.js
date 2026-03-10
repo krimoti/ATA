@@ -38,24 +38,20 @@ function ensureAdminExists(db) {
   if (!db.settings) db.settings = {};
   if (!db.vacations) db.vacations = {};
 
+  // Do NOT auto-create admin with a default password —
+  // this caused phantom login issues on new devices.
+  // Admin will be fetched from Firebase on first login.
   if (!db.users['admin']) {
-    // Try to preserve password from local storage before overwriting
-    let savedPass = null;
-    try {
-      const local = JSON.parse(localStorage.getItem(DB_KEY) || '{}');
-      savedPass = local?.users?.admin?.password || null;
-    } catch(e) {}
-
     db.users['admin'] = {
       fullName: 'מנהל מערכת',
       username: 'admin',
-      password: savedPass || hashPass('admin123'),
+      password: '__CLOUD_ONLY__',   // sentinel — never matches any real hashPass
       dept: ['הנהלה'],
       role: 'admin',
       status: 'active',
       quotas: { '2026': { annual: 22, initialBalance: 0 } }
     };
-    _saveDBLocal(db);
+    // Do NOT _saveDBLocal here — force cloud fetch on login
   }
 }
 
@@ -482,23 +478,73 @@ function doLogin() {
 
 async function _loginFetchCloud(username, password) {
   try {
-    // Ensure Firebase SDK is loaded
+    // Step 1: Ensure Firebase SDKs loaded
     if (!window.firebase) {
       await loadScript('https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js');
       await loadScript('https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js');
+      await loadScript('https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js');
     }
     if (!firebase.apps?.length) firebase.initializeApp(FIREBASE_CONFIG);
-    const db = firebase.firestore();
+    const auth = firebase.auth();
+    const fsdb = firebase.firestore();
 
-    // Fetch directly — bypasses all local state
-    const doc = await db.collection('vacationSystem').doc('data').get();
-    if (doc.exists) {
+    // Step 2: Find what firebase email this username maps to.
+    // Try fetching Firestore without auth first — works if Rules are open.
+    // If that fails (Permission Denied), try Auth login with known email patterns.
+    let doc = null;
+    let authedViaFirebase = false;
+
+    // First attempt: direct read (works when rules are allow read: if true OR user already authed)
+    try {
+      doc = await fsdb.collection('vacationSystem').doc('data').get();
+    } catch(e) {
+      doc = null; // Permission denied — need to auth first
+    }
+
+    if (!doc || !doc.exists) {
+      // Step 2b: Try Firebase Auth with candidate emails, then re-read
+      const candidateEmails = [
+        username + '@dazura-hr.app',
+        username + '@company.co.il',
+      ];
+      // Also check local DB for stored firebaseEmail
+      try {
+        const localRaw = JSON.parse(localStorage.getItem(DB_KEY) || '{}');
+        const localU = localRaw.users?.[username];
+        if (localU?.firebaseEmail) candidateEmails.unshift(localU.firebaseEmail);
+        if (localU?.email) candidateEmails.unshift(localU.email);
+      } catch(e) {}
+
+      for (const email of [...new Set(candidateEmails)]) {
+        try {
+          await auth.signInWithEmailAndPassword(email, password);
+          authedViaFirebase = true;
+          break;
+        } catch(e) {
+          if (e.code === 'auth/wrong-password') {
+            // Email matched but password wrong — definitive
+            showLoginError('סיסמה שגויה');
+            return;
+          }
+          // auth/user-not-found — try next email
+        }
+      }
+
+      if (authedViaFirebase) {
+        try { doc = await fsdb.collection('vacationSystem').doc('data').get(); }
+        catch(e) { doc = null; }
+      }
+    }
+
+    if (doc && doc.exists) {
       const data = doc.data();
       const users = JSON.parse(data.users || '{}');
       const user = users[username] || users[username.toLowerCase()];
       if (!user) { showLoginError('שם משתמש לא קיים במערכת'); return; }
+      // Verify password against our DB hash
       if (user.password !== hashPass(password)) { showLoginError('סיסמה שגויה'); return; }
-      // Sync to local so app works offline after first login
+
+      // Sync full DB to local
       const cloudDB = {
         users,
         vacations:        JSON.parse(data.vacations        || '{}'),
@@ -514,17 +560,15 @@ async function _loginFetchCloud(username, password) {
         handovers:        JSON.parse(data.handovers        || '{}'),
       };
       _saveDBLocal(cloudDB);
-      // Wire up global firebase state for the rest of the session
-      if (!firebaseDB) { firebaseDB = db; firebaseConnected = true; }
+      if (!firebaseDB) { firebaseDB = fsdb; firebaseConnected = true; }
       _finishLogin(user, password);
       return;
     }
   } catch(err) {
-    console.warn('Cloud login failed:', err.message);
-    // Fall through to local
+    console.warn('Cloud login error:', err.message);
   }
 
-  // Fallback: local DB (offline mode)
+  // Fallback: local DB only (offline)
   const localDB = getDB();
   const localUser = localDB.users[username] || localDB.users[username.toLowerCase()];
   if (!localUser) { showLoginError('שם משתמש לא קיים במערכת'); return; }
