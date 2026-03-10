@@ -3637,9 +3637,10 @@ function checkHandoverNeeded() {
   const tomorrowStr = tomorrow.toISOString().split('T')[0];
   const vacs = getVacations(currentUser.username);
   const type = vacs[tomorrowStr];
-  if ((type === 'full' || type === 'half') && !sessionStorage.getItem('handoverShown_'+tomorrowStr)) {
+  // Already submitted for this date? — check DB first
+  const alreadySubmitted = db.handovers && db.handovers[currentUser.username + '_' + tomorrowStr];
+  if ((type === 'full' || type === 'half') && !alreadySubmitted && !sessionStorage.getItem('handoverShown_'+tomorrowStr)) {
     sessionStorage.setItem('handoverShown_'+tomorrowStr, '1');
-    // Longer delay on mobile to ensure screen is fully visible
     const delay = /iPhone|iPad|Android/i.test(navigator.userAgent) ? 2200 : 1200;
     setTimeout(() => openModal('handoverModal'), delay);
   }
