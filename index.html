@@ -72,7 +72,7 @@
       <input type="password" id="loginPassword" class="form-input" placeholder="••••" autocomplete="current-password" dir="ltr" onkeydown="if(event.key==='Enter')doLogin()">
     </div>
     <button class="btn-primary" onclick="doLogin()" style="background:linear-gradient(135deg,rgba(26,86,232,0.9),rgba(15,61,181,0.95));border:1px solid rgba(99,162,255,0.3);box-shadow:0 8px 32px rgba(26,86,232,0.5),0 0 0 1px rgba(255,255,255,0.05) inset;letter-spacing:1px;">
-      <span>כניסה למערכת ←</span>
+      <span>בניסה למערכת ←</span>
     </button>
     <div class="login-first-time">
       כניסה ראשונה? <button class="link-btn" onclick="showRegister()">הירשם כאן</button>
@@ -894,6 +894,18 @@
     <div id="tab-manager" class="tab-content">
       <div class="admin-content">
 
+        <!-- Handover Protocols -->
+        <div class="admin-section" id="handoverSection">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+            <div class="section-title" style="margin-bottom:0;"><span class="section-title-icon">📋</span> פרוטוקולי העברת מקל</div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-outline" style="font-size:12px;" onclick="exportHandoversExcel()">📊 ייצוא לאקסל</button>
+              <button class="btn btn-outline" style="font-size:12px;color:var(--danger);border-color:var(--danger);" onclick="clearAllHandovers()">🗑️ מחק הכל</button>
+            </div>
+          </div>
+          <div id="handoverList"></div>
+        </div>
+
         <!-- AI Forecast -->
         <div class="admin-section" id="aiForecastSection">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
@@ -1539,10 +1551,15 @@
       <strong>Region:</strong> us-central1<br>
       כל הנתונים יסונכרנו ב-Firestore תחת collection: <code>vacationSystem</code>
     </div>
-    <div class="modal-footer">
+    <div style="background:#fff8e1;border:1px solid #f59e0b;border-radius:10px;padding:12px;font-size:12px;margin-bottom:14px;">
+      <strong>🔐 העברת משתמשים ל-Firebase Auth</strong><br>
+      לחץ על הכפתור להעברת כל העובדים הקיימים. כל עובד יקבל סיסמה זמנית ויידרש לאפס בכניסה הבאה.
+    </div>
+    <div class="modal-footer" style="flex-wrap:wrap;">
       <button class="btn btn-outline" style="flex-shrink:0;" onclick="closeModal('firebaseModal')">סגור</button>
       <button class="btn btn-outline" onclick="disconnectFirebase()" id="fbDisconnectBtn" style="display:none;flex-shrink:0;">🔌 התנתק</button>
       <button class="btn btn-outline" onclick="resetFirebase()" id="fbResetBtn" style="display:none;flex-shrink:0;background:var(--danger-light);color:var(--danger);border-color:var(--danger);">🗑️ אפס Firebase</button>
+      <button class="btn btn-outline" onclick="migrateExistingUsersToFirebase()" style="flex-shrink:0;background:#e8f5e9;color:#2e7d32;border-color:#2e7d32;">🔐 העבר עובדים ל-Auth</button>
       <button class="btn btn-primary" onclick="connectFirebase()" style="flex-shrink:0;background:linear-gradient(135deg,#f59e0b,#d97706);color:white;border:none;box-shadow:0 4px 12px rgba(245,158,11,0.3);">🔥 התחבר ל-Firebase</button>
     </div>
   </div>
@@ -1597,43 +1614,36 @@
     <div style="overflow-y:auto;flex:1;margin-bottom:16px;">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
         <div class="splash-option" data-splash="1" onclick="selectSplash(1)">
-          <div class="splash-preview splash-theme-1">🔥</div>
-          <div class="splash-label">להבת אש</div>
+          <div style="height:80px;background:radial-gradient(ellipse at 50% 0%,#6b1a00,#2d0a00,#080200);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;">🔥</div>
+          <div style="text-align:center;font-size:12px;font-weight:700;margin-top:6px;">להבת אש</div>
         </div>
-
         <div class="splash-option" data-splash="2" onclick="selectSplash(2)">
-          <div class="splash-preview splash-theme-2">⚡</div>
-          <div class="splash-label">סייבר-פאנק</div>
+          <div style="height:80px;background:radial-gradient(ellipse at 50% 0%,#3d0066,#1a0033,#05000f);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;">⚡</div>
+          <div style="text-align:center;font-size:12px;font-weight:700;margin-top:6px;">סייבר-פאנק</div>
         </div>
-
         <div class="splash-option" data-splash="3" onclick="selectSplash(3)">
-          <div class="splash-preview splash-theme-3">☢️</div>
-          <div class="splash-label">מטריקס</div>
+          <div style="height:80px;background:radial-gradient(ellipse at 50% 0%,#003300,#001a00,#000500);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;">☢️</div>
+          <div style="text-align:center;font-size:12px;font-weight:700;margin-top:6px;">מטריקס</div>
         </div>
-
         <div class="splash-option" data-splash="4" onclick="selectSplash(4)">
-          <div class="splash-preview splash-theme-4">🧊</div>
-          <div class="splash-label">קוטב</div>
+          <div style="height:80px;background:radial-gradient(ellipse at 50% 0%,#002244,#000d1a,#000205);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;">🧊</div>
+          <div style="text-align:center;font-size:12px;font-weight:700;margin-top:6px;">קוטב</div>
         </div>
-
         <div class="splash-option" data-splash="5" onclick="selectSplash(5)">
-          <div class="splash-preview splash-theme-5">🩸</div>
-          <div class="splash-label">אדום דם</div>
+          <div style="height:80px;background:radial-gradient(ellipse at 50% 0%,#550000,#220000,#070000);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;">🩸</div>
+          <div style="text-align:center;font-size:12px;font-weight:700;margin-top:6px;">אדום דם</div>
         </div>
-
         <div class="splash-option" data-splash="6" onclick="selectSplash(6)">
-          <div class="splash-preview splash-theme-6">🏜️</div>
-          <div class="splash-label">מדבר לילה</div>
+          <div style="height:80px;background:radial-gradient(ellipse at 50% 0%,#4a2e00,#1f1200,#060300);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;">🏜️</div>
+          <div style="text-align:center;font-size:12px;font-weight:700;margin-top:6px;">מדבר לילה</div>
         </div>
-
         <div class="splash-option" data-splash="7" onclick="selectSplash(7)">
-          <div class="splash-preview splash-theme-7">🌸</div>
-          <div class="splash-label">מגנטה ניאון</div>
+          <div style="height:80px;background:radial-gradient(ellipse at 50% 0%,#5c0033,#2a0018,#080005);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;">🌸</div>
+          <div style="text-align:center;font-size:12px;font-weight:700;margin-top:6px;">מגנטה ניאון</div>
         </div>
-
         <div class="splash-option" data-splash="8" onclick="selectSplash(8)">
-          <div class="splash-preview splash-theme-8">🌊</div>
-          <div class="splash-label">ציאן קפוא</div>
+          <div style="height:80px;background:radial-gradient(ellipse at 50% 0%,#003344,#001520,#000408);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;">🌊</div>
+          <div style="text-align:center;font-size:12px;font-weight:700;margin-top:6px;">ציאן קפוא</div>
         </div>
       </div>
     </div>
