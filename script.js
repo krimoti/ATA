@@ -1,25 +1,5 @@
 
-// DATA LAYER — localStorage based
-// ============================================================
-const DB_KEY = 'vacSystem_v3';
 
-// ============================================================
-// GLOBAL STATE — declared here to avoid TDZ issues
-// ============================================================
-let currentUser = null;
-let currentApprovalId = null;
-let passwordTargetUser = null;
-let pendingExcelQuotas = [];
-let firebaseApp = null;
-const calState = { year: 2026, month: 1 };
-const deptSelectedMap = {};
-const deptElementIds = {
-  'regDeptMulti':    { dropdown: 'regDeptDropdown',    tags: 'regDeptTags' },
-  'newEmpDeptMulti': { dropdown: 'newEmpDeptDropdown', tags: 'newEmpDeptTags' },
-};
-
-function getDB() {
-  try {
     const db = JSON.parse(localStorage.getItem(DB_KEY));
     if (!db) return initDB();
     ensureAdminExists(db);
