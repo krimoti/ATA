@@ -945,7 +945,6 @@ tbody tr:hover { background: var(--surface2); }
    MODALS
    ============================================================ */
 .modal-overlay {
-  overflow-y: auto;
   display: none;
   position: fixed;
   inset: 0;
@@ -1854,7 +1853,7 @@ tbody tr:hover { background: var(--surface2); }
   .modal-title { font-size: 17px; margin-bottom: 14px; }
   .modal {
     padding: 20px 16px;
-    max-height: 88vh;
+    max-height: 90vh;
     border-radius: 20px 20px 0 0;
     overflow-y: auto;
   }
@@ -2201,11 +2200,8 @@ tbody tr:hover { background: var(--surface2); }
     bottom: 24px;
     width: 460px;
     max-width: 460px;
-    max-height: 75dvh;
   }
-  .ai-panel.open {
-    transform: translateX(-50%) translateY(0);
-  }
+  .ai-panel.open { transform: translateX(-50%) translateY(0); }
 }
 
 .ai-panel-header {
