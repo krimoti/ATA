@@ -960,13 +960,12 @@ tbody tr:hover { background: var(--surface2); }
 .modal {
   background: var(--surface);
   border-radius: var(--radius-xl);
-  padding: 28px;
+  padding: 32px;
   width: 100%;
   max-width: 500px;
-  max-height: 90vh;
+  max-height: 88vh;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
   box-shadow: var(--shadow-xl), 0 0 0 1px rgba(255,255,255,0.06);
   animation: modalIn 0.32s var(--ease-spring);
   direction: rtl;
@@ -993,8 +992,7 @@ tbody tr:hover { background: var(--surface2); }
   flex-wrap: wrap;
   gap: 10px;
   justify-content: flex-end;
-  margin-top: 20px;
-  flex-shrink: 0;
+  margin-top: 22px;
 }
 
 /* ============================================================
@@ -1850,31 +1848,20 @@ tbody tr:hover { background: var(--surface2); }
     border-radius: 3px;
     margin: 10px auto 16px;
   }
-  .modal-title { font-size: 17px; margin-bottom: 14px; }
-  .modal {
-    padding: 20px 16px;
-    max-height: 90vh;
-    border-radius: 20px 20px 0 0;
-    overflow-y: auto;
-  }
+  .modal-title { font-size: 17px; margin-bottom: 16px; }
   .modal-footer {
     flex-direction: column-reverse;
     gap: 8px;
     margin-top: 14px;
     padding-bottom: max(8px, env(safe-area-inset-bottom));
-    flex-shrink: 0;
-    position: sticky;
-    bottom: 0;
-    background: var(--surface);
-    padding-top: 8px;
   }
   .modal-footer .btn {
     width: 100%;
     justify-content: center;
-    padding: 14px;
-    font-size: 15px;
+    padding: 15px;
+    font-size: 16px;
     border-radius: 14px;
-    min-height: 48px;
+    min-height: 52px;
   }
 
   /* === Day modal options — large tap targets === */
@@ -2192,16 +2179,6 @@ tbody tr:hover { background: var(--surface2); }
     box-shadow: 0 40px 120px rgba(0,0,0,0.35);
   }
   .ai-panel.open { transform: translateY(0); }
-}
-@media (min-width: 768px) {
-  .ai-panel {
-    left: 50%;
-    transform: translateX(-50%) translateY(100%);
-    bottom: 24px;
-    width: 460px;
-    max-width: 460px;
-  }
-  .ai-panel.open { transform: translateX(-50%) translateY(0); }
 }
 
 .ai-panel-header {

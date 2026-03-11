@@ -338,14 +338,14 @@
 
 <!-- Handover Modal -->
 <div class="modal-overlay" id="handoverModal">
-  <div class="modal" style="max-width:480px;">
+  <div class="modal" style="max-width:460px;">
     <div style="text-align:center;font-size:40px;margin-bottom:8px;">📋</div>
     <div class="modal-title">פרוטוקול העברת מקל</div>
-    <div id="handoverTimingMsg" style="background:var(--warning-light);border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:#78350f;">
+    <div style="background:var(--warning-light);border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:#78350f;">
       ⏰ מחר אתה בחופשה! לפני שתצא — שתף את הצוות במה שחשוב.
     </div>
     <div class="form-group">
-      <label class="form-label">1. משימה דחופה ראשונה <span style="color:var(--danger);">*</span></label>
+      <label class="form-label">1. משימה דחופה ראשונה</label>
       <input type="text" id="handover1" class="form-input" placeholder="לדוגמה: לסיים הצעת מחיר ללקוח X" dir="rtl">
     </div>
     <div class="form-group">
@@ -360,13 +360,9 @@
       <label class="form-label">מי מחליף אותך? (אופציונלי)</label>
       <input type="text" id="handoverContact" class="form-input" placeholder="שם + טלפון / מייל" dir="rtl">
     </div>
-    <div class="form-group">
-      <label class="form-label">הערות נוספות (אופציונלי)</label>
-      <textarea id="handoverNote" class="form-input" rows="2" placeholder="מידע נוסף שחשוב שהמנהל יידע..." dir="rtl" style="resize:vertical;"></textarea>
-    </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('handoverModal')">אחר כך</button>
-      <button class="btn btn-primary" onclick="saveHandover()">💾 שמור ושלח למנהל</button>
+      <button class="btn btn-primary" onclick="saveHandover()">💾 שמור ושלח לצוות</button>
     </div>
   </div>
 </div>

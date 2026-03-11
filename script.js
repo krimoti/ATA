@@ -134,34 +134,14 @@ function auditLog(action, details) {
   saveDB(db);
 }
 
-// Secure password hashing using SHA-256 (Web Crypto API)
-// Sync fallback (legacy) for existing stored passwords
 function hashPass(p) {
-  // Simple hash (kept for backward compatibility with stored passwords)
+  // Simple hash (not cryptographic - for demo)
   let h = 0;
   for (let i = 0; i < p.length; i++) {
     h = ((h << 5) - h) + p.charCodeAt(i);
     h = h & h;
   }
   return 'h' + Math.abs(h).toString(36) + p.length;
-}
-
-// Async SHA-256 hash — use for new passwords going forward
-async function hashPassSecure(p) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(p + 'dazura_salt_2024');
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return 'sha256_' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-// Verify password — supports both legacy and new format
-async function verifyPass(input, stored) {
-  if (stored.startsWith('sha256_')) {
-    const hashed = await hashPassSecure(input);
-    return hashed === stored;
-  }
-  return hashPass(input) === stored;
 }
 
 // ============================================================
@@ -500,18 +480,11 @@ function doLogin() {
     showLoginError('שם משתמש לא קיים במערכת');
     return;
   }
+  if (user.password !== hashPass(password)) {
+    showLoginError('סיסמה שגויה');
+    return;
+  }
 
-  // Use async verification (supports both legacy and new SHA-256 passwords)
-  verifyPass(password, user.password).then(valid => {
-    if (!valid) {
-      showLoginError('סיסמה שגויה');
-      return;
-    }
-    _completeLogin(user, db);
-  });
-}
-
-function _completeLogin(user, db) {
   currentUser = user;
   hideLoginError();
 
@@ -772,10 +745,6 @@ function saveVacation(username, dateStr, type) {
   } else {
     db.vacations[username][dateStr] = type;
     auditLog('vacation_add', `${username} רשם ${type==='wfh'?'WFH':type==='half'?'חצי יום':'חופשה'} ב-${dateStr}`);
-    // Prompt handover protocol if this employee set a future vacation
-    if (username === currentUser?.username && (type === 'full' || type === 'half')) {
-      checkHandoverAfterVacationSet();
-    }
   }
 
   // If there's an approved/rejected request for this month — reset it to "needs resubmit"
@@ -3663,56 +3632,16 @@ function sendCeoMessage() {
 function checkHandoverNeeded() {
   if (!currentUser) return;
   const db = getDB();
-  const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
-  const vacs = getVacations(currentUser.username);
-
-  // Find the nearest future vacation date (today or later, full or half day)
-  const futureDates = Object.entries(vacs)
-    .filter(([dt, type]) => dt >= todayStr && (type === 'full' || type === 'half'))
-    .sort(([a], [b]) => a.localeCompare(b));
-
-  if (!futureDates.length) return;
-
-  // Find consecutive block starting from the first future date
-  const firstDate = futureDates[0][0];
-
-  // Check if we've already shown the handover prompt for this vacation start
-  const sessionKey = 'handoverShown_' + firstDate;
-  if (sessionStorage.getItem(sessionKey)) return;
-
-  // Check if handover already submitted for this date
-  const existingKey = currentUser.username + '_' + firstDate;
-  if (db.handovers && db.handovers[existingKey]) return;
-
-  sessionStorage.setItem(sessionKey, '1');
-
-  // Store the vacation date so saveHandover() uses it
-  window._handoverTargetDate = firstDate;
-
-  // Update modal header to show the actual date
-  const d = new Date(firstDate + 'T00:00:00');
-  const dateHeb = d.toLocaleDateString('he-IL', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
-
-  // Check if it's tomorrow or further
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
   const tomorrowStr = tomorrow.toISOString().split('T')[0];
-  const isTomorrow = firstDate === tomorrowStr;
-  const msgEl = document.getElementById('handoverTimingMsg');
-  if (msgEl) {
-    msgEl.textContent = isTomorrow
-      ? `⏰ מחר אתה בחופשה (${dateHeb})! לפני שתצא — שתף את הצוות במה שחשוב.`
-      : `📅 הגדרת חופשה ל-${dateHeb}. רוצה להכין פרוטוקול העברת מקל?`;
+  const vacs = getVacations(currentUser.username);
+  const type = vacs[tomorrowStr];
+  if ((type === 'full' || type === 'half') && !sessionStorage.getItem('handoverShown_'+tomorrowStr)) {
+    sessionStorage.setItem('handoverShown_'+tomorrowStr, '1');
+    // Longer delay on mobile to ensure screen is fully visible
+    const delay = /iPhone|iPad|Android/i.test(navigator.userAgent) ? 2200 : 1200;
+    setTimeout(() => openModal('handoverModal'), delay);
   }
-
-  const delay = /iPhone|iPad|Android/i.test(navigator.userAgent) ? 2200 : 1200;
-  setTimeout(() => openModal('handoverModal'), delay);
-}
-
-// Called also immediately after saving a vacation day
-function checkHandoverAfterVacationSet() {
-  // Small delay to let UI settle
-  setTimeout(checkHandoverNeeded, 600);
 }
 
 function saveHandover() {
@@ -3720,22 +3649,14 @@ function saveHandover() {
   const t2 = document.getElementById('handover2').value.trim();
   const t3 = document.getElementById('handover3').value.trim();
   const contact = document.getElementById('handoverContact').value.trim();
-  const note = document.getElementById('handoverNote') ? document.getElementById('handoverNote').value.trim() : '';
   const tasks = [t1,t2,t3].filter(Boolean);
   if (!tasks.length) { showToast('נא להזין לפחות משימה אחת', 'warning'); return; }
 
   const db = getDB();
   if (!db.handovers) db.handovers = {};
-
-  // Use the target date set by checkHandoverNeeded, or fallback to tomorrow
-  let targetDate = window._handoverTargetDate;
-  if (!targetDate) {
-    const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
-    targetDate = tomorrow.toISOString().split('T')[0];
-  }
-
-  const d = new Date(targetDate + 'T00:00:00');
-  const dateHeb = d.toLocaleDateString('he-IL', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
+  const tomorrowStr = tomorrow.toISOString().split('T')[0];
+  const dateHeb = tomorrow.toLocaleDateString('he-IL', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
 
   // Find manager
   const managerUsername = getDeptManagerForUser(currentUser.username);
@@ -3743,44 +3664,15 @@ function saveHandover() {
   const managerName = managerUser?.fullName || 'המנהל';
   const managerEmail = managerUser?.email || '';
 
-  const key = currentUser.username + '_' + targetDate;
-  db.handovers[key] = {
+  db.handovers[currentUser.username + '_' + tomorrowStr] = {
     user: currentUser.username, fullName: currentUser.fullName,
-    date: targetDate, tasks, contact, note,
+    date: tomorrowStr, tasks, contact,
     managerUsername, seenByManager: false,
     createdAt: new Date().toISOString()
   };
   saveDB(db);
   closeModal('handoverModal');
-
-  // Clear fields for next time
-  ['handover1','handover2','handover3','handoverContact'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = '';
-  });
-  if (document.getElementById('handoverNote')) document.getElementById('handoverNote').value = '';
-
-  auditLog('handover', `${currentUser.fullName} הגיש פרוטוקול העברת מקל ל-${targetDate}`);
-
-  // ── Build mailto ──
-  const subject = encodeURIComponent(`📋 פרוטוקול העברת מקל — ${currentUser.fullName} (${dateHeb})`);
-  let body = `שלום ${managerName},\n\n`;
-  body += `${currentUser.fullName} יצא/ת לחופשה ביום ${dateHeb}.\n`;
-  body += `להלן המשימות הדורשות טיפול:\n\n`;
-  tasks.forEach((t, i) => { body += `${i+1}. ${t}\n`; });
-  if (contact) body += `\nמחליף/ה: ${contact}\n`;
-  if (note) body += `\nהערות: ${note}\n`;
-  body += `\nהפרוטוקול נשמר במערכת Dazura.\n\nבברכה,\n${currentUser.fullName}`;
-
-  const mailto = `mailto:${managerEmail}?subject=${subject}&body=${encodeURIComponent(body)}`;
-
-  if (managerEmail) {
-    window.location.href = mailto;
-    showToast(`✅ פרוטוקול נשמר — נפתח מייל ל-${managerName}`, 'success');
-  } else {
-    showToast(`✅ פרוטוקול נשמר — למנהל אין מייל, ${managerName} יראה בכניסה הבאה`, 'warning');
-  }
-}
+  auditLog('handover', `${currentUser.fullName} הגיש פרוטוקול העברת מקל ל-${tomorrowStr}`);
 
   // ── Build mailto ──
   const subject = encodeURIComponent(`📋 פרוטוקול העברת מקל — ${currentUser.fullName} (${dateHeb})`);
@@ -5577,24 +5469,8 @@ async function pullFromFirebase() {
     const doc = await firebaseDB.collection('vacationSystem').doc('data').get();
     if (doc.exists) {
       const data = doc.data();
-      const cloudUsers = JSON.parse(data.users || '{}');
-
-      // ⚡ SECURITY: Passwords live ONLY in localStorage — never in cloud
-      // Restore local passwords into the cloud user objects
-      const localDB = JSON.parse(localStorage.getItem(DB_KEY) || '{}');
-      const localUsers = localDB.users || {};
-      Object.keys(cloudUsers).forEach(uname => {
-        if (localUsers[uname]?.password) {
-          cloudUsers[uname].password = localUsers[uname].password;
-        }
-      });
-      // Also keep any users that exist locally but not in cloud (e.g. new offline registrations)
-      Object.keys(localUsers).forEach(uname => {
-        if (!cloudUsers[uname]) cloudUsers[uname] = localUsers[uname];
-      });
-
       const cloudDB = {
-        users:            cloudUsers,
+        users:            JSON.parse(data.users       || '{}'),
         vacations:        JSON.parse(data.vacations   || '{}'),
         departments:      JSON.parse(data.departments || '[]'),
         approvalRequests: JSON.parse(data.approvalRequests || '[]'),
@@ -5605,7 +5481,6 @@ async function pullFromFirebase() {
         announcements:    JSON.parse(data.announcements || '[]'),
         sick:             JSON.parse(data.sick        || '{}'),
         dailyStatus:      JSON.parse(data.dailyStatus  || '{}'),
-        handovers:        JSON.parse(data.handovers   || '{}'),
       };
       // Always guarantee admin exists even if Firebase was wiped
       ensureAdminExists(cloudDB);
@@ -5629,16 +5504,8 @@ async function pushToFirebase() {
   if (!firebaseConnected || !firebaseDB) return;
   try {
     const db = getDB();
-
-    // ⚡ SECURITY: Never store raw passwords in Firebase
-    // Strip password field from all users before pushing to cloud
-    const usersForCloud = {};
-    Object.entries(db.users || {}).forEach(([uname, u]) => {
-      usersForCloud[uname] = Object.assign({}, u, { password: undefined });
-    });
-
     await firebaseDB.collection('vacationSystem').doc('data').set({
-      users:            JSON.stringify(usersForCloud),
+      users:            JSON.stringify(db.users || {}),
       vacations:        JSON.stringify(db.vacations || {}),
       departments:      JSON.stringify(db.departments || []),
       approvalRequests: JSON.stringify(db.approvalRequests || []),
@@ -5649,7 +5516,6 @@ async function pushToFirebase() {
       announcements:    JSON.stringify(db.announcements || []),
       sick:             JSON.stringify(db.sick || {}),
       dailyStatus:      JSON.stringify(db.dailyStatus || {}),
-      handovers:        JSON.stringify(db.handovers || {}),
       updatedAt:        new Date().toISOString(),
       updatedBy:        currentUser?.username || 'system'
     });
@@ -5673,19 +5539,8 @@ function startRealtimeListener() {
       if (isOwnWrite) return;
 
       // Update local storage with cloud data
-      const cloudUsers = JSON.parse(data.users || '{}');
-      // ⚡ SECURITY: Restore local passwords — they never travel to cloud
-      const localDB2 = JSON.parse(localStorage.getItem(DB_KEY) || '{}');
-      const localUsers2 = localDB2.users || {};
-      Object.keys(cloudUsers).forEach(uname => {
-        if (localUsers2[uname]?.password) cloudUsers[uname].password = localUsers2[uname].password;
-      });
-      Object.keys(localUsers2).forEach(uname => {
-        if (!cloudUsers[uname]) cloudUsers[uname] = localUsers2[uname];
-      });
-
       const cloudDB = {
-        users:            cloudUsers,
+        users:            JSON.parse(data.users       || '{}'),
         vacations:        JSON.parse(data.vacations   || '{}'),
         departments:      JSON.parse(data.departments || '[]'),
         approvalRequests: JSON.parse(data.approvalRequests || '[]'),
@@ -5696,7 +5551,6 @@ function startRealtimeListener() {
         announcements:    JSON.parse(data.announcements || '[]'),
         sick:             JSON.parse(data.sick        || '{}'),
         dailyStatus:      JSON.parse(data.dailyStatus  || '{}'),
-        handovers:        JSON.parse(data.handovers   || '{}'),
       };
       ensureAdminExists(cloudDB);
       _saveDBLocal(cloudDB);
