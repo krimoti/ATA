@@ -499,6 +499,7 @@ async function _loginWithCloud(username, password) {
         if (lu?.email) emails.add(lu.email);
       } catch(e) {}
       emails.add(username + '@dazura-hr.app');
+      emails.add(username + '@company.co.il');
 
       let authed = false;
       for (const email of emails) {
@@ -576,8 +577,10 @@ function _finishLogin(user, password) {
   }
 
   // Firebase Auth sign-in background (for session continuity)
-  const fbEmail = user.firebaseEmail || (user.username + '@dazura-hr.app');
-  ensureFirebaseAuth().then(a => a.signInWithEmailAndPassword(fbEmail, password).catch(()=>{})).catch(()=>{});
+  const fbEmail = user.firebaseEmail || user.email || '';
+  if (fbEmail) {
+    ensureFirebaseAuth().then(a => a.signInWithEmailAndPassword(fbEmail, password).catch(()=>{})).catch(()=>{});
+  }
 
   document.getElementById('loginScreen').classList.remove('active');
   if (typeof DazuraAI !== 'undefined') DazuraAI.clearHistory();
@@ -4230,7 +4233,7 @@ async function migrateExistingUsersToFirebase() {
       return;
     }
     const u = users[i];
-    const fbEmail = u.username + '@dazura-hr.app';
+    const fbEmail = u.firebaseEmail || (u.username + '@dazura-hr.app');
     const r = await createFirebaseAuthUser(fbEmail, tempPass);
     const db2 = getDB();
     if (r.success) {
@@ -4391,6 +4394,10 @@ async function parseBulkFile(file) {
         </table>`;
 
       document.getElementById('bulkImportBtn').style.display = parsed.length ? '' : 'none';
+      // הצג checkbox רק אם יש לפחות עובד אחד עם אימייל
+      const hasEmail = parsed.some(p => p.email && p.email.includes('@') && !p.email.includes('dazura-hr') && !p.email.includes('company.co.il'));
+      const emailRow = document.getElementById('bulkRealEmailRow');
+      if (emailRow) emailRow.style.display = hasEmail ? 'flex' : 'none';
     } catch(err) {
       showToast('❌ שגיאה בקריאת הקובץ: ' + err.message, 'error');
     }
@@ -4437,6 +4444,10 @@ function applyBulkImport() {
         annual:         p.annual  !== null ? p.annual  : 0,
         initialBalance: p.balance !== null ? p.balance : 0
       }};
+      const useRealEmailForNew = document.getElementById('bulkUseRealEmail')?.checked;
+      const fbEmailForNew = (useRealEmailForNew && p.email && p.email.includes('@') && !p.email.includes('dazura-hr'))
+        ? p.email
+        : (p.username + '@dazura-hr.app');
       db.users[p.username] = {
         fullName: p.fullName,
         username: p.username,
@@ -4445,6 +4456,7 @@ function applyBulkImport() {
         role: 'employee',
         status: 'active',
         email: p.email || '',
+        firebaseEmail: fbEmailForNew,
         mustChangePassword: true,
         dailySalary: p.salary !== null ? p.salary : 0,
         birthday: p.birthday || '',
@@ -4603,7 +4615,7 @@ async function doForcePasswordChange() {
   db.users[currentUser.username].mustChangePassword = false;
   saveDB(db);
   const savedUsername = currentUser.username;
-  const fbEmail = currentUser.firebaseEmail || (currentUser.username + '@dazura-hr.app');
+  const fbEmail = currentUser.firebaseEmail || currentUser.email || '';
   try {
     const auth = await ensureFirebaseAuth();
     let fbUser = auth.currentUser;

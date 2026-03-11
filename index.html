@@ -131,6 +131,10 @@
 
     <div class="modal-footer" style="flex-shrink:0;border-top:1px solid var(--border);padding-top:16px;margin-top:8px;">
       <button class="btn btn-outline" onclick="closeModal('bulkImportModal')">ביטול</button>
+      <div id="bulkRealEmailRow" style="display:none;align-items:center;gap:8px;font-size:13px;margin-left:auto;">
+        <input type="checkbox" id="bulkUseRealEmail" style="width:16px;height:16px;cursor:pointer;">
+        <label for="bulkUseRealEmail" style="cursor:pointer;color:var(--primary);font-weight:600;">השתמש במייל אמיתי לאיפוס סיסמה</label>
+      </div>
       <button class="btn btn-primary" id="bulkImportBtn" onclick="applyBulkImport()" style="display:none;">✅ ייבא עובדים</button>
     </div>
   </div>
