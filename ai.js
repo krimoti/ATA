@@ -111,17 +111,17 @@ const DazuraAI = (() => {
     { name:'who_am_i',      score: t=>/מי אני|שמי|הפרופיל שלי|זהות|פרטים שלי/.test(t)?10:0 },
     { name:'who_is_moti',   score: t=>/^מי אתה|^מה אתה$|תציג את עצמך|ספר לי על עצמך|מה השם שלך|מה שמך|מי אתה\?|^מה אני יכול לשאול|מה אתה יודע|תעזור לי$|מה אני יכול לשאול אותך/.test(t.trim())?12:0 },
     { name:'my_dept',       score: t=>/מחלקה שלי|באיזה מחלקה|הצוות שלי|אני ב/.test(t)?10:0 },
-    { name:'my_balance',    score: t=>/יתרה|יתרת|כמה (ימים|יום) (יש|נשאר|נותר|זמין)|balance|כמה חופשה|מה היתרה/.test(t)?10:0 },
+    { name:'my_balance',    score: t=>/יתרה|יתרת|כמה (ימים|יום) (יש|נשאר|נותר|זמין)|balance|כמה חופשה|מה היתרה|כמה נשאר לי|כמה יש לי|מה נשאר לי|כמה נותר לי/.test(t)?10:0 },
     { name:'my_used',       score: t=>/ניצלתי|לקחתי|השתמשתי|ניצול|ימים שניצלתי|כמה (השתמשתי|לקחתי)/.test(t)?10:0 },
     { name:'my_quota',      score: t=>/מכסה|כמה ימי חופש מגיע|זכאי ל/.test(t)?10:0 },
     { name:'my_monthly',    score: t=>/צבירה חודשית|כמה (ימים|יום) בחודש/.test(t)?10:0 },
-    { name:'forecast',      score: t=>/תחזית|חיזוי|מומלץ|תמליץ|המלצה|קצב ניצול|כמה אוכל לקחת|מתי כדאי/.test(t)?10:0 },
+    { name:'forecast',      score: t=>/תחזית|חיזוי|מומלץ|תמליץ|המלצה|קצב ניצול|כמה אוכל לקחת|מתי כדאי|כמה נשאר לי השנה|מה מומלץ/.test(t)?10:0 },
     { name:'moti_all_same_week',   score: t=>/כולם.*חופשה.*אותו שבוע|מה אם כולם יבקשו|כולם.*אותו שבוע/.test(t)?10:0 },
-    { name:'eoy_projection',score: t=>/סוף שנה|בסוף השנה|עד דצמבר|כמה יישאר/.test(t)?10:0 },
-    { name:'request_status',score: t=>/סטטוס|הבקשה (שלי|אחרונה)|אושרה|נדחה|ממתין לאישור|מצב הבקשה/.test(t)?10:0 },
+    { name:'eoy_projection',score: t=>/סוף שנה|בסוף השנה|עד דצמבר|כמה יישאר|כמה נשאר.*השנה|כמה יהיה.*סוף|תחזית.*סוף שנה/.test(t)?10:0 },
+    { name:'request_status',score: t=>/סטטוס|הבקשה (שלי|אחרונה)|אושרה|נדחה|ממתין לאישור|מצב הבקשה|הבקשה ממתינה|אושרתי|נדחיתי/.test(t)?10:0 },
     { name:'my_history',    score: t=>/(חופשה|ניצלתי|לקחתי|הייתי) ב(ינואר|פברואר|מרץ|אפריל|מאי|יוני|יולי|אוגוסט|ספטמבר|אוקטובר|נובמבר|דצמבר|\d{1,2}\/\d{1,2})/.test(t)?10:0 },
     // WHO + any date
-    { name:'who_vacation',  score: t=>/מי (ב|הוא|היא|נמצא|יצא|בחופשה|חופש)|מי חופשה|מי יצא לחופש/.test(t)?10:0 },
+    { name:'who_vacation',  score: t=>/מי (ב|הוא|היא|נמצא|יצא|בחופשה|חופש)|מי חופשה|מי יצא לחופש|מי לא מגיע|מי נעדר היום|מי לא עובד/.test(t)?10:0 },
     { name:'who_wfh',       score: t=>/מי (עובד מהבית|ב.?wfh|מהבית|remote)|wfh|מי מהבית/.test(t)?10:0 },
     { name:'who_sick',      score: t=>/מי חולה|מי (ב)?מחלה|מי נעדר|מי חסר/.test(t)?10:0 },
     { name:'who_office',    score: t=>/מי במשרד|מי (בחברה|בעבודה)|נוכחות|מי (פיזי|מגיע)/.test(t)?10:0 },
@@ -1229,29 +1229,38 @@ const DazuraAI = (() => {
   // UNKNOWN — smart suggestions based on input keywords
   // ============================================================
   function respondUnknown(rawInput, currentUser, db) {
-    // Try employee name lookup (admin/manager)
-    if (hasManagerAccess(currentUser)) {
+    const t          = rawInput.toLowerCase();
+    const isAdmin    = hasAdminAccess(currentUser);
+    const isManager  = hasManagerAccess(currentUser);
+    const firstName  = currentUser.fullName.split(' ')[0];
+
+    // ── 1. ניסה לכתוב שאלת יתרה בניסוח חופשי ──────────────
+    if (/כמה.*(נשאר|יש|נותר|זמין).*לי|נשאר לי|יש לי.*ימים|כמה ימי חופש/.test(t))
+      return respondMyBalance(currentUser, db, new Date().getFullYear());
+
+    // ── 2. שאלת תחזית סוף שנה ───────────────────────────────
+    if (/נשאר.*השנה|השנה.*נשאר|עד סוף השנה|בסוף השנה|כמה יהיה לי/.test(t))
+      return respondForecast(currentUser, db, new Date().getFullYear());
+
+    // ── 3. שם עובד בטקסט (admin/manager) ─────────────────────
+    if (isManager) {
       const uname = extractEmployeeName(rawInput, db);
-      if (uname) return respondEmpBalance(db.users[uname], db, new Date().getFullYear());
+      if (uname && db.users[uname]) return respondEmpBalance(db.users[uname], db, new Date().getFullYear());
     }
-    // Try date in text
-    if (/\d{1,2}\/\d{1,2}/.test(rawInput)) {
+
+    // ── 4. תאריך בטקסט ───────────────────────────────────────
+    if (/\d{1,2}\/\d{1,2}/.test(rawInput))
       return respondMyHistory(currentUser, db, parseTargetDate(rawInput));
-    }
 
-    // Smart keyword hints
-    const t = rawInput.toLowerCase();
-    const isAdmin   = hasAdminAccess(currentUser);
-    const isManager = hasManagerAccess(currentUser);
-
+    // ── 5. כוונה חלקית לפי מילות מפתח ───────────────────────
     if (/שעה|שעות|כניסה|יציאה|נוכחות/.test(t))
       return `נראה שאתה מחפש מידע על **שעות עבודה**.\nנסה:\n• "כמה שעות דיווחתי השבוע?"\n• "איך מתקנים שעות שגויות?"\n• "למי מדווחות השעות?"`;
 
-    if (/אישור|אישרו|מאושר|ממתין|נדחה|סטטוס/.test(t))
+    if (/אישור|אישרו|מאושר|ממתין|נדחה|סטטוס|בקשה/.test(t))
       return `נראה שאתה מחפש מידע על **בקשת אישור**.\nנסה:\n• "מה סטטוס הבקשה שלי?"\n• "איך מתקנים בקשה שנשלחה?"\n• "איפה רואים אם אושרתי?"`;
 
-    if (/מחלקה|מנהל|צוות/.test(t))
-      return `נסה לשאול:\n• "מי מהצוות שלי בחופשה היום?"\n• "מה מחלקה שלי?"\n• "מי מנהל המחלקה שלי?"`;
+    if (/מחלקה|מנהל|צוות|עמיתים/.test(t))
+      return `נסה לשאול:\n• "מי מהצוות שלי בחופשה היום?"\n• "מה המחלקה שלי?"\n• "מצב הצוות מחר"`;
 
     if (/הגדרות|פרופיל|סיסמה|מייל|אימייל|לוגו/.test(t))
       return `נסה לשאול:\n• "איך משנים סיסמה?"\n• "איך מעדכנים מייל?"\n• "מי מחליף לוגו חברה?"`;
@@ -1259,8 +1268,10 @@ const DazuraAI = (() => {
     if (isAdmin && /עובד|עובדים|מכסה|הרשאה/.test(t))
       return `נסה לשאול:\n• "איך מוסיפים עובד?"\n• "איך טוענים מכסות מאקסל?"\n• "מי מנהל הרשאות?"`;
 
-    // Default gentle fallback
-    const firstName = currentUser.fullName.split(' ')[0];
+    if (/חופש|חופשה|יתרה|ימים/.test(t))
+      return respondMyBalance(currentUser, db, new Date().getFullYear());
+
+    // ── 6. Default לפי תפקיד ─────────────────────────────────
     const examples = isAdmin
       ? `• "מה יתרת החופשה שלי?"\n• "מי בחופשה מחר?"\n• "ציוני רווחת עובדים"\n• "איך מוסיפים עובד?"`
       : isManager
