@@ -1,10 +1,10 @@
 // ============================================================
-// DAZURA AI FUSE ENGINE v2.0
+// DAZURA AI FUSE ENGINE v2.1
 // ============================================================
-// שדרוג מלא ל-DazuraAI:
-//  1. Fuse.js — חיפוש פאזי לשמות עובדים ומחלקות
-//  2. Claude API — תשובות LLM לשאלות מורכבות
-//  3. Patch על sendAIMessage (לא על DazuraAI.respond — נשאר סינכרוני)
+// ללא LLM — מקומי לחלוטין, עובד על כל מכשיר ודפדפן
+//  1. Fuse.js  — חיפוש פאזי לשמות עובדים ומחלקות
+//  2. DazuraAI — מנוע תשובות מקומי (ai.js)
+//  3. Fallback — תשובה חכמה לפי מילות מפתח
 // ============================================================
 
 const DazuraFuse = (() => {
@@ -29,44 +29,98 @@ const DazuraFuse = (() => {
   // 2. FUZZY SEARCH
   // ──────────────────────────────────────────
 
+  // נרמול — מסיר ניקוד עברי, גרשיים, רווחים כפולים
+  function normalizeText(text) {
+    return (text || '')
+      .replace(/[\u0591-\u05C7]/g, '')  // ניקוד עברי
+      .replace(/['"״׳]/g, '')            // גרש/גרשיים
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, ' ');
+  }
+
+  function buildUserIndex(db) {
+    if (!db?.users) return [];
+    return Object.entries(db.users)
+      .filter(([, u]) => u.fullName && u.status !== 'pending')
+      .map(([username, u]) => ({
+        username,
+        fullName:   u.fullName,
+        normalized: normalizeText(u.fullName),
+        firstName:  u.fullName.split(' ')[0] || '',
+        lastName:   u.fullName.split(' ').slice(-1)[0] || '',
+        nickname:   u.nickname || u.fullName.split(' ')[0] || '',
+      }));
+  }
+
   function fuzzyFindEmployee(query, db) {
     if (!window.Fuse || !db?.users) return null;
-    const users = Object.entries(db.users)
-      .filter(([, u]) => u.fullName && u.status !== 'pending')
-      .map(([username, u]) => ({ username, fullName: u.fullName }));
+    const q     = normalizeText(query);
+    const users = buildUserIndex(db);
+
+    // חיפוש מדויק קודם
+    const exact = users.find(u =>
+      u.normalized === q ||
+      u.firstName.toLowerCase() === q ||
+      u.lastName.toLowerCase() === q ||
+      u.username.toLowerCase() === q
+    );
+    if (exact) return exact;
+
+    // חיפוש פאזי
     const fuse = new Fuse(users, {
-      keys: ['fullName', 'username'],
-      threshold: 0.4,
+      keys: [
+        { name: 'fullName',   weight: 0.4 },
+        { name: 'normalized', weight: 0.3 },
+        { name: 'firstName',  weight: 0.15 },
+        { name: 'lastName',   weight: 0.1 },
+        { name: 'nickname',   weight: 0.05 },
+      ],
+      threshold: 0.42,
       minMatchCharLength: 2,
       includeScore: true,
       ignoreLocation: true,
     });
-    const r = fuse.search(query);
-    return r.length ? r[0].item : null;
+
+    const results = fuse.search(q);
+    if (results.length && results[0].score < 0.5) return results[0].item;
+    return null;
   }
 
   function fuzzyFindDept(query, db) {
     if (!window.Fuse || !db?.departments) return null;
-    const depts = (db.departments || []).map(d => ({ name: d }));
-    const fuse = new Fuse(depts, { keys: ['name'], threshold: 0.4, minMatchCharLength: 2 });
-    const r = fuse.search(query);
+    const depts = (db.departments || []).map(d => ({
+      name: d, normalized: normalizeText(d),
+    }));
+    const fuse = new Fuse(depts, {
+      keys: ['name', 'normalized'],
+      threshold: 0.4,
+      minMatchCharLength: 2,
+    });
+    const r = fuse.search(normalizeText(query));
     return r.length ? r[0].item.name : null;
   }
 
   function smartExtractEmployee(text, db) {
     if (!db?.users) return null;
-    const t = text.toLowerCase();
+    const t = normalizeText(text);
+
+    // שם מלא
     for (const [uname, user] of Object.entries(db.users)) {
-      if (t.includes(user.fullName.toLowerCase())) return uname;
+      if (user.status === 'pending') continue;
+      if (t.includes(normalizeText(user.fullName))) return uname;
     }
+    // חלק מהשם (מינימום 3 תווים)
     for (const [uname, user] of Object.entries(db.users)) {
-      for (const part of user.fullName.split(' ').filter(p => p.length > 2)) {
-        if (t.includes(part.toLowerCase())) return uname;
-      }
+      if (user.status === 'pending') continue;
+      const parts = normalizeText(user.fullName).split(' ').filter(p => p.length >= 3);
+      if (parts.some(p => t.includes(p))) return uname;
     }
+    // Fuse על מילים בודדות בטקסט
     if (window.Fuse) {
-      const words = text.match(/[\u0590-\u05FF]{2,}|[A-Za-z]{3,}/g) || [];
+      const words = text.match(/[\u0590-\u05FF\w]{2,}/g) || [];
       for (const word of words) {
+        if (word.length < 3) continue;
         const found = fuzzyFindEmployee(word, db);
         if (found) return found.username;
       }
@@ -75,93 +129,62 @@ const DazuraFuse = (() => {
   }
 
   // ──────────────────────────────────────────
-  // 3. CLAUDE API
-  // ──────────────────────────────────────────
-
-  const CLAUDE_MODEL = 'claude-sonnet-4-20250514';
-
-  function buildSystemPrompt(currentUser, db) {
-    const today = new Date().toLocaleDateString('he-IL', {
-      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-    });
-    const companyName = db?.settings?.companyName || 'החברה';
-    const depts = (db?.departments || []).join(', ');
-    const roleLabel = { admin: 'מנהל מערכת', manager: 'מנהל מחלקה', accountant: 'חשב/ת', employee: 'עובד/ת' }[currentUser.role] || 'עובד/ת';
-    const userDept = Array.isArray(currentUser.dept) ? currentUser.dept.join(', ') : (currentUser.dept || '');
-
-    let balanceInfo = '';
-    try {
-      const year = new Date().getFullYear();
-      const vacs = db?.vacations?.[currentUser.username] || {};
-      let full = 0, half = 0;
-      Object.entries(vacs).forEach(([dt, type]) => {
-        if (dt.startsWith(String(year))) { if (type === 'full') full++; else if (type === 'half') half++; }
-      });
-      const quota = db?.users?.[currentUser.username]?.quotas?.[year]?.annual || 0;
-      const used = full + half * 0.5;
-      balanceInfo = `יתרה: ${(quota - used).toFixed(1)} ימים (ניצל ${used}/${quota})`;
-    } catch (e) {}
-
-    let companyStatus = '';
-    try {
-      const todayStr = new Date().toISOString().split('T')[0];
-      const active = Object.values(db?.users || {}).filter(u => u.status === 'active');
-      let onVac = 0, onWfh = 0;
-      active.forEach(u => {
-        const t = db?.vacations?.[u.username]?.[todayStr];
-        if (t === 'full' || t === 'half') onVac++;
-        else if (t === 'wfh') onWfh++;
-      });
-      const pending = (db?.approvalRequests || []).filter(r => r.status === 'pending').length;
-      companyStatus = `${onVac} בחופשה, ${onWfh} WFH, ${pending} בקשות ממתינות`;
-    } catch (e) {}
-
-    return `אתה MOTI — עוזר חכם של מערכת Dazura לניהול חופשות, חברה: "${companyName}".
-ענה תמיד בעברית, קצר וממוקד. **Bold** להדגשות. אל תמציא נתונים.
-
-👤 ${currentUser.fullName} | ${roleLabel} | ${userDept} | ${balanceInfo}
-🏢 מחלקות: ${depts}
-📅 היום: ${today} | ${companyStatus}
-🔒 הרשאות: ${currentUser.role === 'admin' ? 'מלאות' : currentUser.role === 'manager' ? 'מחלקה בלבד' : 'אישי בלבד'}`;
-  }
-
-  async function callClaudeAPI(userMessage, history, currentUser, db) {
-    try {
-      const messages = history.slice(-8).map(m => ({
-        role: m.role === 'ai' ? 'assistant' : 'user',
-        content: m.text
-      }));
-      messages.push({ role: 'user', content: userMessage });
-
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: CLAUDE_MODEL,
-          max_tokens: 1000,
-          system: buildSystemPrompt(currentUser, db),
-          messages,
-        })
-      });
-      if (!res.ok) return null;
-      const data = await res.json();
-      return data.content?.map(c => c.text || '').join('') || null;
-    } catch (err) {
-      return null;
-    }
-  }
-
-  // ──────────────────────────────────────────
-  // 4. UNKNOWN DETECTION
+  // 3. UNKNOWN DETECTION
   // ──────────────────────────────────────────
 
   const UNKNOWN_SIGNALS = [
     'לא הצלחתי להבין', 'לא בטוח מה', 'נסח מחדש',
     'שאלה מחוץ לתחום', '❓', 'לא הבנתי את', 'אנסה שוב',
+    'אין לי תשובה', 'לא מצאתי', 'לא יכול לעזור',
   ];
 
   function isUnknown(text) {
-    return !text || UNKNOWN_SIGNALS.some(s => text.includes(s));
+    if (!text || text.trim().length < 5) return true;
+    return UNKNOWN_SIGNALS.some(s => text.includes(s));
+  }
+
+  // ──────────────────────────────────────────
+  // 4. SMART FALLBACK (ללא LLM)
+  // ──────────────────────────────────────────
+
+  function fallback(text, currentUser, db) {
+    const today = new Date().toISOString().split('T')[0];
+
+    // עובד לפי שם בטקסט
+    const empUsername = smartExtractEmployee(text, db);
+    if (empUsername && db?.users?.[empUsername]) {
+      const u    = db.users[empUsername];
+      const type = db?.vacations?.[empUsername]?.[today];
+      const statusMap = {
+        full: 'בחופשה 🏖️', half: 'בחצי יום 🌅',
+        wfh:  'עובד/ת מהבית 🏠', sick: 'ביום מחלה 🤒',
+      };
+      return `**${u.fullName}** — היום: ${statusMap[type] || 'במשרד 📍'}`;
+    }
+
+    // מחלקה לפי שם בטקסט
+    const deptName = fuzzyFindDept(text, db);
+    if (deptName) {
+      const inDept = Object.values(db?.users || {}).filter(u => {
+        const d = Array.isArray(u.dept) ? u.dept[0] : u.dept;
+        return d === deptName && u.status !== 'pending';
+      });
+      const away = inDept.filter(u => {
+        const t = db?.vacations?.[u.username]?.[today];
+        return t === 'full' || t === 'half' || t === 'sick';
+      });
+      return `מחלקת **${deptName}**: ${inDept.length} עובדים, ${away.length} נעדרים היום.`;
+    }
+
+    // הצעה לפי מילות מפתח
+    const t = text.toLowerCase();
+    if (/חופש|חופשה|יתרה|ימים/.test(t))  return `שאל/י: "מה היתרה שלי?" או "מי בחופשה היום?" 💡`;
+    if (/מחלקה|צוות|עובדים/.test(t))      return `שאל/י: "מצב הצוות היום" או "מי במחלקה X?" 💡`;
+    if (/מחר|השבוע|שבוע הבא/.test(t))     return `שאל/י: "מי בחופשה מחר?" או "מצב השבוע הבא" 💡`;
+    if (/שעות|כניסה|יציאה/.test(t))       return `שאל/י: "איך מתקנים שעות?" או "למי מדווחות השעות?" 💡`;
+    if (/אישור|בקשה|סטטוס/.test(t))       return `שאל/י: "מה סטטוס הבקשה שלי?" 💡`;
+
+    return `שאל אותי: "מי בחופשה היום?" | "מה היתרה שלי?" | "מצב הצוות" 💡`;
   }
 
   // ──────────────────────────────────────────
@@ -169,14 +192,18 @@ const DazuraFuse = (() => {
   // ──────────────────────────────────────────
 
   let _history = [];
+  const MAX_HISTORY = 16;
 
   async function respondAsync(msg, currentUser, db) {
     _history.push({ role: 'user', text: msg });
+    if (_history.length > MAX_HISTORY) _history = _history.slice(-MAX_HISTORY);
 
-    // קודם AI מקומי
+    // שלב 1: DazuraAI מקומי (ai.js + ai-patch.js)
     let local = null;
     try {
-      if (typeof DazuraAI !== 'undefined') local = DazuraAI.respond(msg, currentUser, db);
+      if (typeof DazuraAI !== 'undefined') {
+        local = DazuraAI.respond(msg, currentUser, db);
+      }
     } catch (e) {}
 
     if (!isUnknown(local)) {
@@ -184,51 +211,65 @@ const DazuraFuse = (() => {
       return local;
     }
 
-    // Claude
-    const claude = await callClaudeAPI(msg, _history, currentUser, db);
-    if (claude) { _history.push({ role: 'ai', text: claude }); return claude; }
-
-    // Fallback
+    // שלב 2: Fallback חכם מקומי
     const fb = fallback(msg, currentUser, db);
     _history.push({ role: 'ai', text: fb });
     return fb;
   }
 
-  function fallback(text, currentUser, db) {
-    if (window.Fuse) {
-      const emp = smartExtractEmployee(text, db);
-      if (emp && db?.users?.[emp]) {
-        const u = db.users[emp];
-        const today = new Date().toISOString().split('T')[0];
-        const type = db?.vacations?.[emp]?.[today];
-        const s = { full: 'בחופשה', half: 'בחצי יום', wfh: 'עובד/ת מהבית', sick: 'ביום מחלה' }[type] || 'במשרד';
-        return `**${u.fullName}** — היום: ${s} 📋`;
-      }
-    }
-    return `שאל אותי: "מי בחופשה היום?" או "מה היתרה שלי?" 💡`;
-  }
-
   function clearHistory() { _history = []; }
 
-  async function searchEmployee(q, db) { await loadFuse(); return fuzzyFindEmployee(q, db); }
-  async function searchDept(q, db) { await loadFuse(); return fuzzyFindDept(q, db); }
+  // ──────────────────────────────────────────
+  // 6. PUBLIC API
+  // ──────────────────────────────────────────
 
+  async function searchEmployee(q, db)  { await loadFuse(); return fuzzyFindEmployee(q, db); }
+  async function searchDept(q, db)      { await loadFuse(); return fuzzyFindDept(q, db); }
+  async function extractEmployee(t, db) { await loadFuse(); return smartExtractEmployee(t, db); }
+
+  // analyzeTeam — ניתוח סטטיסטי מקומי (ללא LLM)
   async function analyzeTeam(prompt, user, db) {
     if (user.role !== 'admin' && user.role !== 'manager') return 'זמין למנהלים בלבד.';
-    const year = new Date().getFullYear();
-    const summary = Object.values(db.users || {}).filter(u => u.status === 'active' && u.role === 'employee').slice(0, 25)
-      .map(u => {
-        const vacs = db.vacations?.[u.username] || {};
-        let used = 0;
-        Object.entries(vacs).forEach(([dt, t]) => { if (dt.startsWith(String(year))) used += t === 'full' ? 1 : t === 'half' ? 0.5 : 0; });
-        return `${u.fullName}: ${used}/${u.quotas?.[year]?.annual || 0}`;
-      }).join('\n');
-    return await callClaudeAPI(prompt + '\n\nנתונים:\n' + summary, [], user, db) || 'לא ניתן לנתח כרגע.';
+
+    const year      = new Date().getFullYear();
+    const employees = Object.values(db.users || {})
+      .filter(u => u.status === 'active' && u.role === 'employee');
+
+    const deptSummary = {};
+    employees.forEach(u => {
+      const dept = Array.isArray(u.dept) ? u.dept[0] : (u.dept || 'ללא');
+      if (!deptSummary[dept]) deptSummary[dept] = { count: 0, used: 0, quota: 0 };
+      const vacs = db.vacations?.[u.username] || {};
+      let used = 0;
+      Object.entries(vacs).forEach(([dt, t]) => {
+        if (dt.startsWith(String(year))) used += t === 'full' ? 1 : t === 'half' ? 0.5 : 0;
+      });
+      deptSummary[dept].count++;
+      deptSummary[dept].used  += used;
+      deptSummary[dept].quota += u.quotas?.[year]?.annual || 0;
+    });
+
+    const rows = Object.entries(deptSummary).map(([dept, s]) => {
+      const avg   = (s.used  / Math.max(s.count, 1)).toFixed(1);
+      const quota = (s.quota / Math.max(s.count, 1)).toFixed(1);
+      const pct   = s.quota > 0 ? Math.round(s.used / s.quota * 100) : 0;
+      const flag  = pct > 70 ? '⚠️' : pct < 30 ? '💡' : '✅';
+      return `${flag} **${dept}**: ${s.count} עובדים | ניצול ממוצע ${avg}/${quota} ימים (${pct}%)`;
+    });
+
+    return `**ניתוח צוות ${year}** (${employees.length} עובדים):\n${rows.join('\n')}`;
   }
 
-  // טען Fuse.js ברקע — רק אחרי שה-splash נעלם
-  setTimeout(() => loadFuse(), 3000);
+  // טען Fuse.js ברקע לאחר שה-splash נעלם
+  setTimeout(() => loadFuse(), 2500);
 
-  return { respondAsync, searchEmployee, searchDept, analyzeTeam, clearHistory };
+  return {
+    respondAsync,
+    searchEmployee,
+    searchDept,
+    extractEmployee,
+    analyzeTeam,
+    clearHistory,
+  };
 
 })();
