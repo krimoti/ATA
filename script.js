@@ -706,8 +706,20 @@ function showApp(skipModuleSelector) {
   buildCalendarSelects();
   showTab('dashboard');
   setTimeout(renderAnnouncements, 800);
-  // Refresh permissions select after Firebase may have loaded data
   setTimeout(populateQuickPermUser, 2000);
+
+  // הצג כפתורי employee-only רק לעובד רגיל
+  const isEmployee = currentUser.role === 'employee' || !currentUser.role;
+  document.querySelectorAll('.employee-only').forEach(el => {
+    el.style.display = isEmployee ? '' : 'none';
+  });
+
+  // הפעל פולר + בדיקת פרוטוקול לעובדים
+  if (isEmployee) {
+    startHandoverPoller();
+    setTimeout(checkHandoverNeeded, 1500);
+    setTimeout(renderMyHandoverCard, 600);
+  }
 }
 
 // ============================================================
@@ -3653,13 +3665,16 @@ let _handoverPopupOpen = false;
 function checkHandoverNeeded() {
   if (!currentUser) return;
   if (currentUser.role === 'manager' || currentUser.role === 'admin' || currentUser.role === 'accountant') return;
-  if (_handoverPopupOpen) return; // כבר פתוח — לא לפתוח שוב
+  if (_handoverPopupOpen) return;
 
   const db = getDB();
   const pending = db.handoverPending && db.handoverPending[currentUser.username];
   if (!pending || pending.submitted) return;
 
-  // עדכן הודעת הפופאפ לפי תאריך החופשה האמיתי
+  // עדכן _lastKnownPending כדי שהפולר לא יפתח שוב
+  _lastKnownPending = pending;
+
+  // עדכן הודעת הפופאפ
   const msgEl = document.getElementById('handoverAlertMsg');
   if (msgEl && pending.firstDate) {
     const dateHeb = new Date(pending.firstDate + 'T00:00:00').toLocaleDateString('he-IL', { weekday:'long', day:'numeric', month:'long' });
@@ -3670,15 +3685,7 @@ function checkHandoverNeeded() {
   const delay = /iPhone|iPad|Android/i.test(navigator.userAgent) ? 1800 : 900;
   setTimeout(() => {
     openModal('handoverModal');
-    // כשהפופאפ נסגר — אפס את הדגל
-    const overlay = document.getElementById('handoverModal');
-    if (overlay) {
-      const onClose = () => {
-        _handoverPopupOpen = false;
-        overlay.removeEventListener('transitionend', onClose);
-      };
-      overlay.addEventListener('transitionend', onClose);
-    }
+    setTimeout(() => { _handoverPopupOpen = false; }, 600);
   }, delay);
 }
 
@@ -5617,17 +5624,20 @@ function startRealtimeListener() {
 
       // Update local storage with cloud data
       const cloudDB = {
-        users:            JSON.parse(data.users       || '{}'),
-        vacations:        JSON.parse(data.vacations   || '{}'),
-        departments:      JSON.parse(data.departments || '[]'),
+        users:            JSON.parse(data.users            || '{}'),
+        vacations:        JSON.parse(data.vacations        || '{}'),
+        departments:      JSON.parse(data.departments      || '[]'),
         approvalRequests: JSON.parse(data.approvalRequests || '[]'),
-        deptManagers:     JSON.parse(data.deptManagers || '{}'),
-        auditLog:         JSON.parse(data.auditLog    || '[]'),
-        settings:         JSON.parse(data.settings    || '{}'),
-        permissions:      JSON.parse(data.permissions || '{}'),
-        announcements:    JSON.parse(data.announcements || '[]'),
-        sick:             JSON.parse(data.sick        || '{}'),
-        dailyStatus:      JSON.parse(data.dailyStatus  || '{}'),
+        deptManagers:     JSON.parse(data.deptManagers     || '{}'),
+        auditLog:         JSON.parse(data.auditLog         || '[]'),
+        settings:         JSON.parse(data.settings         || '{}'),
+        permissions:      JSON.parse(data.permissions      || '{}'),
+        announcements:    JSON.parse(data.announcements    || '[]'),
+        sick:             JSON.parse(data.sick             || '{}'),
+        dailyStatus:      JSON.parse(data.dailyStatus      || '{}'),
+        handovers:        JSON.parse(data.handovers        || '{}'),
+        handoversArchive: JSON.parse(data.handoversArchive || '{}'),
+        handoverPending:  JSON.parse(data.handoverPending  || '{}'),
       };
       ensureAdminExists(cloudDB);
       _saveDBLocal(cloudDB);
