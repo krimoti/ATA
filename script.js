@@ -5524,6 +5524,9 @@ async function pullFromFirebase() {
         announcements:    JSON.parse(data.announcements || '[]'),
         sick:             JSON.parse(data.sick        || '{}'),
         dailyStatus:      JSON.parse(data.dailyStatus  || '{}'),
+        handovers:        JSON.parse(data.handovers        || '{}'),
+        handoversArchive: JSON.parse(data.handoversArchive || '{}'),
+        handoverPending:  JSON.parse(data.handoverPending  || '{}'),
       };
       // Always guarantee admin exists even if Firebase was wiped
       ensureAdminExists(cloudDB);
@@ -5559,6 +5562,9 @@ async function pushToFirebase() {
       announcements:    JSON.stringify(db.announcements || []),
       sick:             JSON.stringify(db.sick || {}),
       dailyStatus:      JSON.stringify(db.dailyStatus || {}),
+      handovers:        JSON.stringify(db.handovers || {}),
+      handoversArchive: JSON.stringify(db.handoversArchive || {}),
+      handoverPending:  JSON.stringify(db.handoverPending || {}),
       updatedAt:        new Date().toISOString(),
       updatedBy:        currentUser?.username || 'system'
     });
@@ -6503,55 +6509,52 @@ function printHandoverPDF(key) {
 
 // הצג פרוטוקול בדוח האישי של העובד
 function renderMyHandoverCard() {
-  const btn = document.getElementById('myHandoverBtn');
-  if (!btn || !currentUser) return;
+  if (!currentUser) return;
+  // רק לעובדים — לא למנהל/אדמין
+  const isEmployee = currentUser.role === 'employee' || !currentUser.role;
+  const btn       = document.getElementById('myHandoverBtn');
+  const mobileBtn = document.getElementById('myHandoverBtnMobile');
+
+  if (!isEmployee) {
+    if (btn)       btn.style.display = 'none';
+    if (mobileBtn) mobileBtn.style.display = 'none';
+    return;
+  }
 
   const db = getDB();
   const today = new Date().toISOString().split('T')[0];
 
-  // חפש בarchive ובhandovers (תמיכה בפרוטוקולים ישנים)
-  const allSources = [
+  // חפש בarchive ובhandovers
+  const seen = new Set();
+  const myRecords = [
     ...Object.values(db.handoversArchive || {}),
     ...Object.values(db.handovers || {})
-  ];
-  // הסר כפילויות לפי key
-  const seen = new Set();
-  const myRecords = allSources
-    .filter(h => h.user === currentUser.username)
-    .filter(h => {
-      const k = h.user + '_' + h.date;
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    })
-    .filter(h => {
-      const vacDates = Array.isArray(h.dates) && h.dates.length > 0 ? h.dates : [h.date];
-      return vacDates.slice().sort().pop() >= today;
-    });
+  ]
+  .filter(h => h.user === currentUser.username)
+  .filter(h => {
+    const k = h.user + '_' + h.date;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  })
+  .filter(h => {
+    const vacDates = Array.isArray(h.dates) && h.dates.length > 0 ? h.dates : [h.date];
+    return vacDates.slice().sort().pop() >= today;
+  });
 
-  // כפתור desktop — תמיד גלוי
-  btn.style.display = '';
-  if (myRecords.length > 0) {
-    btn.style.background = 'linear-gradient(135deg,var(--primary),var(--primary-dark))';
-    btn.style.color = 'white';
-    btn.style.border = 'none';
-    btn.style.fontWeight = '700';
-  } else {
-    btn.style.removeProperty('background');
-    btn.style.removeProperty('color');
-    btn.style.removeProperty('border');
-    btn.style.removeProperty('fontWeight');
+  const hasActive = myRecords.length > 0;
+
+  // כפתור desktop — תמיד גלוי לעובד, כחול כשיש פרוטוקול פעיל
+  if (btn) {
+    btn.style.display = '';
+    btn.style.color = hasActive ? 'var(--primary)' : '';
+    btn.style.fontWeight = hasActive ? '800' : '';
   }
 
-  // כפתור מובייל — מוצג תמיד בתוך bottom-nav
-  const mobileBtn = document.getElementById('myHandoverBtnMobile');
+  // כפתור מובייל — תמיד גלוי לעובד
   if (mobileBtn) {
     mobileBtn.style.display = '';
-    if (myRecords.length > 0) {
-      mobileBtn.style.color = 'var(--primary)';
-    } else {
-      mobileBtn.style.removeProperty('color');
-    }
+    mobileBtn.style.color = hasActive ? 'var(--primary)' : '';
   }
 }
 

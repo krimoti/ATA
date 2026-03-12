@@ -972,10 +972,6 @@ tbody tr:hover { background: var(--surface2); }
   direction: rtl;
   border: 1px solid var(--border);
 }
-@keyframes pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(26,86,232,0.4); }
-  50%       { box-shadow: 0 0 0 6px rgba(26,86,232,0); }
-}
 @keyframes modalIn {
   from { opacity:0; transform: scale(0.88) translateY(-24px); }
   to   { opacity:1; transform: scale(1) translateY(0); }
