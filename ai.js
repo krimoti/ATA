@@ -446,19 +446,52 @@ const DazuraAI = (() => {
     const label=dateInfo.label;
     const allStats=getStatsForDate(db,dateStr);
 
-    // Employee: only own team
+    // Employee: show vacation/absent info for ALL employees (not just own team)
+    // (עובד רשאי לראות מי נעדר — רלוונטי לתיאום עבודה)
     if (!isAdmin&&!isManager) {
       const dept=Array.isArray(currentUser.dept)?currentUser.dept[0]:currentUser.dept;
+      // אם יש עמיתים באותה מחלקה — הצג מחלקה
       const myTeam=Object.values(db.users).filter(u=>{
         const d=Array.isArray(u.dept)?u.dept[0]:u.dept;
         return d===dept&&u.username!==currentUser.username&&u.status!=='pending';
       });
-      if (!myTeam.length) return `אין עמיתים נוספים במחלקת ${dept}.`;
-      return `מצב הצוות ${label} (${dept}):\n`+myTeam.map(u=>{
+      // הצג את כל מי שנעדר (מכל המחלקות) + מצב המחלקה שלו
+      const absentAll = Object.values(db.users).filter(u => {
+        if (u.username === currentUser.username || u.status === 'pending') return false;
+        const t=(db.vacations?.[u.username]||{})[dateStr];
+        return t==='full'||t==='half'||t==='sick'||t==='wfh';
+      });
+      if (!myTeam.length && !absentAll.length) return `כולם במשרד היום 📍`;
+      if (!myTeam.length) {
+        // אין עמיתים במחלקה — הצג נעדרים מכל המערכת
+        const lines = absentAll.map(u => {
+          const t=(db.vacations?.[u.username]||{})[dateStr];
+          if (t==='full'||t==='half') return formatUserWithHandover(db, u.username, u.fullName, dateStr) + ': ' + TYPE_STATUS[t];
+          return `• ${u.fullName}: ${TYPE_STATUS[t]}`;
+        });
+        return `**נעדרים ${label}:**\n${lines.join('\n')}`;
+      }
+      // יש עמיתים במחלקה — הצג מצב מחלקה מלא + כלל הנעדרים
+      const teamLines = myTeam.map(u=>{
         const type=(db.vacations?.[u.username]||{})[dateStr];
         if (type === 'full' || type === 'half') return formatUserWithHandover(db, u.username, u.fullName, dateStr) + ': ' + TYPE_STATUS[type];
         return `• ${u.fullName}: ${type?TYPE_STATUS[type]:'במשרד'}`;
-      }).join('\n');
+      });
+      let result = `**מצב הצוות ${label} (${dept}):**\n${teamLines.join('\n')}`;
+      // נעדרים ממחלקות אחרות
+      const outsideDept = absentAll.filter(u=>{
+        const d=Array.isArray(u.dept)?u.dept[0]:u.dept;
+        return d!==dept;
+      });
+      if (outsideDept.length) {
+        const extraLines = outsideDept.map(u=>{
+          const t=(db.vacations?.[u.username]||{})[dateStr];
+          if (t==='full'||t==='half') return formatUserWithHandover(db, u.username, u.fullName, dateStr) + ': ' + TYPE_STATUS[t];
+          return `• ${u.fullName}: ${TYPE_STATUS[t]}`;
+        });
+        result += `\n\n**נעדרים ממחלקות אחרות:**\n${extraLines.join('\n')}`;
+      }
+      return result;
     }
 
     const stats=isAdmin?allStats:filterToDept(allStats,db,currentUser);

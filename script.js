@@ -3654,6 +3654,12 @@ function checkHandoverNeeded() {
   if (!pending) return;
   if (pending.shown) return; // כבר הוצג — לא מציגים שוב
 
+  // סמן shown:true לפני הפתיחה כדי שלא יפתח שוב
+  const db2 = getDB();
+  if (db2.handoverPending && db2.handoverPending[currentUser.username]) {
+    db2.handoverPending[currentUser.username].shown = true;
+    saveDB(db2);
+  }
   const delay = /iPhone|iPad|Android/i.test(navigator.userAgent) ? 2200 : 1200;
   setTimeout(() => openModal('handoverModal'), delay);
 }
@@ -3715,11 +3721,11 @@ function checkPendingHandovers() {
   const handovers = db.handovers || {};
   const today = new Date().toISOString().split('T')[0];
 
-  // Collect handovers addressed to this manager, not yet seen, for today or future
+  // Collect handovers addressed to this manager, not yet seen
+  // (לא מסננים לפי תאריך — פרוטוקול יכול להיות לעתיד הרחוק)
   const mine = Object.values(handovers).filter(h =>
     h.managerUsername === currentUser.username &&
-    !h.seenByManager &&
-    h.date >= today
+    !h.seenByManager
   );
 
   if (!mine.length) return;
