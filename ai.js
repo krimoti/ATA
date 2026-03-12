@@ -404,40 +404,35 @@ const DazuraAI = (() => {
   }
 
   // WHO IS WHERE — single date
-  // ── עזר: מחזיר טקסט פרוטוקול העברת מקל לעובד ותאריך ──
-  // קורא מה-archive (לא נמחק לעולם) כדי להציג גם אם המנהל מחק מהתצוגה
+  // ── עזר: מחזיר הערת פרוטוקול לעובד בתאריך נתון ──
   function getHandoverNote(db, username, dateStr) {
-    // מקור 1: archive (נשמר לצמיתות)
-    const archive = db.handoversArchive || {};
-    // מקור 2: handovers פעיל (fallback)
-    const active = db.handovers || {};
-
-    const allRecords = [...Object.values(archive), ...Object.values(active)];
-    // חפש פרוטוקול לאותו עובד שמכסה את תאריך הבדיקה
+    const allRecords = [
+      ...Object.values(db.handoversArchive || {}),
+      ...Object.values(db.handovers || {})
+    ];
     const h = allRecords.find(hv =>
-      hv.user === username &&
-      (
+      hv.user === username && (
         hv.date === dateStr ||
         (Array.isArray(hv.dates) && hv.dates.includes(dateStr)) ||
-        (hv.date <= dateStr && (!hv.dates || hv.dates.length === 0))
+        hv.date <= dateStr
       )
     );
     if (!h) return '';
     const parts = [];
-    if (h.tasks && h.tasks.length) parts.push(`📋 **העביר פרוטוקול מסודר** — ${h.tasks.join(' | ')}`);
+    if (h.tasks && h.tasks.length) parts.push(`📋 **העביר/ה פרוטוקול מסודר** — ${h.tasks.join(' | ')}`);
     if (h.contact) parts.push(`👤 מחליף/ה: **${h.contact}**`);
     return parts.length ? `\n  ${parts.join('\n  ')}` : '';
   }
 
-  // ── עזר: מחזיר שורת עובד עם פרוטוקול אם קיים ──
-  function formatUserWithHandover(db, username, fullName, dateStr) {
+  // ── עזר: פורמט שורת עובד עם פרוטוקול ──
+  function fmtWithHandover(db, username, fullName, dateStr) {
     const note = getHandoverNote(db, username, dateStr);
     return note ? `• **${fullName}**${note}` : `• ${fullName}`;
   }
 
-  // ── עזר: ממפה שם מלא -> username ──
-  function nameToUsername(db, fullName) {
-    return Object.keys(db.users||{}).find(u => (db.users[u].fullName||'') === fullName) || null;
+  // ── עזר: שם מלא -> username ──
+  function nameToUser(db, fullName) {
+    return Object.keys(db.users || {}).find(u => (db.users[u].fullName || '') === fullName) || null;
   }
 
   function respondWhoAt(db, dateInfo, currentUser, filterType) {
@@ -446,52 +441,27 @@ const DazuraAI = (() => {
     const label=dateInfo.label;
     const allStats=getStatsForDate(db,dateStr);
 
-    // Employee: show vacation/absent info for ALL employees (not just own team)
-    // (עובד רשאי לראות מי נעדר — רלוונטי לתיאום עבודה)
+    // עובד — הצג נעדרים מכל החברה כולל עצמו
     if (!isAdmin&&!isManager) {
       const dept=Array.isArray(currentUser.dept)?currentUser.dept[0]:currentUser.dept;
-      // אם יש עמיתים באותה מחלקה — הצג מחלקה
-      const myTeam=Object.values(db.users).filter(u=>{
-        const d=Array.isArray(u.dept)?u.dept[0]:u.dept;
-        return d===dept&&u.username!==currentUser.username&&u.status!=='pending';
-      });
-      // הצג את כל מי שנעדר (מכל המחלקות) + מצב המחלקה שלו
-      const absentAll = Object.values(db.users).filter(u => {
-        if (u.username === currentUser.username || u.status === 'pending') return false;
+      // כלול גם את המשתמש הנוכחי
+      const allAbsent = Object.values(db.users).filter(u => {
+        if (u.status==='pending') return false;
         const t=(db.vacations?.[u.username]||{})[dateStr];
         return t==='full'||t==='half'||t==='sick'||t==='wfh';
       });
-      if (!myTeam.length && !absentAll.length) return `כולם במשרד היום 📍`;
-      if (!myTeam.length) {
-        // אין עמיתים במחלקה — הצג נעדרים מכל המערכת
-        const lines = absentAll.map(u => {
-          const t=(db.vacations?.[u.username]||{})[dateStr];
-          if (t==='full'||t==='half') return formatUserWithHandover(db, u.username, u.fullName, dateStr) + ': ' + TYPE_STATUS[t];
-          return `• ${u.fullName}: ${TYPE_STATUS[t]}`;
-        });
-        return `**נעדרים ${label}:**\n${lines.join('\n')}`;
-      }
-      // יש עמיתים במחלקה — הצג מצב מחלקה מלא + כלל הנעדרים
-      const teamLines = myTeam.map(u=>{
-        const type=(db.vacations?.[u.username]||{})[dateStr];
-        if (type === 'full' || type === 'half') return formatUserWithHandover(db, u.username, u.fullName, dateStr) + ': ' + TYPE_STATUS[type];
-        return `• ${u.fullName}: ${type?TYPE_STATUS[type]:'במשרד'}`;
-      });
-      let result = `**מצב הצוות ${label} (${dept}):**\n${teamLines.join('\n')}`;
-      // נעדרים ממחלקות אחרות
-      const outsideDept = absentAll.filter(u=>{
-        const d=Array.isArray(u.dept)?u.dept[0]:u.dept;
-        return d!==dept;
-      });
-      if (outsideDept.length) {
-        const extraLines = outsideDept.map(u=>{
-          const t=(db.vacations?.[u.username]||{})[dateStr];
-          if (t==='full'||t==='half') return formatUserWithHandover(db, u.username, u.fullName, dateStr) + ': ' + TYPE_STATUS[t];
-          return `• ${u.fullName}: ${TYPE_STATUS[t]}`;
-        });
-        result += `\n\n**נעדרים ממחלקות אחרות:**\n${extraLines.join('\n')}`;
-      }
-      return result;
+      const myStatus = (db.vacations?.[currentUser.username]||{})[dateStr];
+      const iAmAbsent = myStatus==='full'||myStatus==='half'||myStatus==='sick'||myStatus==='wfh';
+
+      if (!allAbsent.length) return `כולם במשרד ${label} 📍`;
+      const lines=[];
+      const vacSick = allAbsent.filter(u=>{const t=(db.vacations?.[u.username]||{})[dateStr];return t==='full'||t==='half';});
+      const wfhArr  = allAbsent.filter(u=>{const t=(db.vacations?.[u.username]||{})[dateStr];return t==='wfh';});
+      const sickArr = allAbsent.filter(u=>{const t=(db.vacations?.[u.username]||{})[dateStr];return t==='sick';});
+      if(vacSick.length) lines.push(`🏖️ **בחופשה (${vacSick.length}):**\n${vacSick.map(u=>fmtWithHandover(db,u.username,u.fullName,dateStr)).join('\n')}`);
+      if(wfhArr.length)  lines.push(`🏠 **מהבית (${wfhArr.length}):** ${wfhArr.map(u=>u.fullName).join(', ')}`);
+      if(sickArr.length) lines.push(`🤒 **מחלה (${sickArr.length}):** ${sickArr.map(u=>u.fullName).join(', ')}`);
+      return lines.length?`**מצב ${label}:**\n${lines.join('\n')}`:`כולם במשרד ${label} 📍`;
     }
 
     const stats=isAdmin?allStats:filterToDept(allStats,db,currentUser);
@@ -505,21 +475,18 @@ const DazuraAI = (() => {
     if (filterType&&TYPE_SETS[filterType]) {
       const t=TYPE_SETS[filterType];
       if (!t.list.length) return t.empty+scope+'.';
-      const rows = t.list.map(name => {
-        const uname = nameToUsername(db, name);
-        return (filterType === 'vacation' && uname) ? formatUserWithHandover(db, uname, name, dateStr) : `• ${name}`;
+      const rows=t.list.map(name=>{
+        const uname=nameToUser(db,name);
+        return (filterType==='vacation'&&uname)?fmtWithHandover(db,uname,name,dateStr):`• ${name}`;
       });
       return `**${t.label}**${scope} (${t.list.length}):\n${rows.join('\n')}`;
     }
-    // All — vacation entries enriched with handover info
+    // All — vacation enriched with handover
     const lines=[];
     if(stats.office.length)   lines.push(`📍 **במשרד (${stats.office.length}):** ${stats.office.join(', ')}`);
     if(stats.wfh.length)      lines.push(`🏠 **מהבית (${stats.wfh.length}):** ${stats.wfh.join(', ')}`);
-    if(stats.vacation.length) {
-      const rows = stats.vacation.map(name => {
-        const uname = nameToUsername(db, name);
-        return uname ? formatUserWithHandover(db, uname, name, dateStr) : `• ${name}`;
-      });
+    if(stats.vacation.length){
+      const rows=stats.vacation.map(name=>{const u=nameToUser(db,name);return u?fmtWithHandover(db,u,name,dateStr):`• ${name}`;});
       lines.push(`🏖️ **בחופשה (${stats.vacation.length}):**\n${rows.join('\n')}`);
     }
     if(stats.sick.length)     lines.push(`🤒 **מחלה (${stats.sick.length}):** ${stats.sick.join(', ')}`);
@@ -542,21 +509,17 @@ const DazuraAI = (() => {
       const inDept=name=>Object.values(db.users).some(u=>u.fullName===name&&(Array.isArray(u.dept)?u.dept[0]:u.dept)===dept);
       ['vacation','wfh','sick'].forEach(k=>{seen[k]=new Set([...seen[k]].filter(inDept));});
     }
-    // helper: format name with handover for range (use start date as reference)
-    const rangeRef = dateToKey(dateInfo.dateStart || dateInfo.date || new Date());
-    const fmtVac = name => { const u=nameToUsername(db,name); return u?formatUserWithHandover(db,u,name,rangeRef):`• ${name}`; };
+    const refDate=dateToKey(dateInfo.dateStart||dateInfo.date||new Date());
+    const fmtV=name=>{const u=nameToUser(db,name);return u?fmtWithHandover(db,u,name,refDate):`• ${name}`;};
 
     if (filterType&&seen[filterType]) {
       const arr=[...seen[filterType]];
-      if (!arr.length) return `אין נעדרים ב${dateInfo.label}.`;
-      const rows = filterType==='vacation' ? arr.map(fmtVac) : arr.map(n=>`• ${n}`);
+      if(!arr.length) return `אין נעדרים ב${dateInfo.label}.`;
+      const rows=filterType==='vacation'?arr.map(fmtV):arr.map(n=>`• ${n}`);
       return `**${filterType==='vacation'?'בחופשה':filterType==='wfh'?'WFH':'מחלה'} ב${dateInfo.label} (${arr.length}):**\n${rows.join('\n')}`;
     }
     const lines=[];
-    if(seen.vacation.size){
-      const rows=[...seen.vacation].map(fmtVac);
-      lines.push(`🏖️ **בחופשה ב${dateInfo.label} (${seen.vacation.size}):**\n${rows.join('\n')}`);
-    }
+    if(seen.vacation.size){const rows=[...seen.vacation].map(fmtV);lines.push(`🏖️ **בחופשה ב${dateInfo.label} (${seen.vacation.size}):**\n${rows.join('\n')}`);}
     if(seen.wfh.size)     lines.push(`🏠 **WFH ב${dateInfo.label} (${seen.wfh.size}):** ${[...seen.wfh].join(', ')}`);
     if(seen.sick.size)    lines.push(`🤒 **מחלה ב${dateInfo.label} (${seen.sick.size}):** ${[...seen.sick].join(', ')}`);
     return lines.length?lines.join('\n'):(`לא נמצאו נעדרים ב${dateInfo.label}.`);

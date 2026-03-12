@@ -1272,6 +1272,7 @@ function renderYearly() {
 // ============================================================
 function renderReport() {
   const year = parseInt(document.getElementById('reportYearSelect').value);
+  renderMyHandoverCard();
   document.getElementById('reportSubtitle').textContent = `סיכום שנת ${year} — ${currentUser.fullName}`;
   
   const cb = calcBalance(currentUser.username, year);
@@ -2094,14 +2095,15 @@ function approveRequest(reqId) {
   if(!db.vacations[req.username])db.vacations[req.username]={};
   (req.dates||[]).forEach(dt=>{db.vacations[req.username][dt]=req.type||'full';});
 
-  // ── סמן שפרוטוקול נדרש לעובד זה (יוצג בכניסה הבאה / מיד אם הוא online) ──
+  // ── סמן שנדרש פרוטוקול העברת מקל לעובד זה ──
   if (!db.handoverPending) db.handoverPending = {};
   db.handoverPending[req.username] = {
     reqId,
     dates: req.dates || [],
-    firstDate: (req.dates||[]).sort()[0] || '',
+    firstDate: (req.dates||[]).slice().sort()[0] || '',
+    managerUsername: currentUser.username,
     approvedAt: new Date().toISOString(),
-    shown: false  // האם הפופאפ כבר הוצג לעובד
+    popupShown: false   // האם הפופאפ כבר הוצג לעובד
   };
 
   saveDB(db);
@@ -3171,8 +3173,6 @@ function updateApprovalStatusBadge() {
     badge.style.color = '#14532d';
     badge.style.border = '1px solid var(--success)';
     if(btn) btn.style.display = 'none';
-    // ── הפעל פרוטוקול העברת מקל אם יש חופשה מחר ──
-    checkHandoverNeeded();
   } else if(req.status === 'rejected') {
     badge.textContent = `❌ נדחה${req.rejectReason ? ' — ' + req.rejectReason : ''}`;
     badge.style.background = 'var(--danger-light)';
@@ -3649,17 +3649,18 @@ function checkHandoverNeeded() {
   if (currentUser.role === 'manager' || currentUser.role === 'admin') return;
   const db = getDB();
 
-  // בדוק אם יש פרוטוקול ממתין לעובד זה (נוצר ע"י אישור מנהל)
   const pending = db.handoverPending && db.handoverPending[currentUser.username];
-  if (!pending) return;
-  if (pending.shown) return; // כבר הוצג — לא מציגים שוב
+  // הפופאפ יופיע בכל כניסה כל עוד לא הוגש פרוטוקול
+  if (!pending || pending.submitted) return;
 
-  // סמן shown:true לפני הפתיחה כדי שלא יפתח שוב
-  const db2 = getDB();
-  if (db2.handoverPending && db2.handoverPending[currentUser.username]) {
-    db2.handoverPending[currentUser.username].shown = true;
-    saveDB(db2);
+  // עדכן הודעת הפופאפ לפי תאריך החופשה האמיתי
+  const msgEl = document.getElementById('handoverAlertMsg');
+  if (msgEl && pending.firstDate) {
+    const dateHeb = new Date(pending.firstDate + 'T00:00:00').toLocaleDateString('he-IL', { weekday:'long', day:'numeric', month:'long' });
+    msgEl.textContent = `⏰ החופשה שלך (${dateHeb}) אושרה! לפני שתצא — שתף את הצוות במה שחשוב.`;
   }
+
+  // לא מסמנים popupShown=true — הפופאפ יחזור בכל כניסה עד שהעובד ישלח
   const delay = /iPhone|iPad|Android/i.test(navigator.userAgent) ? 2200 : 1200;
   setTimeout(() => openModal('handoverModal'), delay);
 }
@@ -3673,56 +3674,63 @@ function saveHandover() {
   if (!tasks.length) { showToast('נא להזין לפחות משימה אחת', 'warning'); return; }
 
   const db = getDB();
-  if (!db.handovers) db.handovers = {};
-  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
-  const tomorrowStr = tomorrow.toISOString().split('T')[0];
-  const dateHeb = tomorrow.toLocaleDateString('he-IL', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  if (!db.handovers)        db.handovers = {};
+  if (!db.handoversArchive) db.handoversArchive = {};
 
-  // Find manager
-  const managerUsername = getDeptManagerForUser(currentUser.username);
+  // קבל תאריכי החופשה מה-handoverPending (לא בהכרח מחר)
+  const pending = db.handoverPending && db.handoverPending[currentUser.username];
+  const vacDates = pending?.dates || [];
+  const firstDate = pending?.firstDate || (() => {
+    const t = new Date(); t.setDate(t.getDate()+1); return t.toISOString().split('T')[0];
+  })();
+  const managerUsername = pending?.managerUsername || getDeptManagerForUser(currentUser.username);
   const managerUser = managerUsername ? db.users[managerUsername] : null;
   const managerName = managerUser?.fullName || 'המנהל';
-  const managerEmail = managerUser?.email || '';
 
-  // ── קבע תאריך ראשון של החופשה מה-handoverPending (לא בהכרח מחר) ──
-  const pendingData = db.handoverPending && db.handoverPending[currentUser.username];
-  const vacStartDate = pendingData?.firstDate || tomorrowStr;
+  const dateHeb = new Date(firstDate + 'T00:00:00').toLocaleDateString('he-IL', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  const key = currentUser.username + '_' + firstDate;
 
-  const handoverRecord = {
-    user: currentUser.username, fullName: currentUser.fullName,
-    date: vacStartDate, dates: pendingData?.dates || [vacStartDate],
-    tasks, contact,
-    managerUsername, seenByManager: false,
+  const record = {
+    user: currentUser.username,
+    fullName: currentUser.fullName,
+    date: firstDate,
+    dates: vacDates,
+    tasks,
+    contact,
+    managerUsername,
+    seenByManager: false,
     createdAt: new Date().toISOString()
   };
 
-  // שמור את הפרוטוקול הפעיל (למנהל)
-  db.handovers[currentUser.username + '_' + vacStartDate] = handoverRecord;
+  // שמור לתצוגת מנהל (ניתן למחיקה ע"י מנהל — רק מהתצוגה)
+  db.handovers[key] = record;
 
-  // שמור archived copy — לא נמחק לעולם, משמש את ה-AI
-  if (!db.handoversArchive) db.handoversArchive = {};
-  db.handoversArchive[currentUser.username + '_' + vacStartDate] = { ...handoverRecord, archivedAt: new Date().toISOString() };
+  // שמור archive לצמיתות — משמש ל-AI ולדוח האישי, לא נמחק לעולם
+  db.handoversArchive[key] = { ...record, archivedAt: new Date().toISOString() };
 
-  // סמן שהפופאפ כבר הוצג ולא יחזור
+  // סמן בקשה כ-"פרוטוקול הוגש" ונסה popupShown (לא יוצג שוב)
   if (db.handoverPending && db.handoverPending[currentUser.username]) {
-    db.handoverPending[currentUser.username].shown = true;
+    db.handoverPending[currentUser.username].submitted = true;
+    db.handoverPending[currentUser.username].submittedAt = new Date().toISOString();
   }
 
   saveDB(db);
   closeModal('handoverModal');
-  auditLog('handover', `${currentUser.fullName} הגיש פרוטוקול העברת מקל ל-${vacStartDate}`);
-  showToast(`✅ פרוטוקול נשמר — ${managerName} יראה בכניסה הבאה`, 'success');
+  auditLog('handover', `${currentUser.fullName} הגיש פרוטוקול העברת מקל ל-${firstDate}`);
+  showToast(`✅ פרוטוקול נשמר — ${managerName} יקבל התראה`, 'success');
+
+  // רענן דוח אישי אם פתוח
+  if (document.getElementById('tab-report')?.classList.contains('active')) renderReport();
 }
 
 // ── Show pending handovers to manager on login ──────────────────
 function checkPendingHandovers() {
   if (!currentUser) return;
+  if (currentUser.role !== 'manager' && currentUser.role !== 'admin' && !isUserDeptManager(currentUser.username)) return;
   const db = getDB();
   const handovers = db.handovers || {};
-  const today = new Date().toISOString().split('T')[0];
 
-  // Collect handovers addressed to this manager, not yet seen
-  // (לא מסננים לפי תאריך — פרוטוקול יכול להיות לעתיד הרחוק)
+  // כל הפרוטוקולים שנשלחו למנהל זה ועדיין לא נראו (ללא סינון תאריך)
   const mine = Object.values(handovers).filter(h =>
     h.managerUsername === currentUser.username &&
     !h.seenByManager
@@ -3755,7 +3763,6 @@ function checkPendingHandovers() {
 }
 
 function showHandoverNotificationModal(html, count) {
-  // Remove existing if any
   const existing = document.getElementById('handoverNotifModal');
   if (existing) existing.remove();
 
@@ -3764,26 +3771,26 @@ function showHandoverNotificationModal(html, count) {
   modal.className = 'modal-overlay';
   modal.innerHTML = `
     <div class="modal" style="max-width:480px;">
-      <div style="text-align:center;font-size:36px;margin-bottom:8px;">📋</div>
+      <div style="text-align:center;font-size:36px;margin-bottom:6px;">📋</div>
       <div class="modal-title" style="justify-content:center;text-align:center;">
         פרוטוקולי העברת מקל
         <span style="background:var(--primary);color:white;border-radius:20px;padding:2px 10px;font-size:13px;margin-right:8px;">${count}</span>
       </div>
-      <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px;text-align:center;">
-        ${count === 1 ? 'עובד אחד שלח פרוטוקול' : count + ' עובדים שלחו פרוטוקולים'} — הפרטים מחכים לך בלוח המנהל
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:14px;text-align:center;">
+        ${count === 1 ? 'עובד אחד שלח פרוטוקול' : count + ' עובדים שלחו פרוטוקולים'} — הפרטים בלוח המנהל
       </div>
-      <div id="handoverNotifBody" style="max-height:42vh;overflow-y:auto;margin-bottom:4px;"></div>
+      <div id="handoverNotifBody" style="max-height:44vh;overflow-y:auto;margin-bottom:4px;"></div>
       <div class="modal-footer" style="justify-content:center;gap:10px;">
         <button class="btn btn-outline" onclick="closeModal('handoverNotifModal')">סגור</button>
-        <button class="btn btn-primary" onclick="closeModal('handoverNotifModal');showTab('manager');setTimeout(()=>{ const sec=document.getElementById('handoverSection');if(sec)sec.scrollIntoView({behavior:'smooth'}); },400);">📋 עבור ללוח המנהל →</button>
+        <button class="btn btn-primary" onclick="closeModal('handoverNotifModal');showTab('manager');setTimeout(()=>{ const s=document.getElementById('handoverSection');if(s)s.scrollIntoView({behavior:'smooth'}); },400);">📋 לוח מנהל ←</button>
       </div>
     </div>`;
   document.body.appendChild(modal);
   modal.addEventListener('click', function(e) {
     if (e.target === this) this.classList.remove('open');
   });
-
-  document.getElementById('handoverNotifBody').innerHTML = html;
+  document.getElementById('handoverNotifBody').innerHTML =
+    `<div style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">יש לך ${count} פרוטוקול${count>1?'ות':''} ממתין${count>1?'ים':''} לעיון:</div>` + html;
   setTimeout(() => openModal('handoverNotifModal'), 1800);
 }
 
@@ -4912,6 +4919,7 @@ function showModuleSelector() {
   setTimeout(checkBirthdays, 600);
   setTimeout(checkHandoverNeeded, 1500);
   setTimeout(checkPendingHandovers, 2500);
+  setTimeout(renderMyHandoverCard, 500); // הצג כפתור פרוטוקול בדוח אישי
 }
 
 // Open AI panel from module selector
@@ -5786,15 +5794,14 @@ function doSubmitRequest(note) {
     status: 'pending',
     createdAt: new Date().toISOString()
   });
-
-  // ── בקשה חדשה — אפס את מצב הפרוטוקול כדי שיופיע מחדש לאחר אישור ──
+  // ── בקשה חדשה — אפס מצב פרוטוקול כדי שיתחיל מחדש לאחר אישור ──
   if (db.handoverPending && db.handoverPending[currentUser.username]) {
     delete db.handoverPending[currentUser.username];
   }
-  // מחק גם את הפרוטוקול הישן שמשויך לתאריכים אלה
+  // מחק גם פרוטוקול ישן לתאריכים אלה כדי לא לבלבל
   dates.forEach(dt => {
-    const oldKey = currentUser.username + '_' + dt;
-    if (db.handovers && db.handovers[oldKey]) delete db.handovers[oldKey];
+    const k = currentUser.username + '_' + dt;
+    if (db.handovers && db.handovers[k]) delete db.handovers[k];
   });
 
   saveDB(db);
@@ -6402,16 +6409,16 @@ function renderHandoverList() {
     return;
   }
 
-  // Update badge
+  // עדכן badge
   const badge = document.getElementById('handoverBadge');
   if (badge) {
     const newCount = list.filter(h => !h.seenByManager).length;
     if (newCount > 0) { badge.textContent = newCount + ' חדש'; badge.style.display = 'inline'; }
-    else { badge.style.display = 'none'; }
+    else badge.style.display = 'none';
   }
 
   el.innerHTML = list.map(h => {
-    const dateHeb = new Date(h.date).toLocaleDateString('he-IL', { weekday:'long', day:'numeric', month:'long' });
+    const dateHeb = new Date(h.date + 'T00:00:00').toLocaleDateString('he-IL', { weekday:'long', day:'numeric', month:'long' });
     const isPast = h.date < today;
     const seen = h.seenByManager ? '<span style="color:var(--success);font-size:11px;">✅ נקרא</span>' : '<span style="color:var(--warning);font-size:11px;">🔔 חדש</span>';
     const pastTag = isPast ? '<span style="color:var(--text-muted);font-size:11px;">• עבר</span>' : '';
@@ -6428,7 +6435,7 @@ function renderHandoverList() {
           <div style="display:flex;align-items:center;gap:8px;">
             ${seen}
             <button onclick="printHandoverPDF('${key}')" style="background:none;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;color:var(--primary);padding:4px 8px;font-family:'Heebo',sans-serif;" title="שמור כ-PDF">📄 PDF</button>
-            <button onclick="deleteHandover('${key}')" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--danger);padding:4px;" title="מחק">🗑️</button>
+            <button onclick="deleteHandover('${key}')" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--danger);padding:4px;" title="מחק מהתצוגה">🗑️</button>
           </div>
         </div>
         <div style="border-top:1px solid var(--border);padding-top:10px;">${tasks}${contact}</div>
@@ -6436,42 +6443,38 @@ function renderHandoverList() {
   }).join('');
 }
 
-
 function printHandoverPDF(key) {
   const db = getDB();
-  const h = db.handovers && db.handovers[key];
+  // חפש ב-archive קודם, אחר כך ב-handovers
+  const h = (db.handoversArchive && db.handoversArchive[key]) || (db.handovers && db.handovers[key]);
   if (!h) { showToast('פרוטוקול לא נמצא', 'error'); return; }
 
-  const dateHeb = new Date(h.date).toLocaleDateString('he-IL', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  const dateHeb = new Date(h.date + 'T00:00:00').toLocaleDateString('he-IL', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
   const createdHeb = h.createdAt ? new Date(h.createdAt).toLocaleDateString('he-IL', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '';
-
-  const tasksHtml = h.tasks.map((t, i) =>
-    `<tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;width:30px;">${i+1}.</td><td style="padding:8px 12px;border-bottom:1px solid #eee;">${t}</td></tr>`
+  const tasksHtml = h.tasks.map((t,i) =>
+    `<tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;width:28px;">${i+1}.</td><td style="padding:8px 12px;border-bottom:1px solid #eee;">${t}</td></tr>`
   ).join('');
 
-  const win = window.open('', '_blank', 'width=700,height=600');
+  const win = window.open('', '_blank', 'width=720,height=600');
   win.document.write(`<!DOCTYPE html>
 <html dir="rtl" lang="he">
-<head>
-<meta charset="UTF-8">
+<head><meta charset="UTF-8">
 <title>פרוטוקול העברת מקל — ${h.fullName}</title>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
-  body { font-family:'Heebo',sans-serif; direction:rtl; margin:0; padding:32px; color:#1e293b; background:#fff; }
-  h1 { font-size:22px; font-weight:800; color:#1a56e8; margin-bottom:4px; }
-  .sub { font-size:13px; color:#64748b; margin-bottom:24px; }
-  .card { background:#f8fafc; border-radius:12px; padding:20px 24px; margin-bottom:20px; border:1px solid #e2e8f0; }
-  .label { font-size:11px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
-  .value { font-size:15px; font-weight:600; color:#1e293b; }
-  table { width:100%; border-collapse:collapse; margin-top:8px; }
-  .footer { margin-top:32px; font-size:11px; color:#94a3b8; border-top:1px solid #e2e8f0; padding-top:12px; }
-  @media print { body { padding:16px; } }
-</style>
-</head>
+  body{font-family:'Heebo',sans-serif;direction:rtl;margin:0;padding:32px;color:#1e293b;background:#fff;}
+  h1{font-size:22px;font-weight:800;color:#1a56e8;margin-bottom:4px;}
+  .sub{font-size:13px;color:#64748b;margin-bottom:24px;}
+  .card{background:#f8fafc;border-radius:12px;padding:20px 24px;margin-bottom:20px;border:1px solid #e2e8f0;}
+  .label{font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;}
+  .value{font-size:15px;font-weight:600;color:#1e293b;}
+  table{width:100%;border-collapse:collapse;margin-top:8px;}
+  .footer{margin-top:32px;font-size:11px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:12px;}
+  @media print{body{padding:16px;}}
+</style></head>
 <body>
 <h1>📋 פרוטוקול העברת מקל</h1>
 <div class="sub">נוצר: ${createdHeb}</div>
-
 <div class="card">
   <div style="display:flex;gap:32px;flex-wrap:wrap;">
     <div><div class="label">שם העובד</div><div class="value">👤 ${h.fullName}</div></div>
@@ -6479,43 +6482,167 @@ function printHandoverPDF(key) {
     ${h.contact ? `<div><div class="label">מחליף/ה</div><div class="value">📞 ${h.contact}</div></div>` : ''}
   </div>
 </div>
-
 <div class="card">
   <div class="label">משימות לטיפול</div>
-  <table>
-    <tbody>${tasksHtml}</tbody>
-  </table>
+  <table><tbody>${tasksHtml}</tbody></table>
 </div>
-
 <div class="footer">Dazura — מערכת ניהול חופשות | הופק אוטומטית</div>
-
-<script>window.onload = function(){ window.print(); }<\/script>
-</body>
-</html>`);
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`);
   win.document.close();
+}
+
+// הצג פרוטוקול בדוח האישי של העובד
+function renderMyHandoverCard() {
+  const btn = document.getElementById('myHandoverBtn');
+  if (!btn || !currentUser) return;
+
+  const db = getDB();
+  const today = new Date().toISOString().split('T')[0];
+
+  // חפש בarchive ובhandovers (תמיכה בפרוטוקולים ישנים)
+  const allSources = [
+    ...Object.values(db.handoversArchive || {}),
+    ...Object.values(db.handovers || {})
+  ];
+  // הסר כפילויות לפי key
+  const seen = new Set();
+  const myRecords = allSources
+    .filter(h => h.user === currentUser.username)
+    .filter(h => {
+      const k = h.user + '_' + h.date;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    })
+    .filter(h => {
+      const vacDates = Array.isArray(h.dates) && h.dates.length > 0 ? h.dates : [h.date];
+      return vacDates.slice().sort().pop() >= today;
+    });
+
+  // הצג תמיד — אם אין פרוטוקול מציג הודעה מתאימה בפופאפ
+  btn.style.display = '';
+  if (myRecords.length > 0) {
+    btn.style.background = 'linear-gradient(135deg,var(--primary),var(--primary-dark))';
+    btn.style.color = 'white';
+    btn.style.border = 'none';
+    btn.style.fontWeight = '700';
+  } else {
+    btn.style.removeProperty('background');
+    btn.style.removeProperty('color');
+    btn.style.removeProperty('border');
+    btn.style.removeProperty('fontWeight');
+  }
+}
+
+function openMyHandoverPopup() {
+  const db = getDB();
+  const today = new Date().toISOString().split('T')[0];
+
+  const allSources = [
+    ...Object.values(db.handoversArchive || {}),
+    ...Object.values(db.handovers || {})
+  ];
+  const seen2 = new Set();
+  const myRecords = allSources
+    .filter(h => h.user === currentUser.username)
+    .filter(h => {
+      const k = h.user + '_' + h.date;
+      if (seen2.has(k)) return false;
+      seen2.add(k);
+      return true;
+    })
+    .filter(h => {
+      const vacDates = Array.isArray(h.dates) && h.dates.length > 0 ? h.dates : [h.date];
+      return vacDates.slice().sort().pop() >= today;
+    })
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const el = document.getElementById('myHandoverPopupContent');
+  if (!el) return;
+
+  if (!myRecords.length) {
+    el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-muted);">אין פרוטוקול פעיל כרגע.</div>';
+    openModal('myHandoverPopup');
+    return;
+  }
+
+  el.innerHTML = `
+    <div style="text-align:center;font-size:32px;margin-bottom:6px;">📋</div>
+    <div class="modal-title" style="justify-content:center;margin-bottom:18px;">פרוטוקול העברת מקל שלי</div>
+  ` + myRecords.map(h => {
+    const vacDates = (Array.isArray(h.dates) && h.dates.length > 0 ? h.dates : [h.date]).slice().sort();
+    const firstDate = vacDates[0];
+    const lastDate  = vacDates[vacDates.length - 1];
+    const totalDays = vacDates.length;
+
+    const fmtDate      = dt => new Date(dt + 'T00:00:00').toLocaleDateString('he-IL', { day:'numeric', month:'long', year:'numeric' });
+    const fmtDateShort = dt => new Date(dt + 'T00:00:00').toLocaleDateString('he-IL', { day:'numeric', month:'long' });
+    const rangeLabel   = firstDate === lastDate ? fmtDate(firstDate) : `${fmtDateShort(firstDate)} – ${fmtDate(lastDate)}`;
+
+    const isActive   = today >= firstDate && today <= lastDate;
+    const statusText = isActive ? '🟢 בחופשה עכשיו' : '⏳ מתוכננת';
+    const statusBg   = isActive ? '#dcfce7' : 'var(--primary-light)';
+    const statusClr  = isActive ? '#166534' : 'var(--primary-dark)';
+
+    const tasks = h.tasks.map((t, i) =>
+      `<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+        <span style="font-size:12px;color:var(--text-muted);min-width:18px;">${i+1}.</span>
+        <span style="font-size:13px;color:var(--text);">${t}</span>
+      </div>`
+    ).join('');
+
+    const contact = h.contact
+      ? `<div style="display:flex;align-items:center;gap:10px;margin-top:12px;padding:10px 14px;background:var(--primary-light);border-radius:10px;">
+           <span style="font-size:18px;">👤</span>
+           <div>
+             <div style="font-size:11px;color:var(--primary-dark);font-weight:700;">ממלא/ת מקום</div>
+             <div style="font-size:14px;font-weight:800;color:var(--text);">${h.contact}</div>
+           </div>
+         </div>`
+      : '';
+
+    return `
+      <div style="background:var(--surface2);border-radius:14px;overflow:hidden;margin-bottom:10px;border:1px solid var(--border);">
+        <div style="background:linear-gradient(135deg,var(--primary),var(--primary-dark));padding:12px 16px;display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="font-size:13px;font-weight:800;color:white;">📅 ${rangeLabel}</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.8);margin-top:2px;">${totalDays} יום${totalDays>1?'ים':''}</div>
+          </div>
+          <span style="background:${statusBg};color:${statusClr};border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;">${statusText}</span>
+        </div>
+        <div style="padding:14px 16px;">
+          <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">משימות להעברה</div>
+          ${tasks}
+          ${contact}
+          <div style="margin-top:10px;font-size:11px;color:var(--text-muted);">🔒 ישמר עד ${fmtDateShort(lastDate)}</div>
+        </div>
+      </div>`;
+  }).join('');
+
+  openModal('myHandoverPopup');
 }
 
 
 function deleteHandover(key) {
-  if (!confirm('למחוק פרוטוקול זה?')) return;
+  if (!confirm('להסיר פרוטוקול זה מהתצוגה?')) return;
   const db = getDB();
   if (db.handovers && db.handovers[key]) {
-    // מוחק מהתצוגה — אבל ה-archive נשאר לצורך ה-AI
-    delete db.handovers[key];
+    delete db.handovers[key]; // מוחק מתצוגת מנהל בלבד; archive נשמר
     saveDB(db);
-    showToast('🗑️ פרוטוקול הוסר מהתצוגה (המידע נשמר למערכת)', 'success');
+    showToast('🗑️ פרוטוקול הוסר מהתצוגה', 'success');
     renderHandoverList();
   }
 }
 
 function clearAllHandovers() {
-  if (!confirm('למחוק את כל הפרוטוקולים מהתצוגה?')) return;
+  if (!confirm('להסיר את כל הפרוטוקולים מהתצוגה?')) return;
   const db = getDB();
   const isAdmin = currentUser.role === 'admin';
   Object.keys(db.handovers || {}).forEach(key => {
     const h = db.handovers[key];
     if (isAdmin || h.managerUsername === currentUser.username) {
-      delete db.handovers[key]; // archive נשאר
+      delete db.handovers[key]; // archive נשמר
     }
   });
   saveDB(db);
