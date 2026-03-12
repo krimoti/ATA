@@ -28,7 +28,7 @@ function _checkRL() {
   const k=_rlKey(), now=Date.now();
   if (!_loginAttempts[k]) _loginAttempts[k]={count:0,lock:0};
   const r=_loginAttempts[k];
-  if (r.lock>now) return {blocked:true, secs:Math.ceil((r.lock-now)/1000)};
+  if (r.lock>now) return {blocked:true,secs:Math.ceil((r.lock-now)/1000)};
   return {blocked:false};
 }
 function _failRL() {
@@ -497,7 +497,7 @@ function doLogin() {
 
   if (!username || !password) { showLoginError('נא למלא שם משתמש וסיסמה'); return; }
 
-  // Rate limit
+  // ── Rate limit ──
   const rl = _checkRL();
   if (rl.blocked) { showLoginError(`⛔ יותר מדי נסיונות. נסה בעוד ${rl.secs} שניות.`); return; }
 
@@ -505,16 +505,14 @@ function doLogin() {
   const user = db.users[username] || db.users[username.toLowerCase()];
   if (!user) { _failRL(); showLoginError('שם משתמש לא קיים במערכת'); return; }
 
-  // בדוק SHA-256 ואחר כך legacy hash
+  // ── SHA-256 + fallback legacy ──
   _sha256(password).then(sha256hash => {
     const stored = user.password || '';
     const legacy = hashPass(password);
     if (stored !== sha256hash && stored !== legacy) {
-      _failRL();
-      showLoginError('סיסמה שגויה');
-      return;
+      _failRL(); showLoginError('סיסמה שגויה'); return;
     }
-    // מגרת סיסמה ישנה ל-SHA-256 בשקט
+    // מיגרציה שקטה לסיסמה מוצפנת
     if (stored === legacy) {
       user.password = sha256hash;
       db.users[username] = user;
@@ -524,7 +522,7 @@ function doLogin() {
     currentUser = user;
     hideLoginError();
 
-    // Firebase Auth — non-blocking, לא נוגע בסנכרון
+    // ── Firebase Auth — non-blocking ──
     _fbAuthLogin(username, password).catch(()=>{});
 
     if (!isUserActive(user)) {
@@ -552,7 +550,7 @@ function doLogin() {
   });
 }
 
-// Firebase Auth — רישום וירטואלי, non-blocking לחלוטין
+// Firebase Auth וירטואלי — non-blocking לחלוטין, לא נוגע בסנכרון
 async function _fbAuthLogin(username, password) {
   try {
     const auth = await ensureFirebaseAuth();
@@ -561,8 +559,9 @@ async function _fbAuthLogin(username, password) {
       await auth.signInWithEmailAndPassword(email, password);
     } catch(e) {
       if (e.code === 'auth/user-not-found') {
+        const db = getDB();
+        if (!db.users[username]) return; // לא מורשה
         await auth.createUserWithEmailAndPassword(email, password);
-        // רשום ב-allowedUsers
         if (firebaseDB) {
           await firebaseDB.collection('allowedUsers').doc(username).set(
             { username, email, active: true, createdAt: new Date().toISOString() },
@@ -575,6 +574,7 @@ async function _fbAuthLogin(username, password) {
 }
 
 function doLogout() {
+  // ── Full AI reset on logout ──
   if (typeof DazuraAI !== 'undefined') DazuraAI.clearHistory();
   if (typeof DazuraFuse !== 'undefined') DazuraFuse.clearHistory();
   const aiMsgs = document.getElementById('aiMessages');
@@ -764,8 +764,20 @@ function showApp(skipModuleSelector) {
   buildCalendarSelects();
   showTab('dashboard');
   setTimeout(renderAnnouncements, 800);
-  // Refresh permissions select after Firebase may have loaded data
   setTimeout(populateQuickPermUser, 2000);
+
+  // הצג כפתורי employee-only רק לעובד רגיל
+  const isEmployee = currentUser.role === 'employee' || !currentUser.role;
+  document.querySelectorAll('.employee-only').forEach(el => {
+    el.style.display = isEmployee ? '' : 'none';
+  });
+
+  // הפעל פולר + בדיקת פרוטוקול לעובדים
+  if (isEmployee) {
+    startHandoverPoller();
+    setTimeout(checkHandoverNeeded, 1500);
+    setTimeout(renderMyHandoverCard, 600);
+  }
 }
 
 // ============================================================
@@ -787,6 +799,9 @@ function showTab(tab) {
   if (tab === 'report') renderReport();
   if (tab === 'admin') { renderAdmin(); loadCompanySettings(); populateQuickPermUser(); }
   if (tab === 'manager') renderManagerDashboard();
+
+  // בדוק אם נדרש פרוטוקול — בכל מעבר טאב
+  checkHandoverNeeded();
 }
 
 // ============================================================
@@ -1330,6 +1345,7 @@ function renderYearly() {
 // ============================================================
 function renderReport() {
   const year = parseInt(document.getElementById('reportYearSelect').value);
+  renderMyHandoverCard();
   document.getElementById('reportSubtitle').textContent = `סיכום שנת ${year} — ${currentUser.fullName}`;
   
   const cb = calcBalance(currentUser.username, year);
@@ -2151,11 +2167,23 @@ function approveRequest(reqId) {
   req.approvedAt=new Date().toISOString();
   if(!db.vacations[req.username])db.vacations[req.username]={};
   (req.dates||[]).forEach(dt=>{db.vacations[req.username][dt]=req.type||'full';});
+
+  // ── סמן שנדרש פרוטוקול העברת מקל לעובד זה ──
+  if (!db.handoverPending) db.handoverPending = {};
+  db.handoverPending[req.username] = {
+    reqId,
+    dates: req.dates || [],
+    firstDate: (req.dates||[]).slice().sort()[0] || '',
+    managerUsername: currentUser.username,
+    approvedAt: new Date().toISOString(),
+    popupShown: false   // האם הפופאפ כבר הוצג לעובד
+  };
+
   saveDB(db);
   auditLog('approval_approved',`אושרה בקשת ${req.fullName} — ${req.dates?.length||0} ימים`);
   showToast(`✅ בקשת ${req.fullName} אושרה`,'success');
   renderManagerDashboard();
-  updateApprovalStatusBadge(); // update badge if employee is also viewing calendar
+  updateApprovalStatusBadge();
 }
 
 function rejectRequestPrompt(reqId) {
@@ -3689,19 +3717,53 @@ function sendCeoMessage() {
 }
 
 // ===== HANDOVER PROTOCOL =====
+let _lastKnownPending = null;
+let _handoverPopupOpen = false;
+
 function checkHandoverNeeded() {
   if (!currentUser) return;
+  if (currentUser.role === 'manager' || currentUser.role === 'admin' || currentUser.role === 'accountant') return;
+  if (_handoverPopupOpen) return;
+
   const db = getDB();
-  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
-  const tomorrowStr = tomorrow.toISOString().split('T')[0];
-  const vacs = getVacations(currentUser.username);
-  const type = vacs[tomorrowStr];
-  if ((type === 'full' || type === 'half') && !sessionStorage.getItem('handoverShown_'+tomorrowStr)) {
-    sessionStorage.setItem('handoverShown_'+tomorrowStr, '1');
-    // Longer delay on mobile to ensure screen is fully visible
-    const delay = /iPhone|iPad|Android/i.test(navigator.userAgent) ? 2200 : 1200;
-    setTimeout(() => openModal('handoverModal'), delay);
+  const pending = db.handoverPending && db.handoverPending[currentUser.username];
+  if (!pending || pending.submitted) return;
+
+  // עדכן _lastKnownPending כדי שהפולר לא יפתח שוב
+  _lastKnownPending = pending;
+
+  // עדכן הודעת הפופאפ
+  const msgEl = document.getElementById('handoverAlertMsg');
+  if (msgEl && pending.firstDate) {
+    const dateHeb = new Date(pending.firstDate + 'T00:00:00').toLocaleDateString('he-IL', { weekday:'long', day:'numeric', month:'long' });
+    msgEl.textContent = `⏰ החופשה שלך (${dateHeb}) אושרה! לפני שתצא — שתף את הצוות במה שחשוב.`;
   }
+
+  _handoverPopupOpen = true;
+  const delay = /iPhone|iPad|Android/i.test(navigator.userAgent) ? 1800 : 900;
+  setTimeout(() => {
+    openModal('handoverModal');
+    setTimeout(() => { _handoverPopupOpen = false; }, 600);
+  }, delay);
+}
+
+// פולר — בודק כל 6 שניות אם הגיע handoverPending חדש (לאחר אישור מנהל)
+let _handoverPollInterval = null;
+function startHandoverPoller() {
+  if (_handoverPollInterval) clearInterval(_handoverPollInterval);
+  _handoverPollInterval = setInterval(() => {
+    if (!currentUser || currentUser.role === 'manager' || currentUser.role === 'admin') return;
+    const db = getDB();
+    const pending = db.handoverPending?.[currentUser.username];
+    if (!pending || pending.submitted) return;
+    // אם הגיע pending חדש שעוד לא הוצג — פתח פופאפ
+    const prevAt = _lastKnownPending?.approvedAt;
+    if (pending.approvedAt !== prevAt) {
+      _lastKnownPending = pending;
+      _handoverPopupOpen = false; // אפס כדי לאפשר פתיחה
+      checkHandoverNeeded();
+    }
+  }, 6000);
 }
 
 function saveHandover() {
@@ -3713,60 +3775,66 @@ function saveHandover() {
   if (!tasks.length) { showToast('נא להזין לפחות משימה אחת', 'warning'); return; }
 
   const db = getDB();
-  if (!db.handovers) db.handovers = {};
-  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
-  const tomorrowStr = tomorrow.toISOString().split('T')[0];
-  const dateHeb = tomorrow.toLocaleDateString('he-IL', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  if (!db.handovers)        db.handovers = {};
+  if (!db.handoversArchive) db.handoversArchive = {};
 
-  // Find manager
-  const managerUsername = getDeptManagerForUser(currentUser.username);
+  // קבל תאריכי החופשה מה-handoverPending (לא בהכרח מחר)
+  const pending = db.handoverPending && db.handoverPending[currentUser.username];
+  const vacDates = pending?.dates || [];
+  const firstDate = pending?.firstDate || (() => {
+    const t = new Date(); t.setDate(t.getDate()+1); return t.toISOString().split('T')[0];
+  })();
+  const managerUsername = pending?.managerUsername || getDeptManagerForUser(currentUser.username);
   const managerUser = managerUsername ? db.users[managerUsername] : null;
   const managerName = managerUser?.fullName || 'המנהל';
-  const managerEmail = managerUser?.email || '';
 
-  db.handovers[currentUser.username + '_' + tomorrowStr] = {
-    user: currentUser.username, fullName: currentUser.fullName,
-    date: tomorrowStr, tasks, contact,
-    managerUsername, seenByManager: false,
+  const dateHeb = new Date(firstDate + 'T00:00:00').toLocaleDateString('he-IL', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  const key = currentUser.username + '_' + firstDate;
+
+  const record = {
+    user: currentUser.username,
+    fullName: currentUser.fullName,
+    date: firstDate,
+    dates: vacDates,
+    tasks,
+    contact,
+    managerUsername,
+    seenByManager: false,
     createdAt: new Date().toISOString()
   };
+
+  // שמור לתצוגת מנהל (ניתן למחיקה ע"י מנהל — רק מהתצוגה)
+  db.handovers[key] = record;
+
+  // שמור archive לצמיתות — משמש ל-AI ולדוח האישי, לא נמחק לעולם
+  db.handoversArchive[key] = { ...record, archivedAt: new Date().toISOString() };
+
+  // סמן בקשה כ-"פרוטוקול הוגש" ונסה popupShown (לא יוצג שוב)
+  if (db.handoverPending && db.handoverPending[currentUser.username]) {
+    db.handoverPending[currentUser.username].submitted = true;
+    db.handoverPending[currentUser.username].submittedAt = new Date().toISOString();
+  }
+
   saveDB(db);
   closeModal('handoverModal');
-  auditLog('handover', `${currentUser.fullName} הגיש פרוטוקול העברת מקל ל-${tomorrowStr}`);
+  auditLog('handover', `${currentUser.fullName} הגיש פרוטוקול העברת מקל ל-${firstDate}`);
+  showToast(`✅ פרוטוקול נשמר — ${managerName} יקבל התראה`, 'success');
 
-  // ── Build mailto ──
-  const subject = encodeURIComponent(`📋 פרוטוקול העברת מקל — ${currentUser.fullName} (${dateHeb})`);
-  let body = `שלום ${managerName},\n\n`;
-  body += `${currentUser.fullName} יצא/ת לחופשה ביום ${dateHeb}.\n`;
-  body += `להלן המשימות הדורשות טיפול:\n\n`;
-  tasks.forEach((t, i) => { body += `${i+1}. ${t}\n`; });
-  if (contact) body += `\nמחליף/ה: ${contact}\n`;
-  body += `\nהפרוטוקול נשמר במערכת Dazura.\n\nבברכה,\n${currentUser.fullName}`;
-
-  const mailto = `mailto:${managerEmail}?subject=${subject}&body=${encodeURIComponent(body)}`;
-
-  if (managerEmail) {
-    // Open mail app
-    window.location.href = mailto;
-    showToast(`✅ פרוטוקול נשמר — נפתח מייל ל-${managerName}`, 'success');
-  } else {
-    // No email on file — show toast with fallback
-    showToast(`✅ פרוטוקול נשמר — למנהל אין מייל במערכת, ${managerName} יראה בכניסה הבאה`, 'warning');
-  }
+  // רענן דוח אישי אם פתוח
+  if (document.getElementById('tab-report')?.classList.contains('active')) renderReport();
 }
 
 // ── Show pending handovers to manager on login ──────────────────
 function checkPendingHandovers() {
   if (!currentUser) return;
+  if (currentUser.role !== 'manager' && currentUser.role !== 'admin' && !isUserDeptManager(currentUser.username)) return;
   const db = getDB();
   const handovers = db.handovers || {};
-  const today = new Date().toISOString().split('T')[0];
 
-  // Collect handovers addressed to this manager, not yet seen, for today or future
+  // כל הפרוטוקולים שנשלחו למנהל זה ועדיין לא נראו (ללא סינון תאריך)
   const mine = Object.values(handovers).filter(h =>
     h.managerUsername === currentUser.username &&
-    !h.seenByManager &&
-    h.date >= today
+    !h.seenByManager
   );
 
   if (!mine.length) return;
@@ -3796,26 +3864,32 @@ function checkPendingHandovers() {
 }
 
 function showHandoverNotificationModal(html, count) {
-  // Reuse or create a simple notification modal
-  let modal = document.getElementById('handoverNotifModal');
-  if (!modal) {
-    modal = document.createElement('div');
-    modal.id = 'handoverNotifModal';
-    modal.className = 'modal-overlay';
-    modal.innerHTML = `
-      <div class="modal" style="max-width:460px;">
-        <div class="modal-title">📋 פרוטוקולי העברת מקל</div>
-        <div id="handoverNotifBody" style="max-height:55vh;overflow-y:auto;"></div>
-        <div class="modal-footer">
-          <button class="btn btn-primary" onclick="closeModal('handoverNotifModal')">✅ הבנתי</button>
-        </div>
-      </div>`;
-    document.body.appendChild(modal);
-    // Close on overlay click
-    modal.addEventListener('click', function(e) {
-      if (e.target === this) this.classList.remove('open');
-    });
-  }
+  const existing = document.getElementById('handoverNotifModal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'handoverNotifModal';
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="modal" style="max-width:480px;">
+      <div style="text-align:center;font-size:36px;margin-bottom:6px;">📋</div>
+      <div class="modal-title" style="justify-content:center;text-align:center;">
+        פרוטוקולי העברת מקל
+        <span style="background:var(--primary);color:white;border-radius:20px;padding:2px 10px;font-size:13px;margin-right:8px;">${count}</span>
+      </div>
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:14px;text-align:center;">
+        ${count === 1 ? 'עובד אחד שלח פרוטוקול' : count + ' עובדים שלחו פרוטוקולים'} — הפרטים בלוח המנהל
+      </div>
+      <div id="handoverNotifBody" style="max-height:44vh;overflow-y:auto;margin-bottom:4px;"></div>
+      <div class="modal-footer" style="justify-content:center;gap:10px;">
+        <button class="btn btn-outline" onclick="closeModal('handoverNotifModal')">סגור</button>
+        <button class="btn btn-primary" onclick="closeModal('handoverNotifModal');showTab('manager');setTimeout(()=>{ const s=document.getElementById('handoverSection');if(s)s.scrollIntoView({behavior:'smooth'}); },400);">📋 לוח מנהל ←</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', function(e) {
+    if (e.target === this) this.classList.remove('open');
+  });
   document.getElementById('handoverNotifBody').innerHTML =
     `<div style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">יש לך ${count} פרוטוקול${count>1?'ות':''} ממתין${count>1?'ים':''} לעיון:</div>` + html;
   setTimeout(() => openModal('handoverNotifModal'), 1800);
@@ -4946,6 +5020,8 @@ function showModuleSelector() {
   setTimeout(checkBirthdays, 600);
   setTimeout(checkHandoverNeeded, 1500);
   setTimeout(checkPendingHandovers, 2500);
+  setTimeout(renderMyHandoverCard, 500);
+  startHandoverPoller(); // פולר — מזהה אישור מנהל גם ללא Firebase
 }
 
 // Open AI panel from module selector
@@ -5541,6 +5617,9 @@ async function pullFromFirebase() {
         announcements:    JSON.parse(data.announcements || '[]'),
         sick:             JSON.parse(data.sick        || '{}'),
         dailyStatus:      JSON.parse(data.dailyStatus  || '{}'),
+        handovers:        JSON.parse(data.handovers        || '{}'),
+        handoversArchive: JSON.parse(data.handoversArchive || '{}'),
+        handoverPending:  JSON.parse(data.handoverPending  || '{}'),
       };
       // Always guarantee admin exists even if Firebase was wiped
       ensureAdminExists(cloudDB);
@@ -5576,6 +5655,9 @@ async function pushToFirebase() {
       announcements:    JSON.stringify(db.announcements || []),
       sick:             JSON.stringify(db.sick || {}),
       dailyStatus:      JSON.stringify(db.dailyStatus || {}),
+      handovers:        JSON.stringify(db.handovers || {}),
+      handoversArchive: JSON.stringify(db.handoversArchive || {}),
+      handoverPending:  JSON.stringify(db.handoverPending || {}),
       updatedAt:        new Date().toISOString(),
       updatedBy:        currentUser?.username || 'system'
     });
@@ -5600,23 +5682,42 @@ function startRealtimeListener() {
 
       // Update local storage with cloud data
       const cloudDB = {
-        users:            JSON.parse(data.users       || '{}'),
-        vacations:        JSON.parse(data.vacations   || '{}'),
-        departments:      JSON.parse(data.departments || '[]'),
+        users:            JSON.parse(data.users            || '{}'),
+        vacations:        JSON.parse(data.vacations        || '{}'),
+        departments:      JSON.parse(data.departments      || '[]'),
         approvalRequests: JSON.parse(data.approvalRequests || '[]'),
-        deptManagers:     JSON.parse(data.deptManagers || '{}'),
-        auditLog:         JSON.parse(data.auditLog    || '[]'),
-        settings:         JSON.parse(data.settings    || '{}'),
-        permissions:      JSON.parse(data.permissions || '{}'),
-        announcements:    JSON.parse(data.announcements || '[]'),
-        sick:             JSON.parse(data.sick        || '{}'),
-        dailyStatus:      JSON.parse(data.dailyStatus  || '{}'),
+        deptManagers:     JSON.parse(data.deptManagers     || '{}'),
+        auditLog:         JSON.parse(data.auditLog         || '[]'),
+        settings:         JSON.parse(data.settings         || '{}'),
+        permissions:      JSON.parse(data.permissions      || '{}'),
+        announcements:    JSON.parse(data.announcements    || '[]'),
+        sick:             JSON.parse(data.sick             || '{}'),
+        dailyStatus:      JSON.parse(data.dailyStatus      || '{}'),
+        handovers:        JSON.parse(data.handovers        || '{}'),
+        handoversArchive: JSON.parse(data.handoversArchive || '{}'),
+        handoverPending:  JSON.parse(data.handoverPending  || '{}'),
       };
       ensureAdminExists(cloudDB);
       _saveDBLocal(cloudDB);
 
       // Refresh current visible tab
-      if (currentUser) refreshCurrentTab();
+      if (currentUser) {
+        refreshCurrentTab();
+        // בדוק אם התווסף handoverPending לעובד הנוכחי מ-Firebase (מנהל אישר)
+        // אפס throttle כדי לאפשר פופאפ מיידי אם יש pending חדש
+        const newPending = cloudDB.handoverPending?.[currentUser.username];
+        const prevAt     = _lastKnownPending?.approvedAt;
+        const newAt      = newPending?.approvedAt;
+        // אם הגיע pending חדש שלא הוגש — פתח פופאפ מיד
+        if (newPending && !newPending.submitted && newAt !== prevAt) {
+          _lastKnownPending = newPending;
+          _handoverPopupOpen = false;
+          setTimeout(checkHandoverNeeded, 800);
+        } else {
+          checkHandoverNeeded();
+        }
+        renderMyHandoverCard();
+      }
       // Silent sync — no toast notification needed
     }, err => {
       console.warn('Listener error:', err.message);
@@ -5820,6 +5921,16 @@ function doSubmitRequest(note) {
     status: 'pending',
     createdAt: new Date().toISOString()
   });
+  // ── בקשה חדשה — אפס מצב פרוטוקול כדי שיתחיל מחדש לאחר אישור ──
+  if (db.handoverPending && db.handoverPending[currentUser.username]) {
+    delete db.handoverPending[currentUser.username];
+  }
+  // מחק גם פרוטוקול ישן לתאריכים אלה כדי לא לבלבל
+  dates.forEach(dt => {
+    const k = currentUser.username + '_' + dt;
+    if (db.handovers && db.handovers[k]) delete db.handovers[k];
+  });
+
   saveDB(db);
   auditLog('vacation_request', `${currentUser.fullName} הגיש בקשה — ${totalDays} ימים`);
 }
@@ -6425,8 +6536,16 @@ function renderHandoverList() {
     return;
   }
 
+  // עדכן badge
+  const badge = document.getElementById('handoverBadge');
+  if (badge) {
+    const newCount = list.filter(h => !h.seenByManager).length;
+    if (newCount > 0) { badge.textContent = newCount + ' חדש'; badge.style.display = 'inline'; }
+    else badge.style.display = 'none';
+  }
+
   el.innerHTML = list.map(h => {
-    const dateHeb = new Date(h.date).toLocaleDateString('he-IL', { weekday:'long', day:'numeric', month:'long' });
+    const dateHeb = new Date(h.date + 'T00:00:00').toLocaleDateString('he-IL', { weekday:'long', day:'numeric', month:'long' });
     const isPast = h.date < today;
     const seen = h.seenByManager ? '<span style="color:var(--success);font-size:11px;">✅ נקרא</span>' : '<span style="color:var(--warning);font-size:11px;">🔔 חדש</span>';
     const pastTag = isPast ? '<span style="color:var(--text-muted);font-size:11px;">• עבר</span>' : '';
@@ -6440,9 +6559,10 @@ function renderHandoverList() {
             <div style="font-weight:800;font-size:15px;">👤 ${h.fullName}</div>
             <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">📅 ${dateHeb} ${pastTag}</div>
           </div>
-          <div style="display:flex;align-items:center;gap:10px;">
+          <div style="display:flex;align-items:center;gap:8px;">
             ${seen}
-            <button onclick="deleteHandover('${key}')" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--danger);padding:4px;" title="מחק">🗑️</button>
+            <button onclick="printHandoverPDF('${key}')" style="background:none;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:12px;color:var(--primary);padding:4px 8px;font-family:'Heebo',sans-serif;" title="שמור כ-PDF">📄 PDF</button>
+            <button onclick="deleteHandover('${key}')" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--danger);padding:4px;" title="מחק מהתצוגה">🗑️</button>
           </div>
         </div>
         <div style="border-top:1px solid var(--border);padding-top:10px;">${tasks}${contact}</div>
@@ -6450,30 +6570,218 @@ function renderHandoverList() {
   }).join('');
 }
 
+function printHandoverPDF(key) {
+  const db = getDB();
+  // חפש ב-archive קודם, אחר כך ב-handovers
+  const h = (db.handoversArchive && db.handoversArchive[key]) || (db.handovers && db.handovers[key]);
+  if (!h) { showToast('פרוטוקול לא נמצא', 'error'); return; }
+
+  const dateHeb = new Date(h.date + 'T00:00:00').toLocaleDateString('he-IL', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  const createdHeb = h.createdAt ? new Date(h.createdAt).toLocaleDateString('he-IL', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '';
+  const tasksHtml = h.tasks.map((t,i) =>
+    `<tr><td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;width:28px;">${i+1}.</td><td style="padding:8px 12px;border-bottom:1px solid #eee;">${t}</td></tr>`
+  ).join('');
+
+  const win = window.open('', '_blank', 'width=720,height=600');
+  win.document.write(`<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head><meta charset="UTF-8">
+<title>פרוטוקול העברת מקל — ${h.fullName}</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  body{font-family:'Heebo',sans-serif;direction:rtl;margin:0;padding:32px;color:#1e293b;background:#fff;}
+  h1{font-size:22px;font-weight:800;color:#1a56e8;margin-bottom:4px;}
+  .sub{font-size:13px;color:#64748b;margin-bottom:24px;}
+  .card{background:#f8fafc;border-radius:12px;padding:20px 24px;margin-bottom:20px;border:1px solid #e2e8f0;}
+  .label{font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;}
+  .value{font-size:15px;font-weight:600;color:#1e293b;}
+  table{width:100%;border-collapse:collapse;margin-top:8px;}
+  .footer{margin-top:32px;font-size:11px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:12px;}
+  @media print{body{padding:16px;}}
+</style></head>
+<body>
+<h1>📋 פרוטוקול העברת מקל</h1>
+<div class="sub">נוצר: ${createdHeb}</div>
+<div class="card">
+  <div style="display:flex;gap:32px;flex-wrap:wrap;">
+    <div><div class="label">שם העובד</div><div class="value">👤 ${h.fullName}</div></div>
+    <div><div class="label">תאריך חופשה</div><div class="value">📅 ${dateHeb}</div></div>
+    ${h.contact ? `<div><div class="label">מחליף/ה</div><div class="value">📞 ${h.contact}</div></div>` : ''}
+  </div>
+</div>
+<div class="card">
+  <div class="label">משימות לטיפול</div>
+  <table><tbody>${tasksHtml}</tbody></table>
+</div>
+<div class="footer">Dazura — מערכת ניהול חופשות | הופק אוטומטית</div>
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`);
+  win.document.close();
+}
+
+// הצג פרוטוקול בדוח האישי של העובד
+function renderMyHandoverCard() {
+  if (!currentUser) return;
+  // רק לעובדים — לא למנהל/אדמין
+  const isEmployee = currentUser.role === 'employee' || !currentUser.role;
+  const btn       = document.getElementById('myHandoverBtn');
+  const mobileBtn = document.getElementById('myHandoverBtnMobile');
+
+  if (!isEmployee) {
+    if (btn)       btn.style.display = 'none';
+    if (mobileBtn) mobileBtn.style.display = 'none';
+    return;
+  }
+
+  const db = getDB();
+  const today = new Date().toISOString().split('T')[0];
+
+  // חפש בarchive ובhandovers
+  const seen = new Set();
+  const myRecords = [
+    ...Object.values(db.handoversArchive || {}),
+    ...Object.values(db.handovers || {})
+  ]
+  .filter(h => h.user === currentUser.username)
+  .filter(h => {
+    const k = h.user + '_' + h.date;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  })
+  .filter(h => {
+    const vacDates = Array.isArray(h.dates) && h.dates.length > 0 ? h.dates : [h.date];
+    return vacDates.slice().sort().pop() >= today;
+  });
+
+  const hasActive = myRecords.length > 0;
+
+  // כפתור desktop — תמיד גלוי לעובד, כחול כשיש פרוטוקול פעיל
+  if (btn) {
+    btn.style.display = '';
+    btn.style.color = hasActive ? 'var(--primary)' : '';
+    btn.style.fontWeight = hasActive ? '800' : '';
+  }
+
+  // כפתור מובייל — תמיד גלוי לעובד
+  if (mobileBtn) {
+    mobileBtn.style.display = '';
+    mobileBtn.style.color = hasActive ? 'var(--primary)' : '';
+  }
+}
+
+function openMyHandoverPopup() {
+  const db = getDB();
+  const today = new Date().toISOString().split('T')[0];
+
+  const allSources = [
+    ...Object.values(db.handoversArchive || {}),
+    ...Object.values(db.handovers || {})
+  ];
+  const seen2 = new Set();
+  const myRecords = allSources
+    .filter(h => h.user === currentUser.username)
+    .filter(h => {
+      const k = h.user + '_' + h.date;
+      if (seen2.has(k)) return false;
+      seen2.add(k);
+      return true;
+    })
+    .filter(h => {
+      const vacDates = Array.isArray(h.dates) && h.dates.length > 0 ? h.dates : [h.date];
+      return vacDates.slice().sort().pop() >= today;
+    })
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const el = document.getElementById('myHandoverPopupContent');
+  if (!el) return;
+
+  if (!myRecords.length) {
+    el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-muted);">אין פרוטוקול פעיל כרגע.</div>';
+    openModal('myHandoverPopup');
+    return;
+  }
+
+  el.innerHTML = `
+    <div style="text-align:center;font-size:32px;margin-bottom:6px;">📋</div>
+    <div class="modal-title" style="justify-content:center;margin-bottom:18px;">פרוטוקול העברת מקל שלי</div>
+  ` + myRecords.map(h => {
+    const vacDates = (Array.isArray(h.dates) && h.dates.length > 0 ? h.dates : [h.date]).slice().sort();
+    const firstDate = vacDates[0];
+    const lastDate  = vacDates[vacDates.length - 1];
+    const totalDays = vacDates.length;
+
+    const fmtDate      = dt => new Date(dt + 'T00:00:00').toLocaleDateString('he-IL', { day:'numeric', month:'long', year:'numeric' });
+    const fmtDateShort = dt => new Date(dt + 'T00:00:00').toLocaleDateString('he-IL', { day:'numeric', month:'long' });
+    const rangeLabel   = firstDate === lastDate ? fmtDate(firstDate) : `${fmtDateShort(firstDate)} – ${fmtDate(lastDate)}`;
+
+    const isActive   = today >= firstDate && today <= lastDate;
+    const statusText = isActive ? '🟢 בחופשה עכשיו' : '⏳ מתוכננת';
+    const statusBg   = isActive ? '#dcfce7' : 'var(--primary-light)';
+    const statusClr  = isActive ? '#166534' : 'var(--primary-dark)';
+
+    const tasks = h.tasks.map((t, i) =>
+      `<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+        <span style="font-size:12px;color:var(--text-muted);min-width:18px;">${i+1}.</span>
+        <span style="font-size:13px;color:var(--text);">${t}</span>
+      </div>`
+    ).join('');
+
+    const contact = h.contact
+      ? `<div style="display:flex;align-items:center;gap:10px;margin-top:12px;padding:10px 14px;background:var(--primary-light);border-radius:10px;">
+           <span style="font-size:18px;">👤</span>
+           <div>
+             <div style="font-size:11px;color:var(--primary-dark);font-weight:700;">ממלא/ת מקום</div>
+             <div style="font-size:14px;font-weight:800;color:var(--text);">${h.contact}</div>
+           </div>
+         </div>`
+      : '';
+
+    return `
+      <div style="background:var(--surface2);border-radius:14px;overflow:hidden;margin-bottom:10px;border:1px solid var(--border);">
+        <div style="background:linear-gradient(135deg,var(--primary),var(--primary-dark));padding:12px 16px;display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="font-size:13px;font-weight:800;color:white;">📅 ${rangeLabel}</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.8);margin-top:2px;">${totalDays} יום${totalDays>1?'ים':''}</div>
+          </div>
+          <span style="background:${statusBg};color:${statusClr};border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;">${statusText}</span>
+        </div>
+        <div style="padding:14px 16px;">
+          <div style="font-size:11px;font-weight:700;color:var(--text-muted);margin-bottom:4px;">משימות להעברה</div>
+          ${tasks}
+          ${contact}
+          <div style="margin-top:10px;font-size:11px;color:var(--text-muted);">🔒 ישמר עד ${fmtDateShort(lastDate)}</div>
+        </div>
+      </div>`;
+  }).join('');
+
+  openModal('myHandoverPopup');
+}
+
+
 function deleteHandover(key) {
-  if (!confirm('למחוק פרוטוקול זה?')) return;
+  if (!confirm('להסיר פרוטוקול זה מהתצוגה?')) return;
   const db = getDB();
   if (db.handovers && db.handovers[key]) {
-    delete db.handovers[key];
+    delete db.handovers[key]; // מוחק מתצוגת מנהל בלבד; archive נשמר
     saveDB(db);
-    showToast('🗑️ פרוטוקול נמחק', 'success');
+    showToast('🗑️ פרוטוקול הוסר מהתצוגה', 'success');
     renderHandoverList();
   }
 }
 
 function clearAllHandovers() {
-  if (!confirm('למחוק את כל הפרוטוקולים?')) return;
+  if (!confirm('להסיר את כל הפרוטוקולים מהתצוגה?')) return;
   const db = getDB();
-  const today = new Date().toISOString().split('T')[0];
   const isAdmin = currentUser.role === 'admin';
   Object.keys(db.handovers || {}).forEach(key => {
     const h = db.handovers[key];
     if (isAdmin || h.managerUsername === currentUser.username) {
-      delete db.handovers[key];
+      delete db.handovers[key]; // archive נשמר
     }
   });
   saveDB(db);
-  showToast('🗑️ כל הפרוטוקולים נמחקו', 'success');
+  showToast('🗑️ כל הפרוטוקולים הוסרו מהתצוגה', 'success');
   renderHandoverList();
 }
 
