@@ -737,7 +737,6 @@
     <button class="tab-btn" onclick="showTab('yearly')" data-tab="yearly">🗓️ תצוגה שנתית</button>
     <button class="tab-btn" onclick="showTab('report')" data-tab="report">📄 דוח אישי</button>
     <button class="tab-btn employee-only" id="myHandoverBtn" onclick="openMyHandoverPopup()" style="display:none;">📋 פרוטוקול</button>
-
     <button class="tab-btn manager-only" onclick="showTab('manager')" data-tab="manager" style="display:none;">📊 לוח מנהל</button>
     <button class="tab-btn admin-only" onclick="showTab('admin')" data-tab="admin" style="display:none;">⚙️ ניהול</button>
   </div>
@@ -1428,9 +1427,10 @@
     <div class="form-group">
       <label class="form-label">תפקיד</label>
       <select id="newEmpRole" class="form-input" dir="rtl">
-        <option value="employee">עובד</option>
-        <option value="accountant">מנהלת חשבונות</option>
-        <option value="admin">מנהל</option>
+        <option value="employee">עובד/ת</option>
+        <option value="manager">מנהל/ת מחלקה</option>
+        <option value="senior_manager">הנהלה ראשית</option>
+        <option value="accountant">חשב/ת</option>
       </select>
     </div>
     <div class="form-group">
@@ -1599,7 +1599,6 @@
     </div>
   </div>
   <div class="ai-input-area">
-    <div id="aiQuickBtns" class="ai-quick-btns"></div>
     <div class="ai-input-row">
       <input type="text" id="aiInput" class="ai-input" placeholder="שאל שאלה..." dir="rtl"
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAIMessage();}">
@@ -1676,7 +1675,6 @@
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
-<script src="ai-knowledge.js"></script>
 <script src="fuse.js"></script>
 <script src="ai.js"></script>
 <script src="script.js"></script>

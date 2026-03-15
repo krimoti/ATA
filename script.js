@@ -13,7 +13,6 @@ let pendingExcelQuotas = [];
 let firebaseApp = null;
 const calState = { year: 2026, month: 1 };
 const deptSelectedMap = {};
-let _announcementShownIds = new Set(); // הודעות שכבר הוצגו בסשן הנוכחי
 
 // ── Security ──────────────────────────────────────────────────
 const _loginAttempts = {};
@@ -582,7 +581,6 @@ function doLogout() {
   if (aiMsgs) aiMsgs.innerHTML = '<div class="ai-welcome"><div class="ai-welcome-icon">🤖</div><p>שלום! אני Dazura AI. שאל אותי כל שאלה הקשורה לחופשות, נוכחות ומידע ארגוני.</p></div>';
   // Firebase Auth sign out — non-blocking
   ensureFirebaseAuth().then(auth => auth.signOut()).catch(()=>{});
-  _announcementShownIds = new Set(); // אפס הודעות שהוצגו
   currentUser = null;
   hideAIButton();
   ['appScreen','timeClockScreen','moduleSelectorScreen','ceoDashboardScreen'].forEach(id => {
@@ -737,15 +735,26 @@ function showApp(skipModuleSelector) {
   if(nameDisplay) nameDisplay.textContent = getSettings().companyName;
   
   // Determine roles
-  const isAdmin      = currentUser.role === 'admin' || currentUser.role === 'accountant';
-  const isManager    = currentUser.role === 'manager' || isAdmin || isUserDeptManager(currentUser.username);
-  const hasAdminAccess = isAdmin; // רק admin ו-accountant רואים כרטיסיית ניהול
+  const isAdmin         = currentUser.role === 'admin' || currentUser.role === 'accountant';
+  const isSeniorManager = currentUser.role === 'senior_manager' || currentUser.username === CEO_USERNAME;
+  const isDeptManager   = currentUser.role === 'manager' || isUserDeptManager(currentUser.username);
+  const isManager       = isDeptManager || isSeniorManager || isAdmin;
+  const hasAdminAccess  = isAdmin;
+  const isEmployee      = !isAdmin && !isManager;
 
+  // ── הצג/הסתר לפי role ──
   document.querySelectorAll('.admin-only').forEach(el => {
     el.style.display = hasAdminAccess ? '' : 'none';
   });
   document.querySelectorAll('.manager-only').forEach(el => {
     el.style.display = isManager ? '' : 'none';
+  });
+  // לוח מנהל: מנהל מחלקה רואה מחלקתו, הנהלה ראשית + admin רואים הכל
+  document.querySelectorAll('.senior-manager-only').forEach(el => {
+    el.style.display = (isSeniorManager || isAdmin) ? '' : 'none';
+  });
+  document.querySelectorAll('.dept-manager-only').forEach(el => {
+    el.style.display = isDeptManager ? '' : 'none';
   });
   
   // Firebase button: admin only
@@ -769,7 +778,6 @@ function showApp(skipModuleSelector) {
   setTimeout(populateQuickPermUser, 2000);
 
   // הצג כפתורי employee-only רק לעובד רגיל
-  const isEmployee = currentUser.role === 'employee' || !currentUser.role;
   document.querySelectorAll('.employee-only').forEach(el => {
     el.style.display = isEmployee ? '' : 'none';
   });
@@ -1897,7 +1905,7 @@ function updateCyclePreview() {
 // MANAGER DASHBOARD
 // ============================================================
 function renderManagerDashboard() {
-  if(!isUserDeptManager(currentUser.username) && currentUser.role !== 'admin' && currentUser.role !== 'manager') return;
+  if(!isUserDeptManager(currentUser.username) && currentUser.role !== 'admin' && currentUser.role !== 'manager' && currentUser.role !== 'senior_manager' && currentUser.username !== CEO_USERNAME) return;
   const db = getDB();
   const now = new Date();
   const todayStr = now.toISOString().slice(0,10);
@@ -1917,11 +1925,13 @@ function renderManagerDashboard() {
     if(vacs[todayStr] === 'wfh') todayWFH.push(user.fullName);
   });
   const totalEmployees = Object.values(db.users).filter(u => u.role === 'employee').length;
-  const isAdmin = currentUser.role === 'admin';
+  const isAdmin = currentUser.role === 'admin' || currentUser.role === 'accountant';
+  const isSenior = currentUser.role === 'senior_manager' || currentUser.username === CEO_USERNAME;
+  const seeAll = isAdmin || isSenior;
   const myUsername = currentUser.username;
-  // Manager sees only requests assigned to them (or all if admin)
+  // senior_manager + admin רואים הכל, מנהל מחלקה רואה רק שלו
   const allPending = (db.approvalRequests || []).filter(r => r.status === 'pending');
-  const myPending  = isAdmin ? allPending : allPending.filter(r => r.assignedManager === myUsername);
+  const myPending  = seeAll ? allPending : allPending.filter(r => r.assignedManager === myUsername);
   const pending = myPending.length;
 
   const cardsEl = document.getElementById('managerTodayCards');
@@ -1938,7 +1948,7 @@ function renderManagerDashboard() {
     </div>`).join('');
 
   // PENDING APPROVALS
-  const pendingReqs = isAdmin
+  const pendingReqs = seeAll
     ? (db.approvalRequests||[]).filter(r=>r.status==='pending')
     : (db.approvalRequests||[]).filter(r=>r.status==='pending' && r.assignedManager===myUsername);
   const badge = document.getElementById('pendingBadge');
@@ -2282,20 +2292,17 @@ function saveEmpSalary(username, val) {
 // 📢 ANNOUNCEMENTS — show CEO messages to all employees
 // ============================================================
 function renderAnnouncements() {
+
   const db  = getDB();
   const ann = db.announcements || [];
   if (!ann.length || !currentUser) return;
 
-  // Find newest unseen announcement (not acked + not already shown this session)
+  // Find newest unseen announcement (not acked by this user)
   const unseen = ann.find(a => {
     if (!a.id) return false;
-    if (_announcementShownIds.has(a.id)) return false; // כבר הוצג בסשן זה
     return !(a.acks && a.acks[currentUser.username]);
   });
   if (!unseen) return;
-
-  // סמן כ"הוצג" בסשן הנוכחי — לא יופיע שוב עד שהמשתמש יתנתק
-  _announcementShownIds.add(unseen.id);
 
   const d = new Date(unseen.ts);
   const dateStr = `${d.getDate()}/${d.getMonth()+1} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
@@ -3390,7 +3397,7 @@ function renderPermissionsTable() {
             <tr style="border-bottom:1px solid var(--border);" id="permRow_${u.username}">
               <td style="padding:10px 12px;">
                 <div style="font-weight:700;">${u.fullName}</div>
-                <div style="font-size:11px;color:var(--text-muted);">${u.role === 'manager' ? '👔 מנהל' : '👤 עובד'} · ${Array.isArray(u.dept) ? u.dept[0] : u.dept || ''}</div>
+                <div style="font-size:11px;color:var(--text-muted);">${u.role === 'senior_manager' ? '🏢 הנהלה' : u.role === 'manager' ? '👔 מנהל מחלקה' : '👤 עובד'} · ${Array.isArray(u.dept) ? u.dept[0] : u.dept || ''}</div>
               </td>
               <td style="padding:10px 8px;text-align:center;">
                 <span style="font-size:11px;padding:3px 8px;border-radius:10px;font-weight:700;background:${hasAny ? 'var(--success-light)' : 'var(--surface2)'};color:${hasAny ? 'var(--success)' : 'var(--text-muted)'};">
@@ -3727,7 +3734,7 @@ let _handoverPopupOpen = false;
 
 function checkHandoverNeeded() {
   if (!currentUser) return;
-  if (currentUser.role === 'manager' || currentUser.role === 'admin' || currentUser.role === 'accountant') return;
+  if (currentUser.role === 'manager' || currentUser.role === 'admin' || currentUser.role === 'accountant' || currentUser.role === 'senior_manager') return;
   if (_handoverPopupOpen) return;
 
   const db = getDB();
@@ -3757,7 +3764,7 @@ let _handoverPollInterval = null;
 function startHandoverPoller() {
   if (_handoverPollInterval) clearInterval(_handoverPollInterval);
   _handoverPollInterval = setInterval(() => {
-    if (!currentUser || currentUser.role === 'manager' || currentUser.role === 'admin') return;
+    if (!currentUser || currentUser.role === 'manager' || currentUser.role === 'admin' || currentUser.role === 'senior_manager') return;
     const db = getDB();
     const pending = db.handoverPending?.[currentUser.username];
     if (!pending || pending.submitted) return;
@@ -6100,8 +6107,8 @@ function renderSelectedEmployee() {
   _currentEditEmp = username;
 
   const cb = calcBalance(username, 2026);
-  const roleLabel = u.role === 'admin' ? '🛡️ מנהל' : u.role === 'accountant' ? '💼 חשבות' : '👤 עובד';
-  const roleBadge = u.role === 'admin' ? 'badge-admin' : u.role === 'accountant' ? 'badge-accountant' : 'badge-user';
+  const roleLabel = u.role === 'admin' ? '🛡️ אדמין' : u.role === 'accountant' ? '💼 חשבות' : u.role === 'senior_manager' ? '🏢 הנהלה ראשית' : u.role === 'manager' ? '👔 מנהל מחלקה' : '👤 עובד';
+  const roleBadge = u.role === 'admin' ? 'badge-admin' : u.role === 'accountant' ? 'badge-accountant' : u.role === 'senior_manager' ? 'badge-admin' : u.role === 'manager' ? 'badge-manager' : 'badge-user';
 
   document.getElementById('empEditName').textContent = u.fullName;
   document.getElementById('empEditRole').innerHTML = `<span class="badge ${roleBadge}" style="font-size:11px;">${roleLabel}</span>`;
@@ -6185,7 +6192,7 @@ function renderPermForEmployee() {
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
         <div>
           <span style="font-size:16px;font-weight:900;">${u.fullName}</span>
-          <span style="font-size:12px;color:var(--text-muted);margin-right:8px;">${u.role === 'manager' ? '👔 מנהל' : '👤 עובד'} · ${Array.isArray(u.dept)?u.dept[0]:u.dept||''}</span>
+          <span style="font-size:12px;color:var(--text-muted);margin-right:8px;">${u.role === 'senior_manager' ? '🏢 הנהלה' : u.role === 'manager' ? '👔 מנהל מחלקה' : '👤 עובד'} · ${Array.isArray(u.dept)?u.dept[0]:u.dept||''}</span>
           <span style="font-size:11px;padding:3px 10px;border-radius:10px;font-weight:700;background:${hasAccess ? 'var(--success-light)' : 'var(--surface2)'};color:${hasAccess ? 'var(--success)' : 'var(--text-muted)'};">${hasAccess ? '✅ יש גישה' : '— אין גישה'}</span>
         </div>
         <button onclick="document.getElementById('permEditRow').style.display='none';document.getElementById('permEditSelect').value='';"
@@ -6339,62 +6346,6 @@ window.addEventListener('load', function() {
 // ============================================================
 let _aiPanelOpen = false;
 
-// ── כפתורי קיצור רנדומליים ──────────────────────────────────
-const AI_QUICK_POOL = {
-  employee: [
-    'מה היתרה שלי?', 'מי בחופשה היום?', 'מה הסטטוס שלי?',
-    'איך מגישים בקשת חופשה?', 'מה החגים הקרובים?',
-    'מי מהצוות כאן מחר?', 'מה הניצול שלי לפי חודשים?',
-    'מה התחזית לסוף השנה?', 'מי עובד מהבית היום?',
-    'איך מתקנים שעות שגויות?', 'מה המחלקה שלי?',
-    'כמה ימים נשארו לי?', 'מה קורה בחג?',
-    'מי מחליף אותי בחופשה?', 'איך משנים סיסמה?',
-  ],
-  manager: [
-    'מי בחופשה מחר?', 'בקשות ממתינות לאישור',
-    'מצב הצוות היום', 'מי לא לקח חופש 90 יום?',
-    'תחזה מחסור כוח אדם', 'סקירת יתרות הצוות',
-    'מי עובד מהבית?', 'ציוני רווחת עובדים',
-    'מה עלות החופשות הצבורות?', 'השבוע בחברה',
-    'בקשות ממתינות מעל 48 שעות', 'מפת חום חופשות',
-  ],
-  admin: [
-    'כמה עובדים יש?', 'מי בחופשה היום?',
-    'מי לא לקח חופש 90 יום?', 'תחזה מחסור כוח אדם',
-    'ציוני רווחת עובדים', 'עלות החופשות הצבורות',
-    'יומן שינויים', 'בקשות ממתינות לאישור',
-    'מצב כללי היום', 'מה אתה יכול?',
-    'איך מוסיפים עובד?', 'איך מחברים Firebase?',
-  ],
-};
-
-function renderAIQuickBtns() {
-  const container = document.getElementById('aiQuickBtns');
-  if (!container || !currentUser) return;
-
-  const isMobile = window.innerWidth < 600;
-  const maxBtns  = isMobile ? 2 : 4;
-
-  let pool;
-  if (currentUser.role === 'admin' || currentUser.role === 'accountant') pool = AI_QUICK_POOL.admin;
-  else if (currentUser.role === 'manager') pool = AI_QUICK_POOL.manager;
-  else pool = AI_QUICK_POOL.employee;
-
-  // בחר רנדומלית
-  const shuffled = [...pool].sort(() => Math.random() - 0.5).slice(0, maxBtns);
-  container.innerHTML = shuffled.map(q =>
-    `<button class="ai-quick-btn" onclick="aiQuickAsk(this,'${q.replace(/'/g, "\'")}')">` +
-    q + `</button>`
-  ).join('');
-}
-
-function aiQuickAsk(btn, question) {
-  // הסר את הכפתור שנלחץ + ערבב מחדש
-  document.getElementById('aiInput').value = question;
-  sendAIMessage();
-  setTimeout(renderAIQuickBtns, 500);
-}
-
 function toggleAIPanel() {
   const panel = document.getElementById('aiPanel');
   const btn   = document.getElementById('aiFloatBtn');
@@ -6404,7 +6355,6 @@ function toggleAIPanel() {
   if (_aiPanelOpen) {
     setTimeout(() => { document.getElementById('aiInput')?.focus(); }, 300);
     scrollAIToBottom();
-    renderAIQuickBtns();
   }
 }
 
@@ -6429,14 +6379,15 @@ async function sendAIMessage() {
     const freshUser = (db.users && db.users[currentUser.username]) ? db.users[currentUser.username] : currentUser;
 
     if (typeof DazuraFuse !== 'undefined') {
+      // DazuraFuse: קודם AI מקומי, אחר כך Claude API אם צריך
       const resp = await DazuraFuse.respondAsync(msg, freshUser, db);
       setTimeout(() => {
         hideAITyping();
         appendAIMessage(resp, 'ai');
         scrollAIToBottom();
-        renderAIQuickBtns();
       }, delay);
     } else {
+      // Fallback ל-DazuraAI בלבד
       setTimeout(() => {
         hideAITyping();
         let response;
@@ -6447,7 +6398,6 @@ async function sendAIMessage() {
         }
         appendAIMessage(response, 'ai');
         scrollAIToBottom();
-        renderAIQuickBtns();
       }, delay);
     }
   } catch(e) {
@@ -6577,9 +6527,10 @@ function renderHandoverList() {
       .map(([dept]) => dept);
   })();
 
+  const isSeniorMgr2 = currentUser.role === 'senior_manager' || currentUser.username === CEO_USERNAME;
   const list = Object.values(handovers).filter(h => {
-    if (isAdmin) return true; // admin sees all
-    // Manager sees: explicitly assigned to them, OR employee in their dept
+    if (isAdmin || isSeniorMgr2) return true; // admin + senior_manager רואים הכל
+    // מנהל מחלקה רואה: שהוקצה אליו, או עובד ממחלקתו
     if (h.managerUsername === currentUser.username) return true;
     if (isManager && myDepts.length > 0) {
       const empUser = db.users[h.user];
@@ -6685,11 +6636,11 @@ function printHandoverPDF(key) {
 function renderMyHandoverCard() {
   if (!currentUser) return;
   // רק לעובדים — לא למנהל/אדמין
-  const isEmployee = currentUser.role === 'employee' || !currentUser.role;
+  const _isEmp = currentUser.role === 'employee' || (!currentUser.role);
   const btn       = document.getElementById('myHandoverBtn');
   const mobileBtn = document.getElementById('myHandoverBtnMobile');
 
-  if (!isEmployee) {
+  if (!_isEmp) {
     if (btn)       btn.style.display = 'none';
     if (mobileBtn) mobileBtn.style.display = 'none';
     return;
