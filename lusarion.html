@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Dazura">
+<meta name="theme-color" content="#1a56e8">
+<title>Dazura</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+</head>
+<body>
+
+<!-- DAZURA ADMIN PANEL -->
+<style>
+#adminLoginScreen::before {
+  content:'';position:absolute;inset:0;
+  background-image:radial-gradient(1px 1px at 20% 30%,rgba(255,255,255,.4) 0%,transparent 100%),radial-gradient(1px 1px at 70% 15%,rgba(255,255,255,.3) 0%,transparent 100%),radial-gradient(2px 2px at 35% 45%,rgba(99,162,255,.5) 0%,transparent 100%);
+  animation:adminStars 8s ease-in-out infinite alternate;pointer-events:none;
+}
+@keyframes adminStars{from{opacity:.5}to{opacity:1}}
+</style>
+<div id="adminLoginScreen" style="display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% -20%,#0d2060 0%,#060e24 55%,#020810 100%);position:fixed;inset:0;height:100dvh;z-index:1000;overflow:hidden;">
+  <div class="login-card">
+    <div class="login-logo">🛡️</div>
+    <div class="login-title">Dazura Admin</div>
+    <div class="login-subtitle">כניסה מוגבלת למנהלי מערכת בלבד</div>
+    <div id="adminLoginError" class="login-error" style="display:none;"></div>
+    <div class="form-group">
+      <label class="form-label">שם משתמש</label>
+      <input type="text" id="adminUsername" class="form-input" placeholder="admin" dir="ltr"
+        onkeydown="if(event.key==='Enter')doAdminLogin()">
+    </div>
+    <div class="form-group">
+      <label class="form-label">סיסמה</label>
+      <input type="password" id="adminPassword" class="form-input" placeholder="••••••••" dir="ltr"
+        onkeydown="if(event.key==='Enter')doAdminLogin()">
+    </div>
+    <button class="btn btn-primary" style="width:100%;margin-top:8px;" onclick="doAdminLogin()">כניסה</button>
+    <div style="margin-top:12px;text-align:center;">
+      <a href="index.html" style="font-size:12px;color:var(--text-muted);">← חזרה לאפליקציה</a>
+    </div>
+  </div>
+</div>
+
+<div id="adminAppScreen" style="display:none;">
+  <!-- Admin Top Nav -->
+  <div class="topnav">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span style="font-weight:700;font-size:16px;">🛡️ Dazura Admin</span>
+      <span id="adminCompanyName" style="font-size:13px;color:var(--text-muted);"></span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span id="adminUserName" style="font-size:13px;color:var(--text-secondary);"></span>
+      <button id="firebaseBadge" class="firebase-badge" onclick="openFirebaseModal()" style="display:none;">🔥 Firebase</button>
+      <button class="btn btn-outline" style="font-size:12px;padding:6px 12px;" onclick="doAdminLogout()">יציאה</button>
+    </div>
+  </div>
+
+  <!-- Admin Content -->
+  <div class="main-content" style="padding:20px;">
+        <div id="tab-admin" class="tab-content">
+
+      <!-- Audit Log — Admin only -->
+      <div class="admin-section" id="auditLogSection">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+          <div class="section-title" style="margin-bottom:0;"><span class="section-title-icon">📋</span> יומן שינויים (Audit Log)</div>
+          <button onclick="clearAuditLog()" class="btn btn-outline" style="font-size:12px;color:var(--danger);border-color:var(--danger);">🗑️ מחק יומן</button>
+        </div>
+        <div id="auditLogList" style="max-height:300px;overflow-y:auto;"></div>
+      </div>
+
+      <!-- Company Settings -->
+      <div class="admin-section" id="companySettingsSection">
+        <div class="section-title"><span class="section-title-icon">🏢</span> הגדרות חברה</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;max-width:900px;">
+          <div class="form-group">
+            <label class="form-label">שם החברה</label>
+            <input type="text" id="settingCompanyName" class="form-input" placeholder="שם החברה" dir="rtl"
+              oninput="previewCompanyName(this.value)">
+          </div>
+          <div class="form-group">
+            <label class="form-label">לוגו החברה</label>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <img id="logoPreview" src="" alt="" style="display:none;height:44px;width:auto;max-width:120px;border-radius:8px;object-fit:contain;border:1px solid var(--border);padding:4px;background:#fff;">
+              <div>
+                <label style="display:inline-flex;align-items:center;gap:6px;background:var(--primary-light);color:var(--primary-dark);border:1px solid var(--primary);border-radius:8px;padding:8px 14px;cursor:pointer;font-size:13px;font-weight:600;">
+                  📁 בחר תמונה
+                  <input type="file" id="logoFileInput" accept="image/*" style="display:none;" onchange="handleLogoUpload(this)">
+                </label>
+                <button class="btn btn-outline" style="font-size:12px;margin-right:6px;" onclick="clearLogo()">✕ הסר</button>
+              </div>
+            </div>
+            <input type="hidden" id="settingCompanyLogo">
+            <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">PNG, JPG, SVG — מוצג בכותרת האפליקציה</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">📅 תחילת מחזור חישוב (יום בחודש)</label>
+            <input type="number" id="settingCycleStart" class="form-input" min="1" max="28" placeholder="1">
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">1 = תחילת החודש | 21 = 21 לחודש</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">📅 סיום מחזור (יום בחודש, 0 = סוף חודש)</label>
+            <input type="number" id="settingCycleEnd" class="form-input" min="0" max="28" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label class="form-label">📉 ירידת ימי חופשה מהשכר</label>
+            <select id="settingDropMonth" class="form-input" dir="rtl">
+              <option value="same">באותו חודש שבו הייתה החופשה</option>
+              <option value="next">בחודש שלאחר מכן</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">📊 פורמט ייצוא לשכר</label>
+            <select id="settingPayrollFormat" class="form-input" dir="rtl">
+              <option value="csv_generic">CSV כללי</option>
+              <option value="priority">Priority</option>
+              <option value="hilan">Hilan</option>
+              <option value="hashav">חשב שכר</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">✅ דרוש אישור מנהל לחופשה</label>
+            <select id="settingApprovalRequired" class="form-input" dir="rtl">
+              <option value="true">כן — עובדים מגישים בקשה</option>
+              <option value="false">לא — עובדים מסמנים ישירות</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">⏰ תזכורת אחרי כמה שעות ללא תגובה</label>
+            <input type="number" id="settingApprovalTimeout" class="form-input" min="1" max="168" placeholder="48">
+          </div>
+        </div>
+
+        <!-- Password Reset via Firebase Auth -->
+        <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:20px;">
+          <div style="font-weight:700;font-size:14px;margin-bottom:10px;">🔐 שחזור סיסמה — Firebase Authentication</div>
+          <div style="background:var(--success-light);border:1px solid #86efac;border-radius:12px;padding:16px;font-size:13px;color:#14532d;line-height:1.8;">
+            <strong>✅ השיטה הפעילה: Firebase Authentication</strong><br>
+            שחזור סיסמה מתבצע דרך <code style="background:rgba(0,0,0,0.08);padding:2px 6px;border-radius:4px;">sendPasswordResetEmail()</code> — שירות Google מאובטח לחלוטין.<br><br>
+            <strong>📋 הגדרה חד-פעמית (חינמי לחלוטין):</strong><br>
+            1. כנס ל-<strong>console.firebase.google.com</strong> ← הפרויקט שלך<br>
+            2. <strong>Authentication</strong> ← <strong>Sign-in method</strong> ← הפעל <strong>Email/Password</strong><br>
+            3. <strong>Authentication</strong> ← <strong>Templates</strong> ← ערוך את תבנית <strong>"Password reset"</strong> לעברית<br>
+            4. סיימת — Firebase שולח אוטומטית<br><br>
+            <strong>⚠️ תנאי:</strong> לכל עובד חייב להיות מייל רשום במערכת. עובדים ללא מייל — לא יוכלו לאפס סיסמה.
+          </div>
+        </div>
+        <div style="margin-top:16px;padding:12px 16px;background:var(--primary-light);border-radius:8px;font-size:13px;color:var(--primary-dark);" id="cyclePreview"></div>
+        <button class="btn btn-primary" onclick="saveCompanySettings()" style="margin-top:16px;background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:white;">💾 שמור הגדרות חברה</button>
+        <button class="btn btn-outline" onclick="openSplashSelector()" style="margin-top:16px;margin-right:10px;">🎨 הגדר Splash Screen</button>
+      </div>
+
+      <!-- Admin Password Change -->
+      <!-- Time Clock Export — for accountant/admin -->
+      <div class="admin-section" id="timeClockExportSection">
+        <div class="section-title"><span class="section-title-icon">⏱️</span> ייצוא דיווחי שעות</div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px;">
+          <!-- Quick export buttons -->
+          <button onclick="exportTimeClock('today')" class="btn btn-primary" style="padding:14px;border-radius:12px;font-size:14px;">
+            📅 היום בלבד
+          </button>
+          <button onclick="exportTimeClock('week')" class="btn btn-outline" style="padding:14px;border-radius:12px;font-size:14px;">
+            📆 שבוע נוכחי
+          </button>
+          <button onclick="exportTimeClock('month')" class="btn btn-outline" style="padding:14px;border-radius:12px;font-size:14px;">
+            🗓️ חודש נוכחי
+          </button>
+        </div>
+
+        <!-- Custom range -->
+        <div style="background:var(--surface2);border-radius:12px;padding:14px;margin-bottom:16px;">
+          <div style="font-size:13px;font-weight:700;margin-bottom:10px;">טווח תאריכים מותאם</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+            <div style="flex:1;min-width:130px;">
+              <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">מתאריך</label>
+              <input type="date" id="tcExportFrom" class="form-input" style="font-size:14px;">
+            </div>
+            <div style="flex:1;min-width:130px;">
+              <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">עד תאריך</label>
+              <input type="date" id="tcExportTo" class="form-input" style="font-size:14px;">
+            </div>
+            <button onclick="exportTimeClock('custom')" class="btn btn-success" style="padding:11px 18px;border-radius:10px;">
+              ⬇️ ייצא CSV
+            </button>
+          </div>
+        </div>
+
+        <!-- Live preview -->
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px;">תצוגה מקדימה — דיווחי היום</div>
+        <div id="tcTodayPreview" style="max-height:300px;overflow-y:auto;"></div>
+      </div>
+
+      <!-- Pending Registrations -->
+      <div class="admin-section" id="pendingRegistrationsSection">
+        <div class="section-title"><span class="section-title-icon">👥</span> הרשמות ממתינות לאישור
+          <span id="pendingRegBadge" style="background:var(--danger);color:white;border-radius:20px;padding:2px 8px;font-size:12px;margin-right:8px;display:none;"></span>
+        </div>
+        <div id="pendingRegList">
+          <div style="color:var(--text-muted);font-size:13px;">אין הרשמות ממתינות</div>
+        </div>
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <label style="font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="requireRegApproval" onchange="toggleRegApproval(this)" style="width:16px;height:16px;">
+            דרוש אישור מנהל להרשמות חדשות
+          </label>
+        </div>
+      </div>
+
+      <div class="admin-section" id="adminPasswordSection">
+        <div class="section-title"><span class="section-title-icon">🔐</span> שינוי סיסמת ADMIN</div>
+        <div style="max-width:400px;">
+          <div class="form-group">
+            <label class="form-label">סיסמה נוכחית</label>
+            <input type="password" id="adminCurrentPass" class="form-input" placeholder="סיסמה נוכחית" dir="ltr">
+          </div>
+          <div class="form-group">
+            <label class="form-label">סיסמה חדשה</label>
+            <input type="password" id="adminNewPass" class="form-input" placeholder="סיסמה חדשה (לפחות 4 תווים)" dir="ltr">
+          </div>
+          <div class="form-group">
+            <label class="form-label">אישור סיסמה חדשה</label>
+            <input type="password" id="adminNewPass2" class="form-input" placeholder="חזור על הסיסמה החדשה" dir="ltr">
+          </div>
+          <button class="btn btn-primary" onclick="changeAdminPassword()" style="background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:white;">💾 שמור סיסמה חדשה</button>
+        </div>
+      </div>
+
+      <!-- Department Management -->
+      <div class="admin-section" id="dataResetSection">
+        <div class="section-title"><span class="section-title-icon">⚠️</span> איפוס נתונים</div>
+        <div style="background:var(--danger-light);border:1px solid #fca5a5;border-radius:10px;padding:16px;max-width:500px;">
+          <p style="font-size:13px;color:#7f1d1d;margin-bottom:12px;">
+            <strong>איפוס מלא:</strong> ימחק את כל הנתונים (עובדים, חופשות, מכסות) ויחזיר למצב ברירת מחדל.<br>
+            <span style="font-size:12px;color:var(--danger);">⚠️ פעולה זו בלתי הפיכה! גבה את הנתונים לפני האיפוס.</span>
+          </p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn" onclick="resetLocalData()" style="background:var(--danger);color:white;border:none;">🗑️ אפס את כל הנתונים</button>
+            <button class="btn btn-outline" onclick="exportBackup()" style="font-size:13px;">💾 גבה נתונים (JSON)</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Department Management -->
+      <div class="admin-section" id="deptMgmtSection">
+        <div class="section-title"><span class="section-title-icon">🏢</span> ניהול מחלקות ומנהלים</div>
+        
+        <!-- Add department -->
+        <div style="display:flex;gap:8px;max-width:400px;margin-bottom:20px;">
+          <input type="text" id="newDeptInput" class="form-input" placeholder="שם מחלקה חדשה" style="flex:1;" dir="rtl">
+          <button class="btn btn-success" onclick="addDepartment()">➕ הוסף</button>
+        </div>
+
+        <!-- Dept + Manager table -->
+        <div id="deptManagerTable" style="max-width:700px;"></div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:8px;">
+          💡 כל עובד שיגיש בקשת חופשה — היא תועבר אוטומטית למנהל המחלקה שלו
+        </div>
+      </div>
+
+      <!-- Quota Upload -->
+      <div class="admin-section" id="quotaUploadAdminSection">
+        <div class="section-title"><span class="section-title-icon">📥</span> טעינת מכסות שנתיות</div>
+        <div id="quotaWindowAlert" class="alert alert-info">
+          <span class="alert-icon">📅</span>
+          <span id="quotaWindowMsg"></span>
+        </div>
+
+        <!-- Excel Bulk Upload -->
+        <div style="background:linear-gradient(135deg,#e8efff,#f0f4ff);border-radius:12px;padding:16px;border:2px dashed var(--primary);margin-bottom:16px;">
+          <div style="font-weight:700;font-size:14px;margin-bottom:8px;color:var(--primary-dark);">📊 טעינה מקובץ אקסל (מרוכזת)</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">
+            קובץ Excel עם 4 עמודות: <strong>שם פרטי | שם משפחה | מכסה שנתית | מכסה נוכחית</strong>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <label style="cursor:pointer;background:var(--surface);border:2px solid var(--primary);color:var(--primary);padding:9px 18px;border-radius:8px;font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px;transition:all 0.2s;" onmouseover="this.style.background='var(--primary-light)'" onmouseout="this.style.background='var(--surface)'">
+              📂 בחר קובץ
+              <input type="file" id="quotaExcelInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="handleQuotaExcelUpload(this)">
+            </label>
+            <span id="quotaExcelFileName" style="font-size:13px;color:var(--text-secondary);">לא נבחר קובץ</span>
+          </div>
+          <div id="quotaExcelPreview" style="margin-top:12px;"></div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group-inline">
+            <label>עובד</label>
+            <select id="quotaEmpSelect" dir="rtl"></select>
+          </div>
+          <div class="form-group-inline">
+            <label>שנה</label>
+            <select id="quotaYearAdmin" dir="rtl">
+              <option value="2026">2026</option>
+              <option value="2027">2027</option>
+              <option value="2028">2028</option>
+              <option value="2029">2029</option>
+              <option value="2030">2030</option>
+            </select>
+          </div>
+          <div class="form-group-inline">
+            <label>מכסה שנתית (ימים)</label>
+            <input type="number" id="quotaAnnual" placeholder="22" min="0" max="60" oninput="updateQuotaPreview()">
+          </div>
+          <div class="form-group-inline">
+            <label>יתרה ידועה (ימים) 
+              <span style="font-size:11px;color:var(--text-muted);font-weight:400;">← נכון לתאריך:</span>
+            </label>
+            <input type="number" id="quotaInitBalance" placeholder="0" min="-100" max="100" step="0.5" oninput="updateQuotaPreview()">
+          </div>
+          <div class="form-group-inline">
+            <label>תאריך היתרה הידועה</label>
+            <input type="date" id="quotaBalanceDate" oninput="updateQuotaPreview()" style="padding:10px 14px;border:2px solid var(--border);border-radius:8px;font-family:'Heebo',sans-serif;font-size:14px;color:var(--text);background:var(--surface2);direction:ltr;">
+          </div>
+        </div>
+        <div style="background:var(--primary-light);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--primary-dark);margin-bottom:12px;" id="quotaCalcPreview">
+          💡 הזן נתונים לתצוגה מקדימה של החישוב
+        </div>
+        <button class="btn btn-primary" onclick="saveQuota()" style="background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:white;box-shadow:0 4px 12px rgba(26,86,232,0.3);">💾 שמור מכסה</button>
+      </div>
+
+      <!-- Employee List -->
+      <div class="admin-section" id="employeeListSection">
+        <div class="section-title"><span class="section-title-icon">👥</span> רשימת עובדים</div>
+        <div class="actions-row" style="margin-bottom:16px;">
+          <button class="btn btn-success" onclick="openAddEmployeeModal()">➕ הוסף עובד</button>
+          <button class="btn btn-primary" onclick="openBulkImportModal()">📥 טעינה מאקסל</button>
+          <button class="btn btn-outline" onclick="exportAllToCSV()">📊 ייצא הכל</button>
+          <button class="btn" onclick="deleteImportedEmployees()" style="background:var(--danger-light);color:var(--danger);border:1px solid var(--danger-mid);">🗑️ מחק עובדים מיובאים</button>
+        </div>
+
+        <!-- Temp password setting -->
+        <div style="background:var(--warning-light);border-radius:10px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span style="font-size:13px;font-weight:700;">🔑 סיסמה זמנית לעובדים חדשים:</span>
+          <input type="text" id="tempPasswordSetting" class="form-input" placeholder="לדוגמה: Welcome2026" dir="ltr" style="flex:1;min-width:160px;max-width:220px;font-size:14px;">
+          <button class="btn btn-outline" style="font-size:12px;" onclick="saveTempPassword()">💾 שמור</button>
+          <span style="font-size:11px;color:var(--text-muted);">עובד יתבקש לשנות בכניסה ראשונה</span>
+        </div>
+
+        <!-- Employee selector + single row edit -->
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+          <select id="empListSelect" onchange="renderSelectedEmployee()" dir="rtl"
+            style="flex:1;min-width:200px;max-width:360px;padding:10px 14px;border:1.5px solid var(--border-strong);border-radius:10px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:600;background:var(--surface);color:var(--text);">
+            <option value="">— בחר עובד לעריכה —</option>
+          </select>
+          <span id="empListCount" style="font-size:12px;color:var(--text-muted);"></span>
+        </div>
+
+        <!-- Single employee edit row -->
+        <div id="empListEditRow" style="display:none;background:var(--surface);border:1.5px solid var(--primary);border-radius:14px;padding:18px 20px;margin-bottom:16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+            <div>
+              <span id="empEditName" style="font-size:17px;font-weight:900;color:var(--text);"></span>
+              <span id="empEditRole" style="margin-right:8px;"></span>
+              <span id="empEditDept" style="font-size:13px;color:var(--text-secondary);margin-right:6px;"></span>
+            </div>
+            <button onclick="closeEmpEdit()" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 14px;cursor:pointer;font-family:'Heebo',sans-serif;font-size:13px;font-weight:700;">✕ סגור</button>
+          </div>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;">
+            <div>
+              <label style="font-size:11px;font-weight:700;color:var(--text-secondary);display:block;margin-bottom:4px;">🎂 יום הולדת</label>
+              <input type="date" id="empEditBirthday" style="border:1.5px solid var(--border-strong);border-radius:8px;padding:7px 10px;font-size:13px;font-family:'Heebo',sans-serif;background:var(--surface2);" onchange="saveEmpBirthdayEdit()">
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:700;color:var(--text-secondary);display:block;margin-bottom:4px;">💰 שכר יומי ₪</label>
+              <input type="number" id="empEditSalary" min="0" placeholder="₪" style="border:1.5px solid var(--border-strong);border-radius:8px;padding:7px 10px;font-size:13px;width:90px;font-family:'Heebo',sans-serif;background:var(--surface2);" onchange="saveEmpSalaryEdit()">
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button id="empEditResetPass" onclick="openResetPasswordModalEdit()" class="reset-pass-btn">🔑 אפס סיסמה</button>
+              <button id="empEditChangePass" onclick="openChangePasswordModalEdit()" class="change-pass-btn">✏️ שנה סיסמה</button>
+              <button id="empEditDelete" onclick="deleteEmployeeEdit()" style="background:var(--danger-light);color:var(--danger);border:1px solid var(--danger-mid);border-radius:6px;padding:6px 12px;cursor:pointer;font-family:'Heebo',sans-serif;font-size:12px;font-weight:700;">מחק</button>
+            </div>
+          </div>
+          <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:flex;gap:16px;font-size:12px;color:var(--text-muted);">
+            <span>מכסה: <strong id="empEditQuota" style="color:var(--text);"></strong></span>
+            <span>ניצל: <strong id="empEditUsed" style="color:var(--primary);"></strong></span>
+            <span>יתרה: <strong id="empEditBalance" style="color:var(--text);"></strong></span>
+            <span style="direction:ltr;">שם משתמש: <strong id="empEditUsername" style="color:var(--text);"></strong></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- All Vacations View -->
+      <div class="admin-section" id="allVacationsSection">
+        <div class="section-title"><span class="section-title-icon">📋</span> כל בקשות החופשה</div>
+        <div class="filter-bar">
+          <div class="form-group-inline">
+            <label>סינון לפי מחלקה</label>
+            <select id="adminFilterDept" onchange="renderAdminVacations()" dir="rtl">
+              <option value="">כל המחלקות</option>
+            </select>
+          </div>
+          <div class="form-group-inline">
+            <label>סינון לפי עובד</label>
+            <select id="adminFilterEmp" onchange="renderAdminVacations()" dir="rtl">
+              <option value="">כל העובדים</option>
+            </select>
+          </div>
+          <div class="form-group-inline">
+            <label>סינון לפי שנה</label>
+            <select id="adminFilterYear" onchange="renderAdminVacations()" dir="rtl">
+              <option value="2026">2026</option>
+              <option value="2027">2027</option>
+              <option value="2028">2028</option>
+              <option value="2029">2029</option>
+              <option value="2030">2030</option>
+            </select>
+          </div>
+          <button class="btn btn-outline" onclick="clearAdminFilters()" style="align-self:flex-end;">🔄 נקה סינון</button>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>עובד</th>
+                <th>מחלקה</th>
+                <th>חודש</th>
+                <th>ימים</th>
+                <th>חצאי ימים</th>
+                <th>סה"כ ניצול</th>
+                <th>מחזור תשלום</th>
+              </tr>
+            </thead>
+            <tbody id="adminVacTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Approval Requests Section -->
+      <div class="admin-section" id="approvalRequestsSection">
+        <div class="section-title"><span class="section-title-icon">📨</span> בקשות אישור ממתינות</div>
+        <div id="approvalRequestsList">
+          <p style="color:var(--text-muted);font-size:14px;padding:8px;">טוען...</p>
+        </div>
+      </div>
+
+      <!-- ===== PERMISSIONS MANAGEMENT — ADMIN ONLY ===== -->
+      <div class="admin-section" id="permissionsSection">
+        <div class="section-title"><span class="section-title-icon">🔒</span> ניהול הרשאות גישה לניהול</div>
+        <div style="background:var(--primary-light);border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:var(--primary-dark);">
+          <strong>איך זה עובד:</strong> סמן ✅ לכל עובד/מנהל את הסעיפים שמותר לו לראות בטאב הניהול. לאחר שמירה — העובד יראה את הטאב עם הסעיפים המורשים בלבד.
+        </div>
+
+        <!-- Quick grant buttons -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+          <div style="font-size:13px;font-weight:700;width:100%;color:var(--text-secondary);">הענק הרשאה מהירה לעובד:</div>
+          <select id="quickPermUser" class="form-input" style="flex:1;min-width:160px;" dir="rtl">
+            <option value="">בחר עובד...</option>
+          </select>
+          <select id="quickPermLevel" class="form-input" style="flex:1;min-width:180px;" dir="rtl">
+            <option value="reports">📊 צפייה בדוחות בלבד</option>
+            <option value="timeclock">⏱️ ייצוא שעות בלבד</option>
+            <option value="employees">👥 ניהול עובדים</option>
+            <option value="full">🔓 גישה מלאה (חוץ מהגדרות)</option>
+          </select>
+          <button class="btn btn-primary" onclick="quickGrantPermission()" style="padding:10px 18px;">הענק ✅</button>
+        </div>
+
+        <!-- Permissions: select employee then show only their row -->
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--text-secondary);">הגדרה מפורטת לעובד:</div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+          <select id="permEditSelect" onchange="renderPermForEmployee()" dir="rtl"
+            style="flex:1;min-width:200px;max-width:340px;padding:10px 14px;border:1.5px solid var(--border-strong);border-radius:10px;font-family:'Heebo',sans-serif;font-size:14px;font-weight:600;background:var(--surface);color:var(--text);">
+            <option value="">— בחר עובד לעריכת הרשאות —</option>
+          </select>
+        </div>
+        <div id="permEditRow" style="display:none;"></div>
+        <!-- Hidden full table for JS compatibility -->
+        <div id="permissionsTable" style="display:none;"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Modals -->
+<div class="modal-overlay" id="addEmpModal">
+  <div class="modal">
+    <div class="modal-title">👤 הוספת עובד חדש</div>
+    <div id="addEmpError" class="login-error">שגיאה</div>
+    <div class="form-group">
+      <label class="form-label">שם מלא</label>
+      <input type="text" id="newEmpName" class="form-input" placeholder="שם ושם משפחה">
+    </div>
+    <div class="form-group">
+      <label class="form-label">שם משתמש</label>
+      <input type="text" id="newEmpUsername" class="form-input" placeholder="באנגלית" dir="ltr">
+    </div>
+    <div class="form-group">
+      <label class="form-label">מחלקה</label>
+      <select id="newEmpDept" class="form-input" dir="rtl"><option value="">בחר מחלקה...</option></select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">תפקיד</label>
+      <select id="newEmpRole" class="form-input" dir="rtl">
+        <option value="employee">עובד/ת</option>
+        <option value="manager">מנהל/ת מחלקה</option>
+        <option value="senior_manager">הנהלה ראשית</option>
+        <option value="accountant">חשב/ת</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">סיסמה ראשונית</label>
+      <input type="text" id="newEmpPass" class="form-input" placeholder="סיסמה זמנית" dir="ltr">
+    </div>
+    <div class="form-group">
+      <label class="form-label">💰 שכר יומי ברוטו (₪) — לחישוב עלות חופשות</label>
+      <input type="number" id="newEmpDailySalary" class="form-input" placeholder="לדוגמה: 850" min="0" dir="ltr">
+      <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">שדה אופציונלי — לדשבורד מנכ"ל בלבד</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('addEmpModal')">ביטול</button>
+      <button class="btn btn-success" onclick="saveNewEmployee()">הוסף עובד</button>
+    </div>
+  </div>
+</div><div class="modal-overlay" id="bulkImportModal">
+  <div class="modal" style="max-width:580px;display:flex;flex-direction:column;max-height:88vh;">
+    <div class="modal-title">📥 טעינת עובדים מאקסל</div>
+
+    <div style="overflow-y:auto;flex:1;">
+      <div style="background:var(--warning-light);border:1px solid var(--warning-mid);border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <span>🔑 סיסמה זמנית לעובדים חדשים:</span>
+        <strong id="bulkModalTempPass" style="font-size:15px;color:var(--warning-dark);direction:ltr;letter-spacing:1px;">Welcome1</strong>
+        <span style="font-size:11px;color:var(--text-muted);">— ניתן לשנות בהגדרות רשימת עובדים</span>
+      </div>
+      <div style="background:var(--primary-light);border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:var(--primary-dark);">
+        <strong>פורמט הקובץ:</strong> Excel או CSV — קובץ <strong>אחד מרוכז</strong> עם עמודות:<br>
+        <code style="font-size:12px;background:var(--surface);padding:3px 8px;border-radius:4px;margin-top:6px;display:inline-block;direction:ltr;">שם פרטי | שם משפחה | מחלקה | מייל | מכסה שנתית | יתרה פתיחה</code>
+        <div style="margin-top:8px;font-size:11px;color:var(--text-secondary);">
+          • עמודות מחלקה, מייל, מכסה ויתרה — <strong>אופציונליות</strong><br>
+          • עובד קיים — יעודכנו רק המכסות שלו<br>
+          • עובד חדש — ייווצר עם סיסמה זמנית<br>
+          • שורה ראשונה = כותרות (מתעלמים ממנה)
+        </div>
+      </div>
+
+      <div style="border:2px dashed var(--border);border-radius:12px;padding:20px;text-align:center;margin-bottom:16px;cursor:pointer;transition:all 0.2s;" id="bulkDropZone" onclick="document.getElementById('bulkExcelFile').click()" ondragover="event.preventDefault();this.style.borderColor='var(--primary)'" ondragleave="this.style.borderColor='var(--border)'" ondrop="handleBulkDrop(event)">
+        <div style="font-size:32px;margin-bottom:8px;">📂</div>
+        <div style="font-size:14px;font-weight:700;">גרור קובץ לכאן או לחץ לבחירה</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">.xlsx, .xls, .csv</div>
+        <input type="file" id="bulkExcelFile" accept=".xlsx,.xls,.csv" style="display:none;" onchange="handleBulkImportFile(this)">
+      </div>
+
+      <div id="bulkImportPreview" style="display:none;">
+        <div style="font-size:13px;font-weight:700;margin-bottom:8px;" id="bulkImportSummary"></div>
+        <div id="bulkImportTable"></div>
+      </div>
+    </div>
+
+    <div class="modal-footer" style="flex-shrink:0;border-top:1px solid var(--border);padding-top:16px;margin-top:8px;">
+      <button class="btn btn-outline" onclick="closeModal('bulkImportModal')">ביטול</button>
+      <button class="btn btn-primary" id="bulkImportBtn" onclick="applyBulkImport()" style="display:none;">✅ ייבא עובדים</button>
+    </div>
+  </div>
+</div><div class="modal-overlay" id="firebaseModal">
+  <div class="modal" style="max-width:500px;">
+    <div class="modal-title">🔥 חיבור ל-Firebase</div>
+    <div id="firebaseStatusDiv" style="margin-bottom:16px;"></div>
+    <div class="form-group">
+      <label class="form-label">Project ID</label>
+      <input type="text" id="fbProjectId" class="form-input" dir="ltr" placeholder="vaction-system">
+    </div>
+    <div class="form-group">
+      <label class="form-label">API Key</label>
+      <input type="text" id="fbApiKey" class="form-input" dir="ltr" placeholder="AIzaSy...">
+    </div>
+    <div style="background:var(--surface2);border-radius:10px;padding:12px;font-size:12px;color:var(--text-secondary);margin-bottom:16px;">
+      <strong>פרויקט:</strong> vaction-system<br>
+      <strong>Region:</strong> us-central1<br>
+      כל הנתונים יסונכרנו ב-Firestore תחת collection: <code>vacationSystem</code>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" style="flex-shrink:0;" onclick="closeModal('firebaseModal')">סגור</button>
+      <button class="btn btn-outline" onclick="disconnectFirebase()" id="fbDisconnectBtn" style="display:none;flex-shrink:0;">🔌 התנתק</button>
+      <button class="btn btn-outline" onclick="resetFirebase()" id="fbResetBtn" style="display:none;flex-shrink:0;background:var(--danger-light);color:var(--danger);border-color:var(--danger);">🗑️ אפס Firebase</button>
+      <button class="btn btn-primary" onclick="connectFirebase()" style="flex-shrink:0;background:linear-gradient(135deg,#f59e0b,#d97706);color:white;border:none;box-shadow:0 4px 12px rgba(245,158,11,0.3);">🔥 התחבר ל-Firebase</button>
+    </div>
+  </div>
+</div><div class="modal-overlay" id="splashSelectorModal">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-title" style="flex-shrink:0;">🎨 בחירת Splash Screen</div>
+    <div style="overflow-y:auto;flex:1;margin-bottom:16px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="splash-option" data-splash="1" onclick="selectSplash(1)">
+          <div class="splash-preview splash-theme-1">🔥</div>
+          <div class="splash-label">להבת אש</div>
+        </div>
+
+        <div class="splash-option" data-splash="2" onclick="selectSplash(2)">
+          <div class="splash-preview splash-theme-2">⚡</div>
+          <div class="splash-label">סייבר-פאנק</div>
+        </div>
+
+        <div class="splash-option" data-splash="3" onclick="selectSplash(3)">
+          <div class="splash-preview splash-theme-3">☢️</div>
+          <div class="splash-label">מטריקס</div>
+        </div>
+
+        <div class="splash-option" data-splash="4" onclick="selectSplash(4)">
+          <div class="splash-preview splash-theme-4">🧊</div>
+          <div class="splash-label">קוטב</div>
+        </div>
+
+        <div class="splash-option" data-splash="5" onclick="selectSplash(5)">
+          <div class="splash-preview splash-theme-5">🩸</div>
+          <div class="splash-label">אדום דם</div>
+        </div>
+
+        <div class="splash-option" data-splash="6" onclick="selectSplash(6)">
+          <div class="splash-preview splash-theme-6">🏜️</div>
+          <div class="splash-label">מדבר לילה</div>
+        </div>
+
+        <div class="splash-option" data-splash="7" onclick="selectSplash(7)">
+          <div class="splash-preview splash-theme-7">🌸</div>
+          <div class="splash-label">מגנטה ניאון</div>
+        </div>
+
+        <div class="splash-option" data-splash="8" onclick="selectSplash(8)">
+          <div class="splash-preview splash-theme-8">🌊</div>
+          <div class="splash-label">ציאן קפוא</div>
+        </div>
+      </div>
+    </div>
+    <div class="form-group" style="flex-shrink:0;">
+      <label class="form-label">⏱️ זמן תצוגה (שניות)</label>
+      <input type="range" id="splashTimingInput" min="1" max="10" value="2" class="form-input" style="padding:8px;"
+        oninput="document.getElementById('splashTimingVal').textContent=this.value">
+      <div style="text-align:center;font-size:14px;font-weight:700;color:var(--primary);" id="splashTimingVal">2</div>
+    </div>
+    <div class="modal-footer" style="flex-shrink:0;">
+      <button class="btn btn-outline" onclick="closeModal('splashSelectorModal')">ביטול</button>
+      <button class="btn btn-primary" onclick="saveSplashSettings()">💾 שמור הגדרות</button>
+    </div>
+  </div>
+</div><div class="modal-overlay" id="resetPasswordModal">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-title">🔑 איפוס סיסמה לעובד</div>
+    <p style="font-size:14px;color:var(--text-secondary);margin-bottom:16px;">עובד: <strong id="resetEmpName"></strong></p>
+    <div class="form-group">
+      <label class="form-label">סיסמה חדשה</label>
+      <input type="text" id="resetNewPass" class="form-input" placeholder="הזן סיסמה חדשה לעובד" dir="ltr">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('resetPasswordModal')">ביטול</button>
+      <button class="btn btn-warning" onclick="doResetPassword()">🔑 אפס סיסמה</button>
+    </div>
+  </div>
+</div>
+
+<!-- empListEditRow -->
+<div id="empListEditRow" style="display:none;"></div>
+
+<!-- Scripts -->
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<script src="script.js"></script>
+<script src="admin-script.js"></script>
+<script>
+// Admin-specific login
+function doAdminLogin() {
+  const username = document.getElementById('adminUsername').value.trim().toLowerCase();
+  const password = document.getElementById('adminPassword').value;
+  if (!username || !password) { showAdminError('נא למלא שם משתמש וסיסמה'); return; }
+  const rl = _checkRL();
+  if (rl.blocked) { showAdminError('יותר מדי נסיונות. נסה בעוד ' + rl.secs + ' שניות.'); return; }
+  const db = getDB();
+  const user = db.users[username];
+  if (!user || (user.role !== 'admin' && user.role !== 'accountant')) {
+    _failRL();
+    showAdminError('גישה מורשית לאדמין בלבד');
+    return;
+  }
+  _sha256(password).then(hash => {
+    if (user.password !== hash && user.password !== hashPass(password)) {
+      _failRL();
+      showAdminError('סיסמה שגויה');
+      return;
+    }
+    if (user.password === hashPass(password)) {
+      user.password = hash; db.users[username] = user; saveDB(db);
+    }
+    _clearRL();
+    currentUser = user;
+    document.getElementById('adminLoginScreen').style.display = 'none';
+    document.getElementById('adminAppScreen').style.display = 'block';
+    document.getElementById('adminUserName').textContent = user.fullName;
+    const s = getSettings();
+    document.getElementById('adminCompanyName').textContent = s.companyName || '';
+    document.getElementById('firebaseBadge').style.display = '';
+    loadTheme();
+    applyBranding();
+    renderAdmin();
+    loadCompanySettings();
+    populateQuickPermUser();
+    setTimeout(renderAuditLog, 500);
+    _fbAuthLogin(username, password).catch(()=>{});
+    initFirebase();
+  });
+}
+function showAdminError(msg) {
+  const el = document.getElementById('adminLoginError');
+  el.textContent = msg; el.style.display = 'block';
+}
+function doAdminLogout() {
+  currentUser = null;
+  ensureFirebaseAuth().then(a => a.signOut()).catch(()=>{});
+  document.getElementById('adminAppScreen').style.display = 'none';
+  document.getElementById('adminLoginScreen').style.display = 'block';
+  document.getElementById('adminPassword').value = '';
+}
+// Auto-init Firebase on load
+window.addEventListener('load', () => initFirebase().catch(()=>{}));
+</script>
+</body>
+</html>
