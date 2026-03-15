@@ -1,733 +1,392 @@
 // ============================================================
-// DAZURA AI — KNOWLEDGE BASE v1.0
-// ai-knowledge.js — מילון כוונות, אישיות, וריאציות
-// נטען לפני ai.js
+// DAZURA AI — KNOWLEDGE BASE v2.0 — DAZY Edition
+// Smart • Warm • Context-aware • Bilingual (HE+EN)
 // ============================================================
 
 const DazuraKnowledge = (() => {
 
   // ============================================================
-  // INTENT PATTERNS — scoring מתקדם עם מילות מפתח + ביטויים
+  // SOCIAL vs BUSINESS DETECTION
   // ============================================================
-  const INTENTS = [
-
-    // ── זהות ──────────────────────────────────────────────────
-    {
-      name: 'who_am_i',
-      patterns: [
-        /מי אני/, /שמי/, /הפרופיל שלי/, /זהות/, /פרטים שלי/,
-        /מי המשתמש/, /מי אני פה/, /פרטי אישיים/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'who_is_moti',
-      patterns: [
-        /^מי אתה/, /^מה אתה$/, /תציג את עצמך/, /ספר לי על עצמך/,
-        /מה השם שלך/, /מה שמך/, /מי אתה\?/, /^מה אני יכול לשאול/,
-        /מה אתה יודע/, /תעזור לי$/, /מה אני יכול לשאול אותך/,
-        /^מה זה dazura/, /^מה זה moti/, /^מי moti/,
-      ],
-      score: 12,
-    },
-
-    // ── יתרות אישיות ──────────────────────────────────────────
-    {
-      name: 'my_balance',
-      patterns: [
-        /יתרה/, /יתרת/, /כמה (ימים|יום) (יש|נשאר|נותר|זמין)/,
-        /balance/, /כמה חופשה/, /מה היתרה/, /כמה נשאר לי/,
-        /כמה יש לי/, /מה נשאר לי/, /כמה נותר לי/,
-        /ימים שנשארו/, /ימים שיש לי/, /כמה ימי חופש/,
-        /כמה ימי חופשה/, /מה הצבירה שלי/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'my_used',
-      patterns: [
-        /ניצלתי/, /לקחתי/, /השתמשתי/, /ניצול/,
-        /ימים שניצלתי/, /כמה (השתמשתי|לקחתי)/,
-        /כמה ניצלתי/, /כמה לקחתי/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'my_quota',
-      patterns: [
-        /מכסה/, /כמה ימי חופש מגיע/, /זכאי ל/,
-        /מכסה שנתית/, /כמה מגיע לי/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'my_monthly',
-      patterns: [
-        /צבירה חודשית/, /כמה (ימים|יום) בחודש/,
-        /כמה אני צובר/, /צבירה לחודש/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'forecast',
-      patterns: [
-        /תחזית/, /חיזוי/, /מומלץ/, /תמליץ/, /המלצה/,
-        /קצב ניצול/, /כמה אוכל לקחת/, /מתי כדאי/,
-        /כמה נשאר לי השנה/, /מה מומלץ/, /איך לנצל/,
-        /תכנון חופשה/, /מתי לקחת חופש/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'eoy_projection',
-      patterns: [
-        /סוף שנה/, /בסוף השנה/, /עד דצמבר/,
-        /כמה יישאר/, /כמה נשאר.*השנה/, /כמה יהיה.*סוף/,
-        /תחזית.*סוף שנה/, /עד סוף השנה/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'faq_tech_sim_calc',
-      patterns: [
-        /תחשב.*אם אקח/, /כמה יישאר.*אם/, /סימולצי/,
-        /אם אקח.*ימים/, /אם אקח.*חופש/,
-      ],
-      score: 11,
-    },
-
-    // ── סטטוס בקשות ───────────────────────────────────────────
-    {
-      name: 'request_status',
-      patterns: [
-        /סטטוס/, /הבקשה (שלי|אחרונה)/, /אושרה/, /נדחה/,
-        /ממתין לאישור/, /מצב הבקשה/, /הבקשה ממתינה/,
-        /אושרתי/, /נדחיתי/, /בקשתי/, /מה עם הבקשה/,
-        /אישרו את/, /דחו את/,
-      ],
-      score: 10,
-    },
-
-    // ── נוכחות: מי איפה ────────────────────────────────────────
-    {
-      name: 'who_vacation',
-      patterns: [
-        /מי (ב|הוא|היא|נמצא|יצא|בחופשה|חופש|נופש|נהנה|נעלם|נח)/,
-        /מי חופשה/, /מי יצא (לחופש|לנפוש|לנוח|ליהנות|מוקדם)/,
-        /מי לא (מגיע|הגיע|כאן|נמצא|עובד|התייצב|נראה|פה)/,
-        /מי נעדר/, /מי חסר/, /מי לא פה/, /מי אין/,
-        /אין היום/, /נעדרים היום/, /מי נהנה/, /מי נופש/,
-        /מי בחופש/, /מי לקח חופש/, /מי יצא היום/,
-        /מי לא התייצב/, /מי בחו"ל/, /מי נסע/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'who_wfh',
-      patterns: [
-        /מי (עובד מהבית|ב.?wfh|מהבית|remote)/,
-        /wfh/, /מי מהבית/, /מי עובד מרחוק/,
-        /מי לא הגיע פיזית/, /מי דיסטנס/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'who_sick',
-      patterns: [
-        /מי חולה/, /מי (ב)?מחלה/, /מי מחלה/,
-        /מי לא בסדר/, /מי סובל/, /מי ביטל.*היום/,
-        /מי בית חולים/, /מי אצל רופא/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'who_office',
-      patterns: [
-        /מי במשרד/, /מי (בחברה|בעבודה|בפנים|נוכח)/,
-        /נוכחות/, /מי (פיזי|מגיע|כאן|פה|התייצב)/,
-        /כמה (במשרד|בחברה|נוכחים)/, /מי הגיע היום/,
-        /מי נמצא במשרד/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'team_status',
-      patterns: [
-        /מצב (הצוות|הארגון|החברה|כולם|הכל)/,
-        /הצוות (היום|מחר|השבוע)/, /עמיתי/, /חברי הצוות/,
-        /מה קורה.*היום/, /מה המצב.*היום/, /מה נשמע.*עבודה/,
-        /מצב כללי/, /דשבורד/, /סקירה כללית/,
-        /מה יש היום/, /מה קורה פה/, /מה קורה בחברה/,
-        /תן לי סקירה/, /עדכן אותי/,
-      ],
-      score: 10,
-    },
-
-    // ── מנהל/אדמין ────────────────────────────────────────────
-    {
-      name: 'emp_balance',
-      patterns: [
-        /(יתרה|יתרת|ימים|חופשה) (של|ל)[^\s]/,
-        /הצג יתרה של/, /כמה ימים יש ל/,
-        /יתרה של [א-ת]/, /כמה ל[א-ת]/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'emp_vacation',
-      patterns: [
-        /(חופשות|ניצול|היסטוריה) (של|ל)[^\s]/,
-        /מה לקח /, /כמה לקח /,
-      ],
-      score: 10,
-    },
-    {
-      name: 'burnout_risk',
-      patterns: [
-        /שחיקה/, /90 יום/, /ללא חופש/, /לא לקח חופש/,
-        /burnout/, /מי לא לקח/, /מי לא נח/,
-        /מי לא יצא לחופש/, /עובדים בסיכון/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'cost_analysis',
-      patterns: [
-        /עלות/, /חבות/, /כסף/, /תקציב/,
-        /עלויות חופשות/, /כמה עולה/, /ערך חופשות/,
-        /עלות צבורה/, /חבות פיננסית/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'pending_48',
-      patterns: [
-        /48/, /ממתינות לאישור/, /בקשות שלא אושרו/,
-        /מעל 48/, /בקשות תקועות/, /ממתין זמן רב/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'dept_overload',
-      patterns: [
-        /מחלקה עמוסה/, /עומס מחלקה/,
-        /מחלקה עם (הכי|הרבה)/, /עומס לפי מחלקה/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'headcount',
-      patterns: [
-        /כמה עובדים/, /מצבת/, /כמה אנשים בחברה/,
-        /סה.?כ עובדים/, /מספר עובדים/, /כמה אנשים/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'departments',
-      patterns: [
-        /כמה מחלקות/, /אילו מחלקות/, /מה המחלקות/,
-        /רשימת מחלקות/, /מה יש פה.*מחלקה/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'welfare_score',
-      patterns: [
-        /ציון רווחה/, /welfare/, /ציוני עובדים/,
-        /מצב רוח עובדים/, /רווחת עובדים/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'shortage',
-      patterns: [
-        /מחסור/, /חיזוי עומס/, /8 שבועות/,
-        /חוסר עובדים/, /תחזית כוח אדם/,
-        /עומסים קרובים/, /מי יהיה חסר/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'audit_log',
-      patterns: [
-        /לוג/, /audit/, /יומן/, /מי שינה/,
-        /היסטוריית פעולות/, /מי עשה מה/, /לוג שינויים/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'handovers',
-      patterns: [
-        /פרוטוקול/, /העברת מקל/, /handover/,
-        /מי העביר פרוטוקול/, /פרוטוקולים ממתינים/,
-      ],
-      score: 10,
-    },
-
-    // ── כללי ──────────────────────────────────────────────────
-    {
-      name: 'holidays',
-      patterns: [
-        /חג/, /חגים/, /פסח/, /ראש השנה/, /סוכות/,
-        /חנוכה/, /פורים/, /עצמאות/, /כיפור/, /שבועות/,
-        /ימי חג/, /מה החגים/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'my_dept',
-      patterns: [
-        /מחלקה שלי/, /באיזה מחלקה/, /הצוות שלי/, /אני ב/,
-        /שייך למחלקה/, /מחלקה שאני/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'my_history',
-      patterns: [
-        /(חופשה|ניצלתי|לקחתי|הייתי) ב(ינואר|פברואר|מרץ|אפריל|מאי|יוני|יולי|אוגוסט|ספטמבר|אוקטובר|נובמבר|דצמבר|\d{1,2}\/\d{1,2})/,
-        /חופשות שלי/, /ההיסטוריה שלי/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'team_info',
-      patterns: [
-        /חברי הצוות/, /מי מ(ה?)צוות/, /עמיתים/,
-        /מי עובד איתי/, /מי בצוות שלי/,
-      ],
-      score: 10,
-    },
-
-    // ── ברכות + עזרה ──────────────────────────────────────────
-    {
-      name: 'greeting',
-      patterns: [
-        /^(שלום|היי|הי|הלו|בוקר|ערב|צהריים|לילה)/,
-        /מה נשמע/, /מה מצבך/, /מה קורה/, /מה המצב/,
-        /מה שלומך/, /יש חיים/, /ניתן לשאול/,
-        /יש מישהו/, /מה יש פה/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'help',
-      patterns: [
-        /עזרה/, /help/, /מה אתה יכול/, /מה ניתן לשאול/,
-        /מה אפשר/, /מה אני יכול לשאול/, /מה ניתן/,
-        /מה אתה יודע/, /רשימת יכולות/, /מה אפשר לשאול/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'off_topic',
-      patterns: [
-        /מזג אוויר/, /בישול/, /מתכון/, /חדשות/,
-        /ספורט/, /פוליטיקה/, /crypto/, /ביטקוין/,
-        /מניות/, /כדורגל/, /בחירות/,
-      ],
-      score: 10,
-    },
-
-    // ── סוציאלי ───────────────────────────────────────────────
-    {
-      name: 'thanks',
-      patterns: [
-        /תודה/, /תודות/, /יישר כח/, /כל הכבוד/,
-        /מצוין/, /מעולה/, /אחלה/, /ברור/, /נהדר/,
-        /תענוג/, /תפלא/, /מושלם/, /סבבה/, /וואו/,
-        /מדהים/, /מרשים/, /עשית עבודה/, /כיף/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'apology',
-      patterns: [
-        /סליחה/, /סורי/, /מצטער/, /לא הבנתי/,
-        /לא הצלחתי/, /לא מצאתי/, /לא ברור/,
-        /לא מבין/, /בלבול/, /מבולבל/, /מה אמרת/,
-        /לא קיבלתי/, /לא הגעתי/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'confused',
-      patterns: [
-        /לא מה שרציתי/, /לא זה/, /זה לא נכון/,
-        /טעית/, /תשובה שגויה/, /לא מדויק/,
-        /לא מסכים/, /שגיאה/, /תיקון/,
-      ],
-      score: 10,
-    },
-
-    // ── תחזית לחודש ───────────────────────────────────────────
-    {
-      name: 'forecast_month',
-      patterns: [
-        /(תחזה|תחזית|עומס).{0,15}(ינואר|פברואר|מרץ|אפריל|מאי|יוני|יולי|אוגוסט|ספטמבר|אוקטובר|נובמבר|דצמבר|השבוע הבא|שבוע הבא|סוף חודש)/,
-      ],
-      score: 11,
-    },
-    {
-      name: 'moti_all_same_week',
-      patterns: [
-        /כולם.*חופשה.*אותו שבוע/,
-        /מה אם כולם יבקשו/,
-        /כולם.*אותו שבוע/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'permissions',
-      patterns: [
-        /הרשאות/, /מי יכול/, /הרשאת גישה/,
-        /מי מורשה/, /גישה ל/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'heatmap',
-      patterns: [
-        /מפת חום/, /heatmap/, /פיזור חופשות/,
-        /מתי עמוס/, /עומסי חופשה/,
-      ],
-      score: 10,
-    },
-    {
-      name: 'faq_company_name',
-      patterns: [ /שם החברה/, /איזו חברה/, /לאיזה חברה/, /שם מקום עבודה/ ],
-      score: 10,
-    },
-    {
-      name: 'faq_version',
-      patterns: [ /גרסה/, /מעודכן/, /version/, /עדכון אחרון/, /תאריך עדכון/ ],
-      score: 10,
-    },
-    {
-      name: 'faq_send_message',
-      patterns: [ /שולחים הודעה/, /שלח הודעה/, /איך לשלוח הודעה/, /שליחת הודעה/ ],
-      score: 10,
-    },
-    {
-      name: 'faq_time_who',
-      patterns: [ /למי מדווח.* שעות/, /מי (עוקב|רואה|בודק) .* השעות/, /מי עוקב/ ],
-      score: 10,
-    },
-    {
-      name: 'faq_time_fix',
-      patterns: [ /טעיתי.{0,20}שעות/, /שעות.{0,20}(שגויות|לא נכונות|טעות)/, /תקן.{0,10}שעות/, /לתקן.{0,10}שעות/ ],
-      score: 10,
-    },
-    {
-      name: 'faq_how_vacation',
-      patterns: [ /איך (בוחרים|לבחור) חופשה/, /איך (מגישים|להגיש) בקשת?/, /איך לקחת חופש/ ],
-      score: 10,
-    },
-    {
-      name: 'faq_half_day',
-      patterns: [ /חצי יום/, /יום מלא או חצי/ ],
-      score: 10,
-    },
-    {
-      name: 'faq_holiday_pay',
-      patterns: [ /חג.{0,20}(תשלום|נחשב|יום חופש)/, /תשלום.{0,15}חג/, /יום חג/ ],
-      score: 10,
-    },
-    {
-      name: 'faq_fix_request',
-      patterns: [ /שלחתי.{0,20}(טעיתי|טעות)/, /לתקן.{0,15}בקשה/, /לבטל.{0,15}בקשה/ ],
-      score: 10,
-    },
-    {
-      name: 'faq_change_password',
-      patterns: [ /משנים? סיסמה/, /לשנות סיסמה/, /איך (לאפס|לשנות) סיסמה/, /סיסמה חדשה/ ],
-      score: 10,
-    },
-    {
-      name: 'faq_how_add_employee',
-      patterns: [ /איך מוסיפים עובד/, /הוספת עובד/, /רישום עובד חדש/, /עובד חדש/ ],
-      score: 10,
-    },
-    {
-      name: 'faq_how_approve',
-      patterns: [ /איך מאשרים בקשה/, /אישור בקשת חופשה/, /לאשר חופשה/ ],
-      score: 10,
-    },
-    {
-      name: 'faq_how_reject',
-      patterns: [ /איך דוחים בקשה/, /דחיית בקשה/, /לדחות חופשה/ ],
-      score: 10,
-    },
-    {
-      name: 'faq_tab_dashboard',
-      patterns: [ /לשונית סקירה/, /כרטיסיית סקירה/, /מה רואים בסקירה/, /מה יש בסקירה/ ],
-      score: 10,
-    },
-    {
-      name: 'faq_tab_calendar',
-      patterns: [ /לשונית לוח/, /כרטיסיית לוח/, /מה יש בלוח חופשות/ ],
-      score: 10,
-    },
-    {
-      name: 'faq_tab_manager',
-      patterns: [ /לשונית מנהל/, /כרטיסיית מנהל/, /מה יש בלוח מנהל/, /לוח מנהל/ ],
-      score: 10,
-    },
-    {
-      name: 'faq_tab_admin',
-      patterns: [ /לשונית ניהול/, /כרטיסיית ניהול/, /מה יש בניהול/, /לשונית אדמין/ ],
-      score: 10,
-    },
-    {
-      name: 'faq_tech_security',
-      patterns: [ /הנתונים.*מאובטח/, /אבטחה/, /מאובטח/, /פרטיות.*נתונים/, /הצפנה/ ],
-      score: 10,
-    },
-    {
-      name: 'faq_tech_cloud',
-      patterns: [ /נשמר.*ענן/, /ענן.*נתונים/, /firebase.*נתונים/, /היכן.*נשמר/, /האם.*נשמר/ ],
-      score: 10,
-    },
-    {
-      name: 'faq_tech_backup',
-      patterns: [ /איך.*גיבוי/, /לגבות.*מערכת/, /גיבוי.*json/, /גיבוי אוטומטי/ ],
-      score: 10,
-    },
-    {
-      name: 'faq_tech_dark',
-      patterns: [ /dark mode/, /מצב לילה/, /ממשק כהה/, /תצוגה כהה/ ],
-      score: 10,
-    },
-    {
-      name: 'faq_tech_pwa',
-      patterns: [ /גרסה.*מובייל/, /pwa/, /אפליקציה.*טלפון/, /להתקין.*טלפון/ ],
-      score: 10,
-    },
-    {
-      name: 'faq_tech_excel_import',
-      patterns: [ /לטעון.*עובדים.*אקסל/, /ייבוא.*עובדים/, /excel.*עובדים/, /עמודות.*ייבוא/ ],
-      score: 10,
-    },
-
-    // ── MOTI אישיות ───────────────────────────────────────────
-    {
-      name: 'moti_laugh',
-      patterns: [ /לצחוק/, /תגרום.*לצחוק/, /משהו מצחיק/, /תשמח אותי/, /בדיחה/, /joke/ ],
-      score: 10,
-    },
-    {
-      name: 'moti_energize',
-      patterns: [ /שיגרום לי להרגיש/, /היום שלי שווה/, /מחמאה/, /תחזק אותי/, /תעודד אותי/ ],
-      score: 10,
-    },
-    {
-      name: 'moti_morning',
-      patterns: [ /משהו מתוק.*בוקר/, /בוקר.*מתוק/, /תגיד.*בוקר/, /בוקר טוב/ ],
-      score: 10,
-    },
-    {
-      name: 'moti_dashboard',
-      patterns: [ /דשבורד.*וירטואלי/, /מצב כללי.*היום/, /תן לי עדכון/ ],
-      score: 10,
-    },
+  const SOCIAL_PATTERNS = [
+    /^(היי|הי|הלו|שלום|yo|hey|hi|hello)\s*[!?.]?\s*$/,
+    /^(מה נשמע|מה קורה|מה המצב|מה שלומך|how are you|what'?s up|wassup)\s*[?]?\s*$/,
+    /^(הכל בסדר|הכל טוב|בסדר גמור|ok|okay|fine|good|great)\s*[?!.]?\s*$/,
+    /^(אני בסדר|אני טוב|אני ממש טוב|I'?m fine|I'?m good|I'?m ok|I'?m great)\s*[!.]?\s*$/,
+    /^(ביי|להתראות|bye|goodbye|cya|תתראה)\s*[!.]?\s*$/,
+    /^(בוקר טוב|ערב טוב|לילה טוב|צהריים טובים|שבת שלום|חג שמח)\s*[!.]?\s*$/,
+    /^(good morning|good evening|good night|good afternoon)\s*[!.]?\s*$/,
+    /^(כן|לא|אולי|yes|no|maybe|sure)\s*[!?.]?\s*$/,
   ];
 
-  // ============================================================
-  // SCORING ENGINE — מחזיר את ה-intent הכי מתאים עם score
-  // ============================================================
-  function detectIntent(text) {
-    const t = text.toLowerCase().trim();
-    let best = null, bestScore = 0, secondBest = null, secondScore = 0;
-
-    for (const intent of INTENTS) {
-      let score = 0;
-      for (const pattern of intent.patterns) {
-        if (pattern.test(t)) {
-          score = intent.score;
-          break;
-        }
-      }
-      // bonus: מילות מפתח מרובות
-      if (score > 0) {
-        const matchCount = intent.patterns.filter(p => p.test(t)).length;
-        score += Math.min(matchCount - 1, 3); // עד +3 בונוס
-      }
-      if (score > bestScore) {
-        secondBest = best; secondScore = bestScore;
-        best = intent.name; bestScore = score;
-      } else if (score > secondScore) {
-        secondBest = intent.name; secondScore = score;
-      }
-    }
-
-    return {
-      intent: best || 'unknown',
-      score: bestScore,
-      secondary: secondScore > 6 ? secondBest : null, // multi-intent אם קרוב
-    };
+  function isSocial(text) {
+    const t = text.trim();
+    return SOCIAL_PATTERNS.some(function(p) { return p.test(t); });
   }
 
   // ============================================================
-  // CONTEXT SLOTS — memory slots לניהול הקשר
+  // LANGUAGE DETECTION
   // ============================================================
-  const EMPTY_CONTEXT = () => ({
-    intent: null,
-    dateInfo: null,
-    resultList: [],
-    subject: null,       // username של עובד אחרון
-    subjectName: null,   // שם מלא של עובד אחרון
-    dept: null,          // מחלקה אחרונה
-    data: null,
-    lastQuestion: null,  // טקסט השאלה האחרונה
-    turnCount: 0,        // כמה סבבים עברו
-  });
+  function detectLanguage(text) {
+    const heChars = (text.match(/[\u0590-\u05FF]/g) || []).length;
+    const total = text.replace(/\s/g, '').length;
+    return heChars / Math.max(total, 1) > 0.25 ? 'he' : 'en';
+  }
 
   // ============================================================
-  // FOLLOW-UP PATTERNS — זיהוי המשך שיחה
+  // TIME CONTEXT
   // ============================================================
-  const FOLLOW_UP_PATTERNS = [
-    { type: 'more_results',   patterns: [ /^(מי עוד|מי נוסף|עוד מישהו|מישהו נוסף|יש עוד|ועוד\??)\??$/ ] },
-    { type: 'about_subject',  patterns: [ /^(ומה איתו|ומה איתה|ומה עם|מה הסטטוס שלו|כמה ימים יש לו|כמה יש לה)\??/ ] },
-    { type: 'same_context',   patterns: [ /בהקשר|בנוגע לזה|על זה|אותו דבר|אותה שאלה/ ] },
-    { type: 'more_dept',      patterns: [ /^(מי מהצוות|מי מהמחלקה|מי עוד מ)/ ] },
-    { type: 'his_balance',    patterns: [ /כמה (ימים|יתרה) (יש לו|יש לה|יש לו\/ה)/ ] },
-    { type: 'tomorrow_same',  patterns: [ /^(מחר|ומחר|ומה מחר)\??$/ ] },
-    { type: 'next_week_same', patterns: [ /^(שבוע הבא|ומה בשבוע הבא)\??$/ ] },
-    { type: 'ref_he',         patterns: [ /^(הוא|היא|אותו|אותה)\??/ ] },
+  function getTimeContext(inputText) {
+    if (inputText) {
+      const t = inputText.toLowerCase().trim();
+      if (/שבת שלום|שבת/.test(t))        return { label:'שבת',  emoji:'✨', greeting:'שבת שלום',           greetEn:'Shabbat Shalom' };
+      if (/חג שמח|מועדים לשמחה/.test(t)) return { label:'חג',   emoji:'🎉', greeting:'חג שמח',             greetEn:'Happy Holiday' };
+    }
+    const h = new Date().getHours();
+    if (h <  6) return { label:'לילה',   emoji:'🌙', greeting:'לילה טוב',           greetEn:'Good night' };
+    if (h < 12) return { label:'בוקר',   emoji:'☀️', greeting:'בוקר טוב',           greetEn:'Good morning' };
+    if (h < 15) return { label:'צהריים', emoji:'🌞', greeting:'צהריים טובים',       greetEn:'Good afternoon' };
+    if (h < 18) return { label:'אחהצ',   emoji:'☕', greeting:'אחר הצהריים טובים',  greetEn:'Good afternoon' };
+    if (h < 21) return { label:'ערב',    emoji:'🌅', greeting:'ערב טוב',            greetEn:'Good evening' };
+    return             { label:'לילה',   emoji:'🌙', greeting:'לילה טוב',           greetEn:'Good night' };
+  }
+
+  // ============================================================
+  // EMOTION DETECTION
+  // ============================================================
+  function detectEmotion(text) {
+    const t = text.toLowerCase();
+    if (/תודה|מצוין|מעולה|מדהים|כיף|שמח|thanks|great|awesome|perfect/.test(t)) return 'grateful';
+    if (/מתוסכל|עצבני|מעצבן|לא עובד|נמאס|frustrated|annoyed|angry/.test(t))    return 'frustrated';
+    if (/לא הבנתי|מבולבל|לא ברור|confused|unclear/.test(t))                     return 'confused';
+    if (/דחוף|מיד|חשוב|urgent|asap/.test(t))                                    return 'urgent';
+    if (/עייף|קשה|לא בסדר|tired|hard|difficult/.test(t))                        return 'tired';
+    return 'neutral';
+  }
+
+  // ============================================================
+  // INTENT PATTERNS
+  // ============================================================
+  const INTENTS = [
+    { name:'who_am_i',       score:10, patterns:[/מי אני|שמי|הפרופיל שלי|who am i|my profile/] },
+    { name:'who_is_dazy',    score:12, patterns:[/^מי אתה|^מה אתה|תציג את עצמך|ספר על עצמך|who are you|what are you|what can you do/] },
+    { name:'my_balance',     score:10, patterns:[/יתרה|יתרת|כמה ימים (יש|נשאר|נותר)|כמה חופשה|מה היתרה|כמה נשאר לי|balance|days left|how many days/] },
+    { name:'my_used',        score:10, patterns:[/ניצלתי|לקחתי|השתמשתי|ניצול|used|took|days used/] },
+    { name:'my_quota',       score:10, patterns:[/מכסה|כמה מגיע לי|זכאי ל|quota|entitlement/] },
+    { name:'forecast',       score:10, patterns:[/תחזית|חיזוי|המלצה|קצב ניצול|כמה אוכל לקחת|forecast|recommendation/] },
+    { name:'eoy_projection', score:10, patterns:[/סוף שנה|עד דצמבר|כמה יישאר|כמה נשאר.*השנה|end of year/] },
+    { name:'faq_tech_sim_calc', score:11, patterns:[/תחשב.*אם אקח|כמה יישאר.*אם|סימולצי|if i take|calculate if/] },
+    { name:'who_vacation',   score:10, patterns:[/מי (ב|יצא|נמצא|בחופשה|חופש|נופש|נהנה|נעלם|נח)|מי (לא מגיע|לא הגיע|לא כאן|לא פה)|מי נעדר|מי חסר|נעדרים היום|who is (on vacation|off|away)|who'?s out/] },
+    { name:'who_wfh',        score:10, patterns:[/מי (עובד מהבית|מהבית|remote)|wfh|work from home/] },
+    { name:'who_sick',       score:10, patterns:[/מי חולה|מי (ב)?מחלה|who'?s sick|sick day/] },
+    { name:'who_office',     score:10, patterns:[/מי במשרד|מי בחברה|מי (כאן|פה|נמצא)|נוכחות|who'?s in|at the office/] },
+    { name:'team_status',    score:10, patterns:[/מצב (הצוות|החברה|כולם)|הצוות (היום|מחר|השבוע)|מה קורה.*היום|מה המצב.*היום|מצב כללי|סקירה כללית|team status|what'?s going on|daily status/] },
+    { name:'request_status', score:10, patterns:[/סטטוס|הבקשה שלי|אושרה|נדחה|ממתין לאישור|מצב הבקשה|request status|approved|rejected|pending/] },
+    { name:'emp_balance',    score:10, patterns:[/(יתרה|ימים|חופשה) (של|ל)[^\s]|הצג יתרה של|balance of|days for/] },
+    { name:'burnout_risk',   score:10, patterns:[/שחיקה|90 יום|ללא חופש|לא לקח חופש|burnout|no vacation/] },
+    { name:'cost_analysis',  score:10, patterns:[/עלות|חבות|כסף|תקציב|cost|budget|liability/] },
+    { name:'pending_48',     score:10, patterns:[/48|ממתינות לאישור|בקשות שלא אושרו|pending requests/] },
+    { name:'welfare_score',  score:10, patterns:[/ציון רווחה|welfare|רווחת עובדים/] },
+    { name:'shortage',       score:10, patterns:[/מחסור|חיזוי עומס|חוסר עובדים|shortage|staffing/] },
+    { name:'headcount',      score:10, patterns:[/כמה עובדים|מצבת|כמה אנשים|headcount|staff count/] },
+    { name:'handovers',      score:10, patterns:[/פרוטוקול|העברת מקל|handover/] },
+    { name:'audit_log',      score:10, patterns:[/לוג|audit|יומן|מי שינה|audit log/] },
+    { name:'holidays',       score:10, patterns:[/חג|חגים|פסח|ראש השנה|holiday/] },
+    { name:'my_dept',        score:10, patterns:[/מחלקה שלי|באיזה מחלקה|my department|my team/] },
+    { name:'my_history',     score:10, patterns:[/(חופשה|לקחתי|הייתי) ב(ינואר|פברואר|מרץ|אפריל|מאי|יוני|יולי|אוגוסט|ספטמבר|אוקטובר|נובמבר|דצמבר|\d{1,2}\/\d{1,2})|vacation history/] },
+    { name:'team_info',      score:10, patterns:[/חברי הצוות|מי בצוות|team members/] },
+    { name:'departments',    score:10, patterns:[/כמה מחלקות|אילו מחלקות|רשימת מחלקות|departments/] },
+    { name:'greeting',       score:10, patterns:[/^(שלום|היי|הי|הלו|בוקר|ערב|לילה|צהריים|שבת)|^(hi|hello|hey|good morning|good evening|good night)|מה נשמע|מה קורה|מה שלומך|how are you/] },
+    { name:'help',           score:10, patterns:[/עזרה|מה אתה יכול|מה אפשר|help|what can you do|capabilities/] },
+    { name:'off_topic',      score:10, patterns:[/מזג אוויר|בישול|מתכון|חדשות|ספורט|פוליטיקה|weather|cooking|news|sports|politics|bitcoin|crypto/] },
+    { name:'thanks',         score:10, patterns:[/תודה|יישר כח|כל הכבוד|מצוין|מעולה|מדהים|thanks|thank you|great|awesome/] },
+    { name:'apology',        score:10, patterns:[/סליחה|סורי|מצטער|לא הבנתי|sorry|my bad/] },
+    { name:'confused',       score:10, patterns:[/לא מה שרציתי|לא זה|טעית|לא נכון|wrong answer|that'?s not/] },
+    { name:'dazy_creator',   score:12, patterns:[/מי יצר אותך|מי בנה אותך|מי עשה אותך|who made you|who created you|who built you/] },
+    { name:'dazy_laugh',     score:10, patterns:[/תגרום לי לצחוק|משהו מצחיק|בדיחה|make me laugh|joke|funny/] },
+    { name:'dazy_feel',      score:10, patterns:[/איך אתה מרגיש|מה מצב רוחך|how do you feel|your mood/] },
+    { name:'dazy_compliment',score:10, patterns:[/תגיד לי משהו נחמד|תעודד אותי|מחמאה|compliment|encourage me/] },
+    { name:'dazy_vs_human',  score:10, patterns:[/יותר חכם מ|לעומת|compared to|better than/] },
+    { name:'faq_how_vacation',   score:10, patterns:[/איך (מגישים|לבקש|לקחת) חופשה|how to request vacation|how to take time off/] },
+    { name:'faq_change_password',score:10, patterns:[/לשנות סיסמה|change password|reset password/] },
+    { name:'faq_how_add_employee',score:10,patterns:[/איך מוסיפים עובד|add employee|new employee/] },
+    { name:'faq_how_approve',    score:10, patterns:[/איך מאשרים|how to approve/] },
+    { name:'faq_time_fix',       score:10, patterns:[/לתקן שעות|fix hours|correct hours/] },
+    { name:'faq_tech_security',  score:10, patterns:[/אבטחה|מאובטח|security|secure|encrypted/] },
+    { name:'faq_tech_cloud',     score:10, patterns:[/נשמר.*ענן|firebase.*נתונים|where.*saved|cloud storage/] },
+    { name:'faq_tech_backup',    score:10, patterns:[/גיבוי|backup|back up/] },
+    { name:'faq_version',        score:10, patterns:[/גרסה|version|עדכון אחרון|last update/] },
+    { name:'forecast_month',     score:11, patterns:[/(תחזית|עומס).{0,15}(ינואר|פברואר|מרץ|אפריל|מאי|יוני|יולי|אוגוסט|ספטמבר|אוקטובר|נובמבר|דצמבר|שבוע הבא)/] },
+    { name:'moti_all_same_week', score:10, patterns:[/כולם.*חופשה.*אותו שבוע|מה אם כולם יבקשו/] },
+    { name:'permissions',        score:10, patterns:[/הרשאות|מי יכול|מי מורשה|permissions/] },
+    { name:'heatmap',            score:10, patterns:[/מפת חום|heatmap|פיזור חופשות/] },
+    { name:'dept_overload',      score:10, patterns:[/מחלקה עמוסה|עומס מחלקה|overloaded department/] },
+  ];
+
+  function detectIntent(text) {
+    var t = text.toLowerCase().trim();
+    var best = null, bestScore = 0, secondary = null, secondScore = 0;
+    for (var i = 0; i < INTENTS.length; i++) {
+      var intent = INTENTS[i];
+      var matchCount = 0;
+      for (var j = 0; j < intent.patterns.length; j++) {
+        if (intent.patterns[j].test(t)) matchCount++;
+      }
+      if (matchCount > 0) {
+        var score = intent.score + Math.min(matchCount - 1, 3);
+        if (score > bestScore) {
+          secondary = best; secondScore = bestScore;
+          best = intent.name; bestScore = score;
+        } else if (score > secondScore) {
+          secondary = intent.name; secondScore = score;
+        }
+      }
+    }
+    return { intent: best || 'unknown', score: bestScore, secondary: secondScore > 6 ? secondary : null };
+  }
+
+  // ============================================================
+  // FOLLOW-UP DETECTION — 10 סוגים
+  // ============================================================
+  var FOLLOW_UP = [
+    { type:'more_results',   test: function(t) { return /^(מי עוד|עוד מישהו|יש עוד|more|anyone else|who else)\??$/.test(t); } },
+    { type:'about_subject',  test: function(t) { return /^(ומה איתו|ומה איתה|ומה עמו|what about him|what about her|and him|and her)\??/.test(t); } },
+    { type:'his_balance',    test: function(t) { return /כמה (ימים|יתרה) (יש לו|יש לה|does he have|does she have)/.test(t); } },
+    { type:'tomorrow_same',  test: function(t) { return /^(מחר|ומחר|what about tomorrow|tomorrow)\??$/.test(t); } },
+    { type:'next_week_same', test: function(t) { return /^(שבוע הבא|ומה בשבוע הבא|next week)\??$/.test(t); } },
+    { type:'same_context',   test: function(t) { return /בהקשר|בנוגע לזה|same thing|same question/.test(t); } },
+    { type:'more_dept',      test: function(t) { return /^(מי מהצוות|מי מהמחלקה|who else in|others in the team)/.test(t); } },
+    { type:'ref_subject',    test: function(t) { return /^(הוא|היא|אותו|he|she|him|her)\??/.test(t); } },
+    { type:'when_back',      test: function(t) { return /מתי (חוזר|חוזרת|יחזור|תחזור)|when (is|does|will).{0,10}(back|return)/.test(t); } },
+    { type:'details',        test: function(t) { return /פרטים|ספר עוד|תרחיב|tell me more|more details|elaborate/.test(t); } },
   ];
 
   function detectFollowUp(text) {
-    const t = text.trim();
-    for (const fu of FOLLOW_UP_PATTERNS) {
-      if (fu.patterns.some(p => p.test(t))) return fu.type;
+    var t = text.trim().toLowerCase();
+    for (var i = 0; i < FOLLOW_UP.length; i++) {
+      if (FOLLOW_UP[i].test(t)) return FOLLOW_UP[i].type;
     }
     return null;
   }
 
   // ============================================================
-  // EMOTION DETECTION — זיהוי רגש בסיסי
-  // ============================================================
-  function detectEmotion(text) {
-    const t = text.toLowerCase();
-    if (/תודה|מצוין|מעולה|אחלה|מדהים|כיף|שמח|מושלם/.test(t)) return 'grateful';
-    if (/מתוסכל|עצבני|מעצבן|זה לא עובד|שוב|שוב ושוב|נמאס/.test(t)) return 'frustrated';
-    if (/לא הבנתי|מבולבל|בלבול|לא ברור|מה פתאום/.test(t)) return 'confused';
-    if (/^(היי|שלום|הי)\s*$/.test(t)) return 'casual';
-    if (/דחוף|מיד|עכשיו|חשוב|חירום/.test(t)) return 'urgent';
-    return 'neutral';
-  }
-
-  // ============================================================
-  // PERSONALITY — וריאציות תגובה לפי שעה/מצב
-  // ============================================================
-
-  function getTimeContext(inputText) {
-    // שבת וחג — זיהוי מהטקסט בלבד
-    if (inputText) {
-      const t = inputText.toLowerCase().trim();
-      if (/שבת שלום|שבת/.test(t))        return { label: 'שבת', emoji: '✨', greeting: 'שבת שלום' };
-      if (/חג שמח|מועדים לשמחה/.test(t)) return { label: 'חג',  emoji: '🎉', greeting: 'חג שמח' };
-    }
-    // לפי שעה בלבד — הברכה תמיד תואמת את השעה האמיתית
-    const h = new Date().getHours();
-    if (h < 6)  return { label: 'לילה',   emoji: '🌙',  greeting: 'לילה טוב' };
-    if (h < 12) return { label: 'בוקר',   emoji: '☀️',  greeting: 'בוקר טוב' };
-    if (h < 15) return { label: 'צהריים', emoji: '🌞',  greeting: 'צהריים טובים' };
-    if (h < 18) return { label: 'אחרהצ', emoji: '☕',  greeting: 'אחר הצהריים טובים' };
-    if (h < 21) return { label: 'ערב',    emoji: '🌅',  greeting: 'ערב טוב' };
-    return { label: 'לילה', emoji: '🌙', greeting: 'לילה טוב' };
-  }
-
-  // וריאציות תשובות לתודה (20 גרסאות)
-  const THANKS_RESPONSES = [
-    (n) => `בשמחה, **${n}**! 😊 אם יש עוד שאלה — אני כאן.`,
-    (n) => `תמיד בשבילך, **${n}**! רק תשאל/י.`,
-    (n) => `על לא דבר! שמח לעזור. 🙂`,
-    (n) => `חיוך דיגיטלי גדול אליך, **${n}** 🤍`,
-    (n) => `אנחנו צוות! ${getTimeContext().emoji}`,
-    (n) => `זה מה שאני פה בשבילו, **${n}**. עוד משהו?`,
-    (n) => `כיף לעזור! השאר/י שאלות כשצריך.`,
-    (n) => `**${n}**, בשמחה תמיד. אני זמין 24/7 (כמעט 😄)`,
-    (n) => `הנאה שלי! ${getTimeContext().emoji} יום נעים.`,
-    (n) => `מה שרצית, **${n}**! 😊`,
-    (n) => `ממש שמח שזה עזר!`,
-    (n) => `תמיד! וכשיש עוד שאלות — אני כאן.`,
-    (n) => `בכיף! **${n}**, אם יש עוד — רק תגיד/י.`,
-    (n) => `על לא דבר, **${n}**. 🌟`,
-    (n) => `ברצון! עוד שאלות? אני כאן.`,
-    (n) => `כיף לעבוד איתך, **${n}**! 😊`,
-    (n) => `הנאה שלי לעזור. ${getTimeContext().emoji}`,
-    (n) => `שמח! אגב — אם רוצה ידוע מה עוד אני יכול, כתוב **"מה אתה יכול?"**`,
-    (n) => `**${n}**, כל שאלה — גדולה וקטנה — מתקבלת בשמחה!`,
-    (n) => `תודה ש**שאלת**! זה מה שעושה את ההבדל 🤍`,
-  ];
-
-  // וריאציות ל"לא הבנתי" (15 גרסאות)
-  const CONFUSED_RESPONSES = [
-    (n, hint) => `**${n}**, אולי התכוונת ל: ${hint}? 🤔`,
-    (n) => `לא לגמרי הבנתי — אבל אנסה לנחש: רוצה לדעת מי בחופשה?`,
-    (n) => `מעניין... רשום שוב בצורה אחרת ואנסה שוב 😊`,
-    (n) => `הבנתי חלק מהשאלה — אם תוסיף/י פרט קטן אצליח לענות.`,
-    (n) => `**${n}**, ניסוח חופשי עובד בשבילי — רק תגיד מה אתה צריך.`,
-    (n) => `זה לא ב-100% ברור לי... נסה: "מי בחופשה?" או "מה היתרה שלי?"`,
-    (n) => `אולי: "${hint}"? אם כן — כתוב שוב ואענה.`,
-    (n) => `שאלה מעניינת 🤔 — קצת מעורפלת לי. תוסיף/י מילה או שתיים?`,
-    (n) => `לא הצלחתי לתפוס — אבל אם תרשום **"עזרה"** אתן לך רשימה מלאה.`,
-    (n) => `**${n}**, אני מנסה להבין... השאלה קצרה מדי. תפרט/י קצת?`,
-    (n) => `נשמע כמו שאלה על ${hint}? אם כן — נסה בדיוק כך.`,
-    (n) => `אוף, כמעט 😄 — תנסח מחדש ואני כבר שם.`,
-    (n) => `הבנתי ש... בכלל לא הבנתי. אבל אני מנחש: **"מי בחופשה היום?"** — נסה?`,
-    (n) => `**${n}**, שאלה מצוינת — רק שאני צריך ניסוח ספציפי יותר.`,
-    (n) => `בגלל שאני ממש רוצה לעזור — נסח/י שוב ואגרדי ה-intent 😄`,
-  ];
-
-  // וריאציות ברכה (15 גרסאות)
-  const GREETING_RESPONSES = [
-    (n, tc) => `${tc.greeting}, **${n}**! 👋 מה תרצה לדעת?`,
-    (n, tc) => `היי **${n}**! ${tc.emoji} כאן לשירותך.`,
-    (n, tc) => `${tc.greeting}, **${n}**! שאל/י בחופשיות.`,
-    (n, tc) => `**${n}**! ${tc.greeting} — מה קורה? 😊`,
-    (n, tc) => `${tc.emoji} **${n}**, ${tc.greeting}! מה אוכל לעשות בשבילך?`,
-    (n, tc) => `היי! **${n}** — ${tc.greeting}. שאל/י כל שאלה.`,
-    (n, tc) => `${tc.greeting} **${n}**! אני Dazura AI — כאן לעזור. 🤖`,
-    (n, tc) => `**${n}**, ${tc.greeting}! ${tc.emoji} מה תרצה לדעת היום?`,
-    (n, tc) => `היי **${n}**! שמח שכתבת ${tc.emoji}`,
-    (n, tc) => `${tc.greeting} **${n}** — מה הולך? 😊`,
-    (n, tc) => `**${n}**! ${tc.emoji} ברוך הבא. מה אפשר לעשות?`,
-    (n, tc) => `${tc.greeting}! **${n}**, כאן Dazura AI — שאל/י בחופשיות.`,
-    (n, tc) => `היי **${n}**! ${tc.emoji} מוכן לענות על כל שאלה.`,
-    (n, tc) => `${tc.greeting}, **${n}**! בוא נתחיל — מה אתה צריך?`,
-    (n, tc) => `**${n}**, ${tc.greeting}! ${tc.emoji} אני כאן — שאל/י.`,
-  ];
-
-  // ============================================================
-  // SMART GUESS — ניחוש כוונה כשלא ברורה
+  // SMART GUESS
   // ============================================================
   function guessIntent(text) {
-    const t = text.toLowerCase();
-    if (/מי/.test(t)) return '"מי בחופשה היום?"';
-    if (/כמה|יתרה|ימים/.test(t)) return '"מה היתרה שלי?"';
-    if (/מחר|שבוע/.test(t)) return '"מי בחופשה מחר?"';
-    if (/מחלקה|צוות/.test(t)) return '"מצב הצוות היום"';
-    if (/בקשה|אישור/.test(t)) return '"מה סטטוס הבקשה שלי?"';
-    if (/שעות|כניסה|יציאה/.test(t)) return '"איך מתקנים שעות?"';
+    var t = text.toLowerCase();
+    if (/מי|who/.test(t))                   return '"מי בחופשה היום?"';
+    if (/כמה|יתרה|ימים|balance|days/.test(t)) return '"מה היתרה שלי?"';
+    if (/מחר|שבוע|tomorrow|week/.test(t))   return '"מי בחופשה מחר?"';
+    if (/מחלקה|צוות|team|dept/.test(t))     return '"מצב הצוות היום"';
+    if (/בקשה|אישור|request/.test(t))       return '"מה סטטוס הבקשה שלי?"';
+    if (/שעות|hours/.test(t))               return '"איך מתקנים שעות?"';
     return '"מה אתה יכול?"';
+  }
+
+  // ============================================================
+  // SOCIAL RESPONSES
+  // ============================================================
+  function respondSocial(text, userName, lang) {
+    var t = text.trim().toLowerCase();
+    var n = userName || '';
+    var tc = getTimeContext(text);
+    var isEn = lang === 'en';
+
+    if (/ביי|להתראות|bye|goodbye|cya/.test(t))
+      return isEn ? 'Bye **' + n + '**! Come back anytime 👋' : 'להתראות **' + n + '**! כאן בכל עת 👋';
+
+    if (/הכל בסדר|הכל טוב|אני בסדר|אני טוב|I'?m (fine|good|ok|great)|all good/.test(t)) {
+      var opts = isEn
+        ? ['Great to hear, **' + n + '**! ' + tc.emoji + ' Anything I can help with?', 'Awesome! Let me know if you need anything.', 'Perfect! Here whenever you need data.']
+        : ['שמח לשמוע, **' + n + '**! ' + tc.emoji + ' אפשר לעשות משהו?', 'מצוין! אני כאן אם צריך משהו.', 'אחלה! ואם רוצה לדעת מה קורה בחברה — רק תשאל.'];
+      return opts[Math.floor(Math.random() * opts.length)];
+    }
+
+    if (/^(כן|yes|yep|sure|נכון|בטח)\s*[!.]?\s*$/.test(t))
+      return isEn ? 'Got it! What would you like to know?' : 'מעולה! מה תרצה לדעת?';
+
+    if (/^(לא|no|nope)\s*[!.]?\s*$/.test(t))
+      return isEn ? 'No problem! Let me know if you change your mind.' : 'בסדר! אם תצטרך משהו — אני כאן.';
+
+    if (/בוקר טוב|good morning/.test(t)) {
+      var m = isEn
+        ? ['Good morning **' + n + '**! ☀️ Ready for the day?', 'Morning **' + n + '**! ☀️ What can I help with?', 'Good morning! ☀️ Let\'s make it a good one.']
+        : [tc.greeting + ' **' + n + '**! ☀️ מוכן ליום?', tc.greeting + '! ☀️ בוא נראה מה קורה היום.', tc.greeting + ' **' + n + '**! ☀️ עם מה אפשר לעזור?'];
+      return m[Math.floor(Math.random() * m.length)];
+    }
+
+    if (/ערב טוב|good evening/.test(t))
+      return isEn ? 'Good evening **' + n + '**! 🌅 Winding down?' : tc.greeting + ' **' + n + '**! 🌅 מסיימים את היום?';
+
+    if (/לילה טוב|good night/.test(t))
+      return isEn ? 'Good night **' + n + '**! 🌙 Rest well.' : tc.greeting + ' **' + n + '**! 🌙 מנוחה טובה.';
+
+    if (/שבת שלום/.test(t)) return 'שבת שלום **' + n + '**! ✨ תנוח/י טוב.';
+    if (/חג שמח/.test(t))   return 'חג שמח **' + n + '**! 🎉';
+
+    var greetHe = [
+      tc.greeting + ' **' + n + '**! ' + tc.emoji + ' במה אפשר לעזור?',
+      'היי **' + n + '**! ' + tc.emoji + ' מה אפשר לעשות בשבילך?',
+      'שלום **' + n + '**! ' + tc.emoji + ' שאל בחופשיות.',
+      tc.greeting + ' **' + n + '**! ' + tc.emoji + ' איך אפשר לעזור?',
+      'היי! ' + tc.emoji + ' **' + n + '**, מה תרצה לדעת?',
+    ];
+    var greetEn = [
+      tc.greetEn + ' **' + n + '**! ' + tc.emoji + ' What can I help with?',
+      'Hey **' + n + '**! ' + tc.emoji + ' How can I assist?',
+      'Hello **' + n + '**! ' + tc.emoji + ' Ask me anything.',
+      'Hi there **' + n + '**! ' + tc.emoji + ' What\'s on your mind?',
+    ];
+    var pool = isEn ? greetEn : greetHe;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  // ============================================================
+  // VACATION FLAIR
+  // ============================================================
+  function addVacationFlair(names, label) {
+    if (!names || !names.length) return null;
+    var flairs = [
+      'נהנים ' + label + '! 🏖️ בא לך להצטרף? 😄',
+      label + ' — יצאו לנשום אוויר צח 🌿',
+      label + ' — נטענים מחדש 🔋',
+      label + ' — מגיע להם! 🌴',
+      label + ' — מנצלים ימי חופש בחוכמה 😎',
+    ];
+    return flairs[Math.floor(Math.random() * flairs.length)];
+  }
+
+  // ============================================================
+  // DAZY PERSONALITY
+  // ============================================================
+  var DAZY_PERSONALITY = {
+    creator: function(n) {
+      return 'נבנתי על ידי **מוטי קריחלי** 🏆 — עם המטרה לעשות את ניהול החופשות חכם, מהיר ואנושי.\nאני **DAZY** — העוזר הדיגיטלי של Dazura.' + (n ? ' שמח להכיר, **' + n + '** 😊' : '');
+    },
+    whoIsDazy: function(n, isAdmin, isManager) {
+      return 'אני **DAZY** — העוזר החכם של מערכת **Dazura** 🤖\n\n' +
+        '**מה אני יודע לעשות:**\n' +
+        '• עונה על שאלות חופשה, יתרות ונוכחות בזמן אמת\n' +
+        '• מדריך אותך בכל לשונית במערכת\n' +
+        '• מבין עברית ואנגלית — שאל בחופשיות\n' +
+        (isManager || isAdmin ? '• מנתח עומסים, תחזיות ושחיקת עובדים\n' : '') +
+        (isAdmin ? '• ניהול עובדים, הרשאות וגיבויים\n' : '') +
+        '\nמחובר כ: **' + n + '**\n\nמה תרצה לדעת? 😊';
+    },
+    feel: function() {
+      var h = new Date().getHours();
+      var moods = h < 9
+        ? ['מתחמם לאט לאט ☕', 'עדיין בוטים ראשונים 🌅', 'מוכן להתחיל את היום']
+        : h < 14
+        ? ['מלא אנרגיה! ⚡', 'ממש בפורמה 💪', 'מחכה לשאלות הבאות 😊']
+        : h < 18
+        ? ['קצת אחרי הצהריים... ☕', 'עדיין ערני ומוכן', 'בריצה מלאה 🚀']
+        : ['ב-mode ערב 🌅', 'מסיים את היום בחיוך', 'רגוע אבל ממוקד'];
+      return 'אני מרגיש: **' + moods[Math.floor(Math.random() * moods.length)] + '**\n\nכל שאלה שתשאל רק תשפר את מצב הרוח שלי 😄';
+    },
+    compliment: function(n) {
+      var c = [
+        '**' + n + '**, אתה מנהל/ת את הזמן שלך בצורה מרשימה 💪',
+        'שמח שאתה/את כאן **' + n + '** — שאלות טובות עושות אותי חכם יותר 😊',
+        '**' + n + '**, אתה/את תמיד שואל/ת את הדברים הנכונים!',
+        'אחד הדברים שאני מעריך ב**' + n + '** — הסקרנות שלך 🌟',
+      ];
+      return c[Math.floor(Math.random() * c.length)];
+    },
+    laugh: function() {
+      var j = [
+        'למה עובד לא לקח חופש? כי חשב שה-"balance" הוא חשבון בנק 😄',
+        'מה ההבדל בין מנהל לעובד בחופשה? המנהל בודק מיילים. העובד... גם 😅',
+        'שאלו את ה-AI: "האם יש לך יום חופש?" ענה: "יש לי 0 ימים יתרה — אני לא לוקח הפסקות" 🤖',
+        'כמה מתכנתים צריך לשנות נורה? אחד — אבל לוקח 3 ספרינטים לתכנן 😄',
+      ];
+      return j[Math.floor(Math.random() * j.length)];
+    },
+    offTopic: function(topic, n, isEn) {
+      return isEn
+        ? '**' + n + '**, ' + topic + ' is outside my expertise! I\'m a vacation management specialist 😄 Ask me about leave balances, attendance, or the system instead.'
+        : '**' + n + '**, ' + topic + ' — זה לא בדיוק התחום שלי 😄 אני מומחה בניהול חופשות ונוכחות. שאל/י אותי על יתרות, מי בחופשה, או איך לנווט במערכת.';
+    },
+    vsHuman: function(n) {
+      return '**' + n + '**, אני לא מתחרה עם בני אדם — אני עוזר להם 😊\nאני מהיר בנתונים, אבל אתה/את מחליט/ה. ביחד עובדים טוב יותר.';
+    },
+  };
+
+  // ============================================================
+  // THANKS — 20 וריאציות
+  // ============================================================
+  var THANKS_RESPONSES = [
+    function(n) { return 'בשמחה **' + n + '**! 😊'; },
+    function(n) { return 'תמיד בשבילך **' + n + '**!'; },
+    function(n) { return 'על לא דבר! ' + getTimeContext().emoji; },
+    function(n) { return 'שמח לעזור **' + n + '** 🙂'; },
+    function(n) { return 'הנאה שלי!'; },
+    function(n) { return 'זה מה שאני פה בשבילו **' + n + '** 😊'; },
+    function(n) { return 'כיף! עוד שאלות? אני כאן.'; },
+    function(n) { return '**' + n + '** — בכיף תמיד!'; },
+    function(n) { return getTimeContext().emoji + ' שמח שעזרתי!'; },
+    function(n) { return 'ממש שמח שזה עזר!'; },
+    function(n) { return 'You\'re welcome **' + n + '**! 😊'; },
+    function(n) { return 'Anytime **' + n + '**!'; },
+    function(n) { return 'Happy to help! 🙂'; },
+    function(n) { return 'תענוג לעבוד איתך **' + n + '**!'; },
+    function(n) { return 'בכיף! אם יש עוד — אני כאן.'; },
+    function(n) { return 'מושלם! שאל/י בכל עת.'; },
+    function(n) { return 'שמח שהייתי שימושי **' + n + '** ' + getTimeContext().emoji; },
+    function(n) { return 'אין בעד מה! תמיד כאן.'; },
+    function(n) { return 'Great! Let me know if you need anything else.'; },
+    function(n) { return 'זה הכיף שלי **' + n + '** 🌟'; },
+  ];
+
+  // ============================================================
+  // CONFUSED — 15 וריאציות עם ניחוש
+  // ============================================================
+  var CONFUSED_RESPONSES = [
+    function(n, hint) { return '**' + n + '**, אולי התכוונת ל: ' + hint + '? 🤔'; },
+    function(n, hint) { return 'לא לגמרי הבנתי — אנסה לנחש: ' + hint + '? אם לא — נסח מחדש.'; },
+    function(n)       { return 'מעניין... 🤔 נסח שוב בצורה אחרת ואנסה שוב.'; },
+    function(n, hint) { return 'הבנתי חלק — אם התכוונת ל' + hint + ' רשום שוב ואענה.'; },
+    function(n)       { return '**' + n + '**, ניסוח חופשי עובד — רק תגיד מה אתה צריך.'; },
+    function(n, hint) { return 'אולי: ' + hint + '? אם כן — כתוב שוב ואענה מיד.'; },
+    function(n)       { return 'שאלה מעניינת 🤔 — קצת מעורפלת. תוסיף מילה?'; },
+    function(n)       { return 'לא הצלחתי לתפוס — כתוב **"עזרה"** לרשימת האפשרויות.'; },
+    function(n, hint) { return '**' + n + '**, נשמע כמו שאלה על ' + hint + '?'; },
+    function(n)       { return 'כמעט הבנתי 😄 — תנסח מחדש ואני כבר שם.'; },
+    function(n, hint) { return 'Hmm, maybe you meant ' + hint + '? Try rephrasing.'; },
+    function(n)       { return 'Not sure I got that — try: "who\'s on vacation?" or "my balance?"'; },
+    function(n, hint) { return 'Did you mean ' + hint + '? If so, try asking that way.'; },
+    function(n)       { return '**' + n + '**, I almost got it 😄 — try rephrasing.'; },
+    function(n)       { return 'לא בטוח, אבל אנסה בכל זאת... שאל שוב ואגרום לזה לעבוד! 💪'; },
+  ];
+
+  // ============================================================
+  // CONTEXT SLOTS
+  // ============================================================
+  function EMPTY_CONTEXT() {
+    return {
+      intent: null, dateInfo: null, resultList: [], subject: null,
+      subjectName: null, dept: null, data: null, lastQuestion: null,
+      turnCount: 0, lang: 'he',
+    };
   }
 
   // ============================================================
   // PUBLIC API
   // ============================================================
   return {
-    detectIntent,
-    detectFollowUp,
-    detectEmotion,
-    getTimeContext,
-    guessIntent,
-    THANKS_RESPONSES,
-    CONFUSED_RESPONSES,
-    GREETING_RESPONSES,
-    EMPTY_CONTEXT,
+    isSocial: isSocial,
+    detectLanguage: detectLanguage,
+    detectIntent: detectIntent,
+    detectFollowUp: detectFollowUp,
+    detectEmotion: detectEmotion,
+    getTimeContext: getTimeContext,
+    guessIntent: guessIntent,
+    respondSocial: respondSocial,
+    addVacationFlair: addVacationFlair,
+    DAZY_PERSONALITY: DAZY_PERSONALITY,
+    THANKS_RESPONSES: THANKS_RESPONSES,
+    CONFUSED_RESPONSES: CONFUSED_RESPONSES,
+    EMPTY_CONTEXT: EMPTY_CONTEXT,
   };
 
 })();
