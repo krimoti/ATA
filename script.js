@@ -721,6 +721,7 @@ function showApp(skipModuleSelector) {
   }
 
   document.getElementById('loginScreen').classList.remove('active');
+  document.getElementById('forcePasswordScreen')?.classList.remove('active');
   document.getElementById('appScreen').classList.add('active');
   showAIButton();
   // Set user info
@@ -5789,7 +5790,7 @@ function renderEmployeeScores() {
 // ============================================================
 
 function showModuleSelector() {
-  ['loginScreen','appScreen','timeClockScreen','ceoDashboardScreen'].forEach(id => {
+  ['loginScreen','appScreen','timeClockScreen','ceoDashboardScreen','forcePasswordScreen','pendingApprovalScreen'].forEach(id => {
     document.getElementById(id)?.classList.remove('active');
   });
 
