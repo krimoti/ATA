@@ -2336,6 +2336,33 @@ tbody tr:hover { background: var(--surface2); }
 .ai-send-btn:hover { filter:brightness(1.1); transform:scale(1.05); }
 .ai-send-btn:active { transform:scale(0.95); }
 
+/* Org tree dept chips */
+.org-dept-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--surface2);
+  border: 1.5px solid var(--border-strong);
+  border-radius: 20px;
+  padding: 5px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  font-family: 'Heebo', sans-serif;
+  transition: all 0.15s;
+  white-space: nowrap;
+  user-select: none;
+}
+.org-dept-chip:hover {
+  border-color: var(--primary);
+  color: var(--primary-dark);
+  background: var(--primary-light);
+}
+.org-dept-chip input[type="checkbox"] {
+  display: none;
+}
+
 /* Splash option cards */
 .splash-option {
   cursor: pointer;

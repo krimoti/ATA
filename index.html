@@ -1171,30 +1171,91 @@
       <div class="admin-section" id="deptMgmtSection">
         <div class="section-title"><span class="section-title-icon">🏢</span> ניהול מחלקות ומנהלים</div>
 
-        <!-- Explainer banner -->
-        <div style="background:var(--primary-light);border:1px solid var(--primary);border-radius:12px;padding:14px 16px;margin-bottom:18px;font-size:13px;line-height:1.7;">
-          <div style="font-weight:800;font-size:14px;color:var(--primary-dark);margin-bottom:6px;">📋 איך מגדירים מנהל מחלקה?</div>
-          <ol style="margin:0;padding-right:18px;color:var(--text);">
-            <li>בטבלה למטה — מצא את שם המחלקה</li>
-            <li>בעמודה <strong>"מנהל/ת אחראי/ת"</strong> — בחר את העובד מהרשימה</li>
-            <li>השינוי נשמר <strong>אוטומטית</strong> עם הבחירה</li>
-          </ol>
-          <div style="margin-top:8px;padding:8px 12px;background:rgba(255,255,255,0.6);border-radius:8px;font-size:12px;color:var(--primary-dark);">
-            ✅ <strong>מה מנהל מחלקה יכול לעשות:</strong> לאשר/לדחות בקשות חופשה של עובדי המחלקה, לראות נוכחות ויתרות, לקבל גישה ל-AI ברמת מנהל
+        <!-- Tabs: דירוג / מחלקות -->
+        <div style="display:flex;gap:6px;margin-bottom:18px;border-bottom:2px solid var(--border);padding-bottom:0;">
+          <button id="orgTabDept" onclick="switchOrgTab('dept')"
+            style="padding:8px 18px;border:none;border-bottom:3px solid var(--primary);background:none;font-family:'Heebo',sans-serif;font-size:14px;font-weight:800;color:var(--primary);cursor:pointer;margin-bottom:-2px;">
+            🏢 מחלקות ומנהלים
+          </button>
+          <button id="orgTabTree" onclick="switchOrgTab('tree')"
+            style="padding:8px 18px;border:none;border-bottom:3px solid transparent;background:none;font-family:'Heebo',sans-serif;font-size:14px;font-weight:600;color:var(--text-muted);cursor:pointer;margin-bottom:-2px;">
+            🌲 עץ ארגוני — מדרג הרשאות
+          </button>
+        </div>
+
+        <!-- TAB: מחלקות ומנהלים -->
+        <div id="orgTabDeptContent">
+          <div style="background:var(--primary-light);border:1px solid var(--primary);border-radius:12px;padding:12px 16px;margin-bottom:16px;font-size:13px;">
+            <strong>כאן מגדירים:</strong> מי המנהל הישיר של כל מחלקה — הוא יאשר חופשות ויראה נתוני עובדיו בלבד.
+          </div>
+          <div style="display:flex;gap:8px;max-width:400px;margin-bottom:16px;align-items:center;">
+            <input type="text" id="newDeptInput" class="form-input" placeholder="שם מחלקה חדשה..." style="flex:1;" dir="rtl">
+            <button class="btn btn-success" onclick="addDepartment()">➕ הוסף מחלקה</button>
+          </div>
+          <div id="deptManagerTable" style="max-width:760px;"></div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:10px;">
+            💡 בקשות חופשה מועברות אוטומטית למנהל המחלקה הרלוונטי
           </div>
         </div>
 
-        <!-- Add department -->
-        <div style="display:flex;gap:8px;max-width:400px;margin-bottom:16px;align-items:center;">
-          <input type="text" id="newDeptInput" class="form-input" placeholder="שם מחלקה חדשה..." style="flex:1;" dir="rtl">
-          <button class="btn btn-success" onclick="addDepartment()">➕ הוסף מחלקה</button>
+        <!-- TAB: עץ ארגוני -->
+        <div id="orgTabTreeContent" style="display:none;">
+          <div style="background:var(--primary-light);border:1px solid var(--primary);border-radius:12px;padding:14px 16px;margin-bottom:18px;font-size:13px;line-height:1.8;">
+            <div style="font-weight:800;font-size:14px;color:var(--primary-dark);margin-bottom:8px;">🌲 איך עובד העץ הארגוני?</div>
+            <div style="color:var(--text);">
+              כל מנהל רואה את <strong>המחלקות שהוגדרו לו ישירות</strong>, ובנוסף <strong>את כל מה שתחת המנהלים שמדווחים לו</strong>.<br>
+              <span style="color:var(--primary-dark);font-weight:700;">דוגמה:</span>
+              מנהל תפעול מנהל: הנדסה + פיתוח + ייצור → יראה את כל עובדי שלוש המחלקות.<br>
+              הנהלה ראשית ← מנהל תפעול ← מנהל הנדסה ← עובדי הנדסה
+            </div>
+          </div>
+
+          <!-- Add manager to org tree -->
+          <div style="background:var(--surface2);border-radius:14px;padding:18px;margin-bottom:20px;max-width:720px;border:1px solid var(--border);">
+            <div style="font-weight:800;font-size:14px;margin-bottom:14px;color:var(--text);">➕ הוסף / ערוך מנהל בעץ</div>
+
+            <!-- Row 1: who + reports to -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+              <div>
+                <label style="font-size:12px;font-weight:700;color:var(--text-secondary);display:block;margin-bottom:4px;">👤 המנהל</label>
+                <select id="orgTreeManager" class="form-input" dir="rtl" style="font-size:13px;">
+                  <option value="">— בחר עובד —</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size:12px;font-weight:700;color:var(--text-secondary);display:block;margin-bottom:4px;">⬆️ מדווח ל (מי מעליו)</label>
+                <select id="orgTreeParent" class="form-input" dir="rtl" style="font-size:13px;">
+                  <option value="">— שורש (מנכ"ל / הנהלה ראשית) —</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Top-level toggle -->
+            <div style="display:flex;align-items:center;gap:10px;background:var(--primary-light);border-radius:10px;padding:10px 14px;margin-bottom:12px;">
+              <input type="checkbox" id="orgTreeTopLevel" style="width:16px;height:16px;accent-color:var(--primary);cursor:pointer;">
+              <div>
+                <div style="font-size:13px;font-weight:700;">🔑 גישה מלאה לכל העובדים</div>
+                <div style="font-size:11px;color:var(--text-muted);">סמן עבור מנכ"ל / הנהלה ראשית — יראה את כל הנתונים ללא סינון</div>
+              </div>
+            </div>
+
+            <!-- Direct depts -->
+            <div>
+              <label style="font-size:12px;font-weight:700;color:var(--text-secondary);display:block;margin-bottom:6px;">🏢 מחלקות שהוא מנהל ישירות</label>
+              <div id="orgTreeDeptsCheckboxes" style="display:flex;flex-wrap:wrap;gap:8px;padding:10px;background:var(--surface);border-radius:10px;border:1px solid var(--border);min-height:48px;"></div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:5px;">עובד "גישה מלאה" — לא צריך לסמן מחלקות · מנהל ביניים — סמן מחלקות שמדווחות לו ישירות</div>
+            </div>
+
+            <div style="margin-top:14px;display:flex;gap:8px;">
+              <button class="btn btn-primary" onclick="saveOrgTreeEntry()">💾 שמור</button>
+              <button class="btn btn-outline" onclick="populateOrgTreeSelects();renderOrgTree();">🔄 רענן</button>
+            </div>
+          </div>
+
+          <!-- Current org tree display -->
+          <div id="orgTreeDisplay" style="max-width:720px;"></div>
         </div>
 
-        <!-- Dept + Manager table -->
-        <div id="deptManagerTable" style="max-width:700px;"></div>
-        <div style="font-size:12px;color:var(--text-muted);margin-top:10px;">
-          💡 בקשות חופשה מועברות אוטומטית למנהל המחלקה · מנהל ללא מחלקה מוגדרת — יראה את כל הבקשות
-        </div>
       </div>
 
       <!-- Quota Upload -->

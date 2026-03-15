@@ -1504,7 +1504,15 @@ function renderAIForecast() {
   const db = getDB();
   const year = new Date().getFullYear();
   const MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
-  const employees = Object.values(db.users).filter(u => u.role === 'employee' || u.role === 'manager');
+
+  // Scope to manager's dept — admin sees all
+  const isAdmin = currentUser && (currentUser.role === 'admin' || currentUser.role === 'accountant');
+  const employees = Object.values(db.users).filter(u => {
+    if (u.role === 'admin' || u.role === 'accountant') return false;
+    if (!isUserActive(u)) return false;
+    if (isAdmin) return true;
+    return managerManagesUser(currentUser.username, u, db);
+  });
   const totalEmp = Math.max(employees.length, 1);
 
   // Build week-by-week map: weekKey → count of vacation days
@@ -1512,7 +1520,7 @@ function renderAIForecast() {
   const monthMap = new Array(12).fill(0); // month index → total days
   const deptMonthMap = {}; // dept → [12 months]
 
-  Object.values(db.users).forEach(user => {
+  employees.forEach(user => {
     const dept = getUserDept(user) || 'כללי';
     if (!deptMonthMap[dept]) deptMonthMap[dept] = new Array(12).fill(0);
 
@@ -2609,15 +2617,88 @@ function getUserDepts(user) {
   if (typeof user.dept === 'string') return user.dept ? [user.dept] : [];
   return [];
 }
-// Check if manager manages a given user
-function managerManagesUser(managerUsername, targetUser, db) {
+// ============================================================
+// ORG TREE — getManagerScope(managerUsername, db)
+// Returns the SET of dept names this manager can see
+// (their direct depts + all depts under their sub-managers, recursively)
+// null = sees ALL (admin / top-level with no restriction)
+// ============================================================
+function getManagerScope(managerUsername, db) {
+  const users = db.users || {};
+  const managerUser = users[managerUsername];
+  if (!managerUser) return new Set();
+
+  // Admin / accountant always see everything
+  if (managerUser.role === 'admin' || managerUser.role === 'accountant') return null;
+
+  const orgTree    = db.orgTree    || {};
   const deptManagers = db.deptManagers || {};
-  const myManagedDepts = Object.entries(deptManagers)
-    .filter(([, mgr]) => mgr === managerUsername)
-    .map(([dept]) => dept);
-  if (!myManagedDepts.length) return true; // no dept set → sees all
+  const node       = orgTree[managerUsername];
+
+  // Explicit top-level flag → sees all
+  if (node && node.topLevel) return null;
+
+  // Collect DIRECT depts
+  let directDepts = [];
+  if (node && node.directDepts && node.directDepts.length) {
+    directDepts = node.directDepts;
+  } else {
+    // Legacy deptManagers fallback
+    directDepts = Object.entries(deptManagers)
+      .filter(([, mgr]) => mgr === managerUsername)
+      .map(([dept]) => dept);
+  }
+
+  // Root node in orgTree (parentManager===null) with sub-managers but no direct depts
+  // → top-level executive (CEO-style) → sees ALL
+  const isRoot        = node && (node.parentManager === null || node.parentManager === undefined);
+  const hasSubMgrs    = Object.values(orgTree).some(n => n.parentManager === managerUsername);
+  if (isRoot && !directDepts.length && hasSubMgrs) return null;
+
+  // Legacy: role==='manager' with no depts → sees all
+  if (!directDepts.length && managerUser.role === 'manager' && !node) return null;
+
+  // No depts, no special flag → sees only self
+  if (!directDepts.length) return new Set();
+
+  // Recursively collect all depts (BFS through children in orgTree)
+  const allDepts = new Set(directDepts);
+
+  const subManagers = Object.entries(orgTree)
+    .filter(([, n]) => n.parentManager === managerUsername)
+    .map(([u]) => u);
+
+  // Legacy: any deptManagers entry whose dept is in our scope → their manager is a sub
+  for (const [dept, mgr] of Object.entries(deptManagers)) {
+    if (directDepts.includes(dept) && mgr && mgr !== managerUsername) {
+      subManagers.push(mgr);
+    }
+  }
+
+  const visited = new Set([managerUsername]);
+  const queue   = [...new Set(subManagers)];
+  while (queue.length) {
+    const sub = queue.shift();
+    if (visited.has(sub)) continue;
+    visited.add(sub);
+    const subScope = getManagerScope(sub, db);
+    if (subScope === null) return null;
+    subScope.forEach(d => allDepts.add(d));
+    Object.entries(orgTree)
+      .filter(([, n]) => n.parentManager === sub)
+      .forEach(([u]) => { if (!visited.has(u)) queue.push(u); });
+  }
+
+  return allDepts;
+}
+
+// Check if manager manages a given user (using org tree)
+function managerManagesUser(managerUsername, targetUser, db) {
+  const scope = getManagerScope(managerUsername, db);
+  if (scope === null) return true; // sees all
+  if (scope.size === 0) return targetUser.username === managerUsername; // sees only self
   const targetDepts = getUserDepts(targetUser);
-  return targetDepts.some(d => myManagedDepts.includes(d));
+  return targetDepts.some(d => scope.has(d));
 }
 
 function getDepts() {
@@ -2741,6 +2822,707 @@ document.addEventListener('click', (e) => {
 // ============================================================
 // DEPARTMENT MANAGEMENT (admin section)
 // ============================================================
+// ============================================================
+// ORG TREE UI FUNCTIONS
+// ============================================================
+
+function switchOrgTab(tab) {
+  const deptContent = document.getElementById('orgTabDeptContent');
+  const treeContent = document.getElementById('orgTabTreeContent');
+  const deptBtn     = document.getElementById('orgTabDept');
+  const treeBtn     = document.getElementById('orgTabTree');
+  if (!deptContent || !treeContent) return;
+  if (tab === 'tree') {
+    deptContent.style.display = 'none'; treeContent.style.display = '';
+    deptBtn.style.cssText  += ';border-bottom-color:transparent;color:var(--text-muted);font-weight:600;';
+    treeBtn.style.cssText  += ';border-bottom-color:var(--primary);color:var(--primary);font-weight:800;';
+    populateOrgTreeSelects(); renderOrgTree();
+  } else {
+    treeContent.style.display = 'none'; deptContent.style.display = '';
+    deptBtn.style.cssText  += ';border-bottom-color:var(--primary);color:var(--primary);font-weight:800;';
+    treeBtn.style.cssText  += ';border-bottom-color:transparent;color:var(--text-muted);font-weight:600;';
+  }
+}
+
+function populateOrgTreeSelects() {
+  const db = getDB();
+  const allUsers = Object.values(db.users)
+    .filter(u => isUserActive(u) && u.role !== 'admin')
+    .sort((a,b) => a.fullName.localeCompare(b.fullName,'he'));
+
+  const opts = allUsers.map(u => `<option value="${u.username}">${u.fullName}</option>`).join('');
+  const mgrSel    = document.getElementById('orgTreeManager');
+  const parentSel = document.getElementById('orgTreeParent');
+  if (mgrSel)    mgrSel.innerHTML    = '<option value="">— בחר עובד —</option>' + opts;
+  if (parentSel) parentSel.innerHTML = '<option value="">— אין מנהל מעל (שורש / מנכ"ל) —</option>' + opts;
+
+  const deptBox = document.getElementById('orgTreeDeptsCheckboxes');
+  if (deptBox) {
+    const depts = db.departments || [];
+    deptBox.innerHTML = depts.length
+      ? depts.map(d =>
+          `<label class="org-dept-chip" id="orgChip_${d.replace(/[^a-zA-Zא-ת]/g,'_')}">
+            <input type="checkbox" value="${d}"> ${d}
+          </label>`
+        ).join('')
+      : '<span style="color:var(--text-muted);font-size:12px;">אין מחלקות מוגדרות</span>';
+
+    deptBox.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.onchange = () => {
+        const label = cb.closest('label');
+        if (label) {
+          label.style.background    = cb.checked ? 'var(--primary)'      : '';
+          label.style.color         = cb.checked ? 'white'               : '';
+          label.style.borderColor   = cb.checked ? 'var(--primary-dark)' : '';
+        }
+      };
+    });
+  }
+
+  if (mgrSel) mgrSel.onchange = () => prefillOrgTreeForm();
+}
+
+function prefillOrgTreeForm() {
+  const db = getDB();
+  const orgTree      = db.orgTree      || {};
+  const deptManagers = db.deptManagers || {};
+  const username     = document.getElementById('orgTreeManager')?.value;
+  if (!username) return;
+
+  const node = orgTree[username] || {};
+  const parentSel = document.getElementById('orgTreeParent');
+  if (parentSel) parentSel.value = node.parentManager || '';
+
+  const topChk = document.getElementById('orgTreeTopLevel');
+  if (topChk) topChk.checked = !!node.topLevel;
+
+  const directDepts = node.directDepts ||
+    Object.entries(deptManagers).filter(([,mgr]) => mgr === username).map(([d]) => d);
+
+  document.querySelectorAll('#orgTreeDeptsCheckboxes input[type="checkbox"]').forEach(cb => {
+    cb.checked = directDepts.includes(cb.value);
+    const label = cb.closest('label');
+    if (label) {
+      label.style.background  = cb.checked ? 'var(--primary)'      : '';
+      label.style.color       = cb.checked ? 'white'               : '';
+      label.style.borderColor = cb.checked ? 'var(--primary-dark)' : '';
+    }
+  });
+}
+
+function saveOrgTreeEntry() {
+  const username = document.getElementById('orgTreeManager')?.value;
+  if (!username) { showToast('⚠️ בחר עובד', 'warning'); return; }
+
+  const parentManager = document.getElementById('orgTreeParent')?.value || null;
+  const topLevel      = !!document.getElementById('orgTreeTopLevel')?.checked;
+  const directDepts   = [...document.querySelectorAll('#orgTreeDeptsCheckboxes input:checked')]
+    .map(cb => cb.value);
+
+  const db = getDB();
+  if (!db.orgTree) db.orgTree = {};
+  db.orgTree[username] = { directDepts, parentManager, topLevel };
+
+  // Sync to legacy deptManagers
+  if (!db.deptManagers) db.deptManagers = {};
+  Object.keys(db.deptManagers).forEach(dept => {
+    if (db.deptManagers[dept] === username) delete db.deptManagers[dept];
+  });
+  directDepts.forEach(dept => { db.deptManagers[dept] = username; });
+
+  // Promote to manager role
+  if (db.users[username] && db.users[username].role === 'employee') {
+    db.users[username].role = 'manager';
+  }
+
+  saveDB(db); pushToFirebase().catch(() => {});
+  const name = db.users[username]?.fullName || username;
+  showToast(`✅ ${name} עודכן בעץ הארגוני`, 'success');
+  auditLog('org_tree_update', `${username}: מנהל [${directDepts.join(', ')}] | מדווח ל: ${parentManager || 'שורש'} | topLevel: ${topLevel}`);
+  renderOrgTree();
+  // Clear form
+  const mgrSel = document.getElementById('orgTreeManager');
+  if (mgrSel) mgrSel.value = '';
+  document.querySelectorAll('#orgTreeDeptsCheckboxes input').forEach(cb => {
+    cb.checked = false;
+    const l = cb.closest('label');
+    if (l) { l.style.background=''; l.style.color=''; l.style.borderColor=''; }
+  });
+}
+
+function deleteOrgTreeEntry(username) {
+  const db = getDB();
+  const name = db.users[username]?.fullName || username;
+  if (!confirm(`להסיר את ${name} מהעץ הארגוני?
+הם לא יימחקו כעובדים — רק ההגדרה הארגונית תוסר.`)) return;
+  if (db.orgTree) delete db.orgTree[username];
+  if (db.deptManagers) {
+    Object.keys(db.deptManagers).forEach(dept => {
+      if (db.deptManagers[dept] === username) delete db.deptManagers[dept];
+    });
+  }
+  // Demote to employee if they were promoted
+  if (db.users[username] && db.users[username].role === 'manager') {
+    db.users[username].role = 'employee';
+  }
+  saveDB(db); pushToFirebase().catch(() => {});
+  renderOrgTree(); renderDeptManagerTable();
+  showToast(`🗑️ ${name} הוסר מהעץ הארגוני`, 'info');
+}
+
+function renderOrgTree() {
+  const el = document.getElementById('orgTreeDisplay');
+  if (!el) return;
+  const db = getDB();
+  const orgTree      = db.orgTree      || {};
+  const deptManagers = db.deptManagers || {};
+
+  // Build unified nodes map
+  const nodes = {};
+  Object.entries(orgTree).forEach(([u, n]) => { nodes[u] = { ...n }; });
+  Object.entries(deptManagers).forEach(([dept, mgr]) => {
+    if (!nodes[mgr]) nodes[mgr] = { directDepts: [], parentManager: null };
+    if (!nodes[mgr].directDepts) nodes[mgr].directDepts = [];
+    if (!nodes[mgr].directDepts.includes(dept)) nodes[mgr].directDepts.push(dept);
+  });
+
+  if (!Object.keys(nodes).length) {
+    el.innerHTML = `<div style="background:var(--surface2);border-radius:12px;padding:24px;text-align:center;color:var(--text-muted);">
+      <div style="font-size:32px;margin-bottom:8px;">🌲</div>
+      <div style="font-weight:700;margin-bottom:6px;">העץ הארגוני ריק</div>
+      <div style="font-size:13px;">השתמש בטופס למעלה להוספת מנהלים</div>
+    </div>`;
+    return;
+  }
+
+  // Build children map
+  const children = {};
+  Object.entries(nodes).forEach(([u, n]) => {
+    if (n.parentManager) {
+      if (!children[n.parentManager]) children[n.parentManager] = [];
+      if (!children[n.parentManager].includes(u)) children[n.parentManager].push(u);
+    }
+  });
+
+  const LEVEL_ICONS  = ['🏛️','👔','👤','👤'];
+  const LEVEL_COLORS = ['var(--primary)','#7c3aed','#0891b2','#16a34a'];
+
+  function renderNode(username, depth) {
+    const user   = db.users[username];
+    const name   = user ? user.fullName : username;
+    const node   = nodes[username] || {};
+    const depts  = node.directDepts || [];
+    const scope  = getManagerScope(username, db);
+    const scopeLabel = scope === null
+      ? '👁️ כל העובדים'
+      : scope.size === 0
+        ? '👁️ עצמו בלבד'
+        : `👁️ ${scope.size} מחלקות`;
+    const color  = LEVEL_COLORS[Math.min(depth, LEVEL_COLORS.length-1)];
+    const kids   = children[username] || [];
+    const borderStyle = depth === 0
+      ? `border-right: 4px solid ${color};`
+      : `border-right: 3px solid ${color};`;
+    const marginRight = depth * 20;
+
+    const deptsHtml = depts.length
+      ? depts.map(d => `<span style="background:${color}18;color:${color};border:1px solid ${color}44;border-radius:20px;padding:2px 10px;font-size:11px;font-weight:700;">${d}</span>`).join('')
+      : '';
+
+    const kidsHtml = kids.length
+      ? `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);">${kids.map(k => renderNode(k, depth+1)).join('')}</div>`
+      : '';
+
+    return `<div style="margin-right:${marginRight}px;background:var(--surface);${borderStyle}border-top:1px solid var(--border);border-bottom:1px solid var(--border);border-left:1px solid var(--border);border-radius:0 10px 10px 0;padding:10px 14px;margin-bottom:6px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:800;font-size:13px;color:${color};">${LEVEL_ICONS[Math.min(depth,3)]} ${name}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${scopeLabel}${node.topLevel?' · 🔑 גישה מלאה':''}</div>
+          ${deptsHtml ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;">${deptsHtml}</div>` : ''}
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0;">
+          <button onclick="editOrgNode('${username}')" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:'Heebo',sans-serif;color:var(--text-secondary);">✏️</button>
+          <button onclick="deleteOrgTreeEntry('${username}')" style="background:var(--danger-light);color:var(--danger);border:1px solid #fca5a5;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:'Heebo',sans-serif;">×</button>
+        </div>
+      </div>
+      ${kidsHtml}
+    </div>`;
+  }
+
+  const roots = Object.keys(nodes).filter(u => !nodes[u].parentManager);
+  const orphans = Object.keys(nodes).filter(u => nodes[u].parentManager && !nodes[nodes[u].parentManager]);
+  const allRoots = [...roots, ...orphans];
+
+  el.innerHTML = `
+    <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:10px;display:flex;align-items:center;gap:8px;">
+      <span>מבנה ארגוני</span>
+      <span style="background:var(--surface2);border-radius:8px;padding:2px 8px;">${Object.keys(nodes).length} מנהלים מוגדרים</span>
+    </div>
+    ${allRoots.map(u => renderNode(u, 0)).join('')}`;
+}
+
+function editOrgNode(username) {
+  switchOrgTab('tree');
+  setTimeout(() => {
+    const mgrSel = document.getElementById('orgTreeManager');
+    if (mgrSel) { mgrSel.value = username; prefillOrgTreeForm(); }
+    document.getElementById('orgTreeManager')?.scrollIntoView({ behavior:'smooth', block:'center' });
+  }, 100);
+}
+
+function renderDeptManagerTable() {  const deptContent = document.getElementById('orgTabDeptContent');
+  const treeContent = document.getElementById('orgTabTreeContent');
+  const deptBtn     = document.getElementById('orgTabDept');
+  const treeBtn     = document.getElementById('orgTabTree');
+  if (!deptContent || !treeContent) return;
+
+  if (tab === 'tree') {
+    deptContent.style.display = 'none';
+    treeContent.style.display = '';
+    deptBtn.style.borderBottomColor  = 'transparent';
+    deptBtn.style.color              = 'var(--text-muted)';
+    deptBtn.style.fontWeight         = '600';
+    treeBtn.style.borderBottomColor  = 'var(--primary)';
+    treeBtn.style.color              = 'var(--primary)';
+    treeBtn.style.fontWeight         = '800';
+    populateOrgTreeSelects();
+    renderOrgTree();
+  } else {
+    treeContent.style.display = 'none';
+    deptContent.style.display = '';
+    deptBtn.style.borderBottomColor  = 'var(--primary)';
+    deptBtn.style.color              = 'var(--primary)';
+    deptBtn.style.fontWeight         = '800';
+    treeBtn.style.borderBottomColor  = 'transparent';
+    treeBtn.style.color              = 'var(--text-muted)';
+    treeBtn.style.fontWeight         = '600';
+  }
+}
+
+function populateOrgTreeSelects() {
+  const db = getDB();
+  const allUsers = Object.values(db.users)
+    .filter(u => isUserActive(u) && u.role !== 'admin')
+    .sort((a,b) => a.fullName.localeCompare(b.fullName,'he'));
+
+  const mgrSel    = document.getElementById('orgTreeManager');
+  const parentSel = document.getElementById('orgTreeParent');
+  const deptBox   = document.getElementById('orgTreeDeptsCheckboxes');
+  if (!mgrSel || !parentSel || !deptBox) return;
+
+  const opts = allUsers.map(u => `<option value="${u.username}">${u.fullName}</option>`).join('');
+  mgrSel.innerHTML    = '<option value="">— בחר עובד —</option>' + opts;
+  parentSel.innerHTML = '<option value="">— הנהלה ראשית (אין מנהל מעל) —</option>' + opts;
+
+  // Dept checkboxes
+  const depts = db.departments || [];
+  deptBox.innerHTML = depts.map(d =>
+    `<label style="display:flex;align-items:center;gap:5px;background:var(--surface2);border:1.5px solid var(--border);border-radius:20px;padding:5px 12px;cursor:pointer;font-size:12px;font-weight:600;white-space:nowrap;">
+      <input type="checkbox" value="${d}" style="accent-color:var(--primary);width:14px;height:14px;"> ${d}
+    </label>`
+  ).join('');
+
+  // Pre-fill if manager already selected
+  mgrSel.onchange = () => prefillOrgTreeForm();
+}
+
+function prefillOrgTreeForm() {
+  const db = getDB();
+  const orgTree = db.orgTree || {};
+  const deptManagers = db.deptManagers || {};
+  const username = document.getElementById('orgTreeManager').value;
+  if (!username) return;
+
+  const node = orgTree[username] || {};
+
+  // Set parent
+  const parentSel = document.getElementById('orgTreeParent');
+  if (parentSel) parentSel.value = node.parentManager || '';
+
+  // Set direct depts — from orgTree first, then fallback to deptManagers
+  const directDepts = node.directDepts || 
+    Object.entries(deptManagers).filter(([,mgr]) => mgr === username).map(([d]) => d);
+
+  const checkboxes = document.querySelectorAll('#orgTreeDeptsCheckboxes input[type="checkbox"]');
+  checkboxes.forEach(cb => {
+    cb.checked = directDepts.includes(cb.value);
+    cb.closest('label').style.borderColor = cb.checked ? 'var(--primary)' : 'var(--border)';
+    cb.closest('label').style.color = cb.checked ? 'var(--primary-dark)' : '';
+    cb.onchange = () => {
+      cb.closest('label').style.borderColor = cb.checked ? 'var(--primary)' : 'var(--border)';
+      cb.closest('label').style.color = cb.checked ? 'var(--primary-dark)' : '';
+    };
+  });
+}
+
+function saveOrgTreeEntry() {
+  const username = document.getElementById('orgTreeManager').value;
+  if (!username) { showToast('⚠️ בחר עובד', 'warning'); return; }
+
+  const parentManager = document.getElementById('orgTreeParent').value || null;
+  const directDepts   = [...document.querySelectorAll('#orgTreeDeptsCheckboxes input:checked')]
+    .map(cb => cb.value);
+
+  const db = getDB();
+  if (!db.orgTree) db.orgTree = {};
+
+  db.orgTree[username] = { directDepts, parentManager };
+
+  // Also sync to legacy deptManagers for backwards compat
+  if (!db.deptManagers) db.deptManagers = {};
+  // Remove old assignments for this manager
+  Object.keys(db.deptManagers).forEach(dept => {
+    if (db.deptManagers[dept] === username) delete db.deptManagers[dept];
+  });
+  // Set new direct dept assignments
+  directDepts.forEach(dept => { db.deptManagers[dept] = username; });
+
+  // Set role to manager if not already
+  if (db.users[username] && db.users[username].role === 'employee') {
+    db.users[username].role = 'manager';
+  }
+
+  saveDB(db);
+  pushToFirebase().catch(() => {});
+  showToast(`✅ ${db.users[username]?.fullName || username} עודכן בעץ הארגוני`, 'success');
+  auditLog('org_tree_update', `עץ ארגוני: ${username} → מנהל ${directDepts.join(', ')} | מדווח ל: ${parentManager || 'הנהלה ראשית'}`);
+  renderOrgTree();
+}
+
+function deleteOrgTreeEntry(username) {
+  if (!confirm('להסיר את המנהל מהעץ הארגוני?')) return;
+  const db = getDB();
+  if (db.orgTree) delete db.orgTree[username];
+  // Remove legacy deptManagers
+  if (db.deptManagers) {
+    Object.keys(db.deptManagers).forEach(dept => {
+      if (db.deptManagers[dept] === username) delete db.deptManagers[dept];
+    });
+  }
+  saveDB(db);
+  pushToFirebase().catch(() => {});
+  renderOrgTree();
+  showToast('🗑️ הוסר מהעץ הארגוני', 'info');
+}
+
+function renderOrgTree() {
+  const el = document.getElementById('orgTreeDisplay');
+  if (!el) return;
+  const db = getDB();
+  const orgTree = db.orgTree || {};
+  const deptManagers = db.deptManagers || {};
+
+  // Build unified map: username → { directDepts, parentManager }
+  const nodes = {};
+
+  // From orgTree
+  Object.entries(orgTree).forEach(([uname, node]) => {
+    nodes[uname] = { ...node };
+  });
+
+  // From legacy deptManagers (those not in orgTree)
+  Object.entries(deptManagers).forEach(([dept, mgr]) => {
+    if (!nodes[mgr]) nodes[mgr] = { directDepts: [], parentManager: null };
+    if (!nodes[mgr].directDepts.includes(dept)) nodes[mgr].directDepts.push(dept);
+  });
+
+  if (!Object.keys(nodes).length) {
+    el.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:12px 0;">אין עץ ארגוני מוגדר עדיין. הגדר מנהלים למעלה.</div>';
+    return;
+  }
+
+  // Render as visual tree — group by parentManager
+  const roots = Object.entries(nodes).filter(([, n]) => !n.parentManager);
+  const children = {}; // parentManager → [username]
+  Object.entries(nodes).forEach(([uname, n]) => {
+    if (n.parentManager) {
+      if (!children[n.parentManager]) children[n.parentManager] = [];
+      children[n.parentManager].push(uname);
+    }
+  });
+
+  function renderNode(username, depth) {
+    const user = db.users[username];
+    const name = user ? user.fullName : username;
+    const node = nodes[username] || {};
+    const depts = node.directDepts || [];
+    const scope = getManagerScope(username, db);
+    const scopeSize = scope === null ? 'כל העובדים' : `${scope.size} מחלקות`;
+    const indent = depth * 24;
+    const kids = children[username] || [];
+
+    const deptsHtml = depts.length
+      ? depts.map(d => `<span style="background:var(--primary-light);color:var(--primary-dark);border-radius:12px;padding:2px 10px;font-size:11px;font-weight:700;">${d}</span>`).join(' ')
+      : '<span style="color:var(--text-muted);font-size:11px;">ללא מחלקות ישירות</span>';
+
+    return `
+      <div style="margin-right:${indent}px;background:var(--surface);border:1.5px solid ${depth===0?'var(--primary)':'var(--border)'};border-radius:12px;padding:12px 16px;margin-bottom:8px;position:relative;">
+        ${depth > 0 ? `<div style="position:absolute;right:${-indent}px;top:50%;width:${indent-4}px;height:1px;background:var(--border);transform:translateY(-50%);pointer-events:none;"></div>` : ''}
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;">
+          <div>
+            <div style="font-weight:800;font-size:14px;">${depth===0?'🏛️':depth===1?'👔':'👤'} ${name}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">רמה ${depth+1} · רואה: ${scopeSize}</div>
+            <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;">${deptsHtml}</div>
+          </div>
+          <div style="display:flex;gap:6px;flex-shrink:0;">
+            <button onclick="editOrgNode('${username}')" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;font-family:'Heebo',sans-serif;">✏️ ערוך</button>
+            <button onclick="deleteOrgTreeEntry('${username}')" style="background:var(--danger-light);color:var(--danger);border:1px solid #fca5a5;border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;font-family:'Heebo',sans-serif;">×</button>
+          </div>
+        </div>
+        ${kids.map(k => renderNode(k, depth+1)).join('')}
+      </div>`;
+  }
+
+  el.innerHTML = roots.length
+    ? roots.map(([uname]) => renderNode(uname, 0)).join('')
+    : `<div style="color:var(--text-muted);font-size:13px;">כל המנהלים מוגדרים ללא מדרג. בחר "מדווח ל" כדי לבנות היררכיה.</div>` +
+      Object.keys(nodes).map(uname => renderNode(uname, 0)).join('');
+}
+
+function switchOrgTab(tab) {
+  const deptContent = document.getElementById('orgTabDeptContent');
+  const treeContent = document.getElementById('orgTabTreeContent');
+  const deptBtn     = document.getElementById('orgTabDept');
+  const treeBtn     = document.getElementById('orgTabTree');
+  if (!deptContent || !treeContent) return;
+  if (tab === 'tree') {
+    deptContent.style.display = 'none'; treeContent.style.display = '';
+    deptBtn.style.cssText  += ';border-bottom-color:transparent;color:var(--text-muted);font-weight:600;';
+    treeBtn.style.cssText  += ';border-bottom-color:var(--primary);color:var(--primary);font-weight:800;';
+    populateOrgTreeSelects(); renderOrgTree();
+  } else {
+    treeContent.style.display = 'none'; deptContent.style.display = '';
+    deptBtn.style.cssText  += ';border-bottom-color:var(--primary);color:var(--primary);font-weight:800;';
+    treeBtn.style.cssText  += ';border-bottom-color:transparent;color:var(--text-muted);font-weight:600;';
+  }
+}
+
+function populateOrgTreeSelects() {
+  const db = getDB();
+  const allUsers = Object.values(db.users)
+    .filter(u => isUserActive(u) && u.role !== 'admin')
+    .sort((a,b) => a.fullName.localeCompare(b.fullName,'he'));
+
+  const opts = allUsers.map(u => `<option value="${u.username}">${u.fullName}</option>`).join('');
+  const mgrSel    = document.getElementById('orgTreeManager');
+  const parentSel = document.getElementById('orgTreeParent');
+  if (mgrSel)    mgrSel.innerHTML    = '<option value="">— בחר עובד —</option>' + opts;
+  if (parentSel) parentSel.innerHTML = '<option value="">— אין מנהל מעל (שורש / מנכ"ל) —</option>' + opts;
+
+  const deptBox = document.getElementById('orgTreeDeptsCheckboxes');
+  if (deptBox) {
+    const depts = db.departments || [];
+    deptBox.innerHTML = depts.length
+      ? depts.map(d =>
+          `<label class="org-dept-chip" id="orgChip_${d.replace(/[^a-zA-Zא-ת]/g,'_')}">
+            <input type="checkbox" value="${d}"> ${d}
+          </label>`
+        ).join('')
+      : '<span style="color:var(--text-muted);font-size:12px;">אין מחלקות מוגדרות</span>';
+
+    deptBox.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.onchange = () => {
+        const label = cb.closest('label');
+        if (label) {
+          label.style.background    = cb.checked ? 'var(--primary)'      : '';
+          label.style.color         = cb.checked ? 'white'               : '';
+          label.style.borderColor   = cb.checked ? 'var(--primary-dark)' : '';
+        }
+      };
+    });
+  }
+
+  if (mgrSel) mgrSel.onchange = () => prefillOrgTreeForm();
+}
+
+function prefillOrgTreeForm() {
+  const db = getDB();
+  const orgTree      = db.orgTree      || {};
+  const deptManagers = db.deptManagers || {};
+  const username     = document.getElementById('orgTreeManager')?.value;
+  if (!username) return;
+
+  const node = orgTree[username] || {};
+  const parentSel = document.getElementById('orgTreeParent');
+  if (parentSel) parentSel.value = node.parentManager || '';
+
+  const topChk = document.getElementById('orgTreeTopLevel');
+  if (topChk) topChk.checked = !!node.topLevel;
+
+  const directDepts = node.directDepts ||
+    Object.entries(deptManagers).filter(([,mgr]) => mgr === username).map(([d]) => d);
+
+  document.querySelectorAll('#orgTreeDeptsCheckboxes input[type="checkbox"]').forEach(cb => {
+    cb.checked = directDepts.includes(cb.value);
+    const label = cb.closest('label');
+    if (label) {
+      label.style.background  = cb.checked ? 'var(--primary)'      : '';
+      label.style.color       = cb.checked ? 'white'               : '';
+      label.style.borderColor = cb.checked ? 'var(--primary-dark)' : '';
+    }
+  });
+}
+
+function saveOrgTreeEntry() {
+  const username = document.getElementById('orgTreeManager')?.value;
+  if (!username) { showToast('⚠️ בחר עובד', 'warning'); return; }
+
+  const parentManager = document.getElementById('orgTreeParent')?.value || null;
+  const topLevel      = !!document.getElementById('orgTreeTopLevel')?.checked;
+  const directDepts   = [...document.querySelectorAll('#orgTreeDeptsCheckboxes input:checked')]
+    .map(cb => cb.value);
+
+  const db = getDB();
+  if (!db.orgTree) db.orgTree = {};
+  db.orgTree[username] = { directDepts, parentManager, topLevel };
+
+  // Sync to legacy deptManagers
+  if (!db.deptManagers) db.deptManagers = {};
+  Object.keys(db.deptManagers).forEach(dept => {
+    if (db.deptManagers[dept] === username) delete db.deptManagers[dept];
+  });
+  directDepts.forEach(dept => { db.deptManagers[dept] = username; });
+
+  // Promote to manager role
+  if (db.users[username] && db.users[username].role === 'employee') {
+    db.users[username].role = 'manager';
+  }
+
+  saveDB(db); pushToFirebase().catch(() => {});
+  const name = db.users[username]?.fullName || username;
+  showToast(`✅ ${name} עודכן בעץ הארגוני`, 'success');
+  auditLog('org_tree_update', `${username}: מנהל [${directDepts.join(', ')}] | מדווח ל: ${parentManager || 'שורש'} | topLevel: ${topLevel}`);
+  renderOrgTree();
+  // Clear form
+  const mgrSel = document.getElementById('orgTreeManager');
+  if (mgrSel) mgrSel.value = '';
+  document.querySelectorAll('#orgTreeDeptsCheckboxes input').forEach(cb => {
+    cb.checked = false;
+    const l = cb.closest('label');
+    if (l) { l.style.background=''; l.style.color=''; l.style.borderColor=''; }
+  });
+}
+
+function deleteOrgTreeEntry(username) {
+  const db = getDB();
+  const name = db.users[username]?.fullName || username;
+  if (!confirm(`להסיר את ${name} מהעץ הארגוני?
+הם לא יימחקו כעובדים — רק ההגדרה הארגונית תוסר.`)) return;
+  if (db.orgTree) delete db.orgTree[username];
+  if (db.deptManagers) {
+    Object.keys(db.deptManagers).forEach(dept => {
+      if (db.deptManagers[dept] === username) delete db.deptManagers[dept];
+    });
+  }
+  // Demote to employee if they were promoted
+  if (db.users[username] && db.users[username].role === 'manager') {
+    db.users[username].role = 'employee';
+  }
+  saveDB(db); pushToFirebase().catch(() => {});
+  renderOrgTree(); renderDeptManagerTable();
+  showToast(`🗑️ ${name} הוסר מהעץ הארגוני`, 'info');
+}
+
+function renderOrgTree() {
+  const el = document.getElementById('orgTreeDisplay');
+  if (!el) return;
+  const db = getDB();
+  const orgTree      = db.orgTree      || {};
+  const deptManagers = db.deptManagers || {};
+
+  // Build unified nodes map
+  const nodes = {};
+  Object.entries(orgTree).forEach(([u, n]) => { nodes[u] = { ...n }; });
+  Object.entries(deptManagers).forEach(([dept, mgr]) => {
+    if (!nodes[mgr]) nodes[mgr] = { directDepts: [], parentManager: null };
+    if (!nodes[mgr].directDepts) nodes[mgr].directDepts = [];
+    if (!nodes[mgr].directDepts.includes(dept)) nodes[mgr].directDepts.push(dept);
+  });
+
+  if (!Object.keys(nodes).length) {
+    el.innerHTML = `<div style="background:var(--surface2);border-radius:12px;padding:24px;text-align:center;color:var(--text-muted);">
+      <div style="font-size:32px;margin-bottom:8px;">🌲</div>
+      <div style="font-weight:700;margin-bottom:6px;">העץ הארגוני ריק</div>
+      <div style="font-size:13px;">השתמש בטופס למעלה להוספת מנהלים</div>
+    </div>`;
+    return;
+  }
+
+  // Build children map
+  const children = {};
+  Object.entries(nodes).forEach(([u, n]) => {
+    if (n.parentManager) {
+      if (!children[n.parentManager]) children[n.parentManager] = [];
+      if (!children[n.parentManager].includes(u)) children[n.parentManager].push(u);
+    }
+  });
+
+  const LEVEL_ICONS  = ['🏛️','👔','👤','👤'];
+  const LEVEL_COLORS = ['var(--primary)','#7c3aed','#0891b2','#16a34a'];
+
+  function renderNode(username, depth) {
+    const user   = db.users[username];
+    const name   = user ? user.fullName : username;
+    const node   = nodes[username] || {};
+    const depts  = node.directDepts || [];
+    const scope  = getManagerScope(username, db);
+    const scopeLabel = scope === null
+      ? '👁️ כל העובדים'
+      : scope.size === 0
+        ? '👁️ עצמו בלבד'
+        : `👁️ ${scope.size} מחלקות`;
+    const color  = LEVEL_COLORS[Math.min(depth, LEVEL_COLORS.length-1)];
+    const kids   = children[username] || [];
+    const borderStyle = depth === 0
+      ? `border-right: 4px solid ${color};`
+      : `border-right: 3px solid ${color};`;
+    const marginRight = depth * 20;
+
+    const deptsHtml = depts.length
+      ? depts.map(d => `<span style="background:${color}18;color:${color};border:1px solid ${color}44;border-radius:20px;padding:2px 10px;font-size:11px;font-weight:700;">${d}</span>`).join('')
+      : '';
+
+    const kidsHtml = kids.length
+      ? `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);">${kids.map(k => renderNode(k, depth+1)).join('')}</div>`
+      : '';
+
+    return `<div style="margin-right:${marginRight}px;background:var(--surface);${borderStyle}border-top:1px solid var(--border);border-bottom:1px solid var(--border);border-left:1px solid var(--border);border-radius:0 10px 10px 0;padding:10px 14px;margin-bottom:6px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:800;font-size:13px;color:${color};">${LEVEL_ICONS[Math.min(depth,3)]} ${name}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${scopeLabel}${node.topLevel?' · 🔑 גישה מלאה':''}</div>
+          ${deptsHtml ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;">${deptsHtml}</div>` : ''}
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0;">
+          <button onclick="editOrgNode('${username}')" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:'Heebo',sans-serif;color:var(--text-secondary);">✏️</button>
+          <button onclick="deleteOrgTreeEntry('${username}')" style="background:var(--danger-light);color:var(--danger);border:1px solid #fca5a5;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:'Heebo',sans-serif;">×</button>
+        </div>
+      </div>
+      ${kidsHtml}
+    </div>`;
+  }
+
+  const roots = Object.keys(nodes).filter(u => !nodes[u].parentManager);
+  const orphans = Object.keys(nodes).filter(u => nodes[u].parentManager && !nodes[nodes[u].parentManager]);
+  const allRoots = [...roots, ...orphans];
+
+  el.innerHTML = `
+    <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:10px;display:flex;align-items:center;gap:8px;">
+      <span>מבנה ארגוני</span>
+      <span style="background:var(--surface2);border-radius:8px;padding:2px 8px;">${Object.keys(nodes).length} מנהלים מוגדרים</span>
+    </div>
+    ${allRoots.map(u => renderNode(u, 0)).join('')}`;
+}
+
+function editOrgNode(username) {
+  switchOrgTab('tree');
+  setTimeout(() => {
+    const mgrSel = document.getElementById('orgTreeManager');
+    if (mgrSel) { mgrSel.value = username; prefillOrgTreeForm(); }
+    document.getElementById('orgTreeManager')?.scrollIntoView({ behavior:'smooth', block:'center' });
+  }, 100);
+}
+
 function renderDeptManagerTable() {
   const db = getDB();
   const depts = db.departments || [];
