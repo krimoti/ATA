@@ -1513,7 +1513,7 @@ function renderAIForecast() {
   const deptMonthMap = {}; // dept → [12 months]
 
   Object.values(db.users).forEach(user => {
-    const dept = Array.isArray(user.dept) ? user.dept[0] : user.dept || 'כללי';
+    const dept = getUserDept(user) || 'כללי';
     if (!deptMonthMap[dept]) deptMonthMap[dept] = new Array(12).fill(0);
 
     Object.entries(db.vacations[user.username] || {}).forEach(([dt, type]) => {
@@ -1898,6 +1898,14 @@ function renderManagerDashboard() {
   const todayStr = now.toISOString().slice(0,10);
   const monthNames = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
 
+  const isAdmin = currentUser.role === 'admin' || currentUser.role === 'accountant';
+
+  // Build scoped user list — admin sees all, dept manager sees only their dept
+  const scopedUsers = Object.values(db.users).filter(u => {
+    if (isAdmin) return true;
+    return managerManagesUser(currentUser.username, u, db);
+  });
+
   const todayEl = document.getElementById('managerTodayDate');
   if(todayEl) todayEl.textContent = `${now.getDate()} ${monthNames[now.getMonth()]} ${now.getFullYear()}`;
 
@@ -1906,13 +1914,12 @@ function renderManagerDashboard() {
 
   // TODAY STATS
   const todayVacations = [], todayWFH = [];
-  Object.values(db.users).forEach(user => {
+  scopedUsers.forEach(user => {
     const vacs = db.vacations[user.username] || {};
     if(['full','half'].includes(vacs[todayStr])) todayVacations.push(user.fullName);
     if(vacs[todayStr] === 'wfh') todayWFH.push(user.fullName);
   });
-  const totalEmployees = Object.values(db.users).filter(u => u.role === 'employee').length;
-  const isAdmin = currentUser.role === 'admin';
+  const totalEmployees = scopedUsers.filter(u => u.role === 'employee' || isUserDeptManager(u.username)).length;
   const myUsername = currentUser.username;
   // Manager sees only requests assigned to them (or all if admin)
   const allPending = (db.approvalRequests || []).filter(r => r.status === 'pending');
@@ -1969,9 +1976,9 @@ function renderManagerDashboard() {
   if(upcomingEl) {
     const in30 = new Date(now.getTime()+30*86400000).toISOString().slice(0,10);
     const upcoming = [];
-    Object.values(db.users).forEach(user => {
+    scopedUsers.forEach(user => {
       Object.entries(db.vacations[user.username]||{}).forEach(([dt,type]) => {
-        if(dt>=todayStr && dt<=in30) upcoming.push({name:user.fullName,dept:user.dept?.[0]||'',date:dt,type});
+        if(dt>=todayStr && dt<=in30) upcoming.push({name:user.fullName,dept:getUserDept(user),date:dt,type});
       });
     });
     upcoming.sort((a,b)=>a.date.localeCompare(b.date));
@@ -2006,13 +2013,13 @@ function renderManagerDashboard() {
   const teamEl = document.getElementById('managerTeamBalance');
   if(teamEl) {
     const year = now.getFullYear();
-    const rows = Object.values(db.users).filter(u=>u.role==='employee').map(u=>{
+    const rows = scopedUsers.filter(u=>u.role==='employee'||isUserDeptManager(u.username)).map(u=>{
       const cb = calcBalance(u.username, year);
       const pct = Math.min(100, cb.stats.total/Math.max(1,cb.annual)*100);
       const color = cb.projectedEndBalance<0?'var(--danger)':cb.projectedEndBalance<3?'var(--warning)':'var(--success)';
       return `<tr style="border-bottom:1px solid var(--border);">
         <td style="padding:10px;font-weight:600;">${u.fullName}</td>
-        <td style="padding:10px;text-align:center;font-size:13px;">${u.dept?.[0]||'-'}</td>
+        <td style="padding:10px;text-align:center;font-size:13px;">${getUserDept(u)||'-'}</td>
         <td style="padding:10px;text-align:center;">${cb.annual}</td>
         <td style="padding:10px;text-align:center;">${cb.stats.total}</td>
         <td style="padding:10px;min-width:100px;">
@@ -2048,7 +2055,7 @@ function findOverlaps(db, todayStr) {
   const in30 = new Date(Date.now()+30*86400000).toISOString().slice(0,10);
   const byDateDept = {};
   Object.values(db.users).forEach(user => {
-    const dept = user.dept?.[0]||'כללי';
+    const dept = getUserDept(user)||'כללי';
     Object.entries(db.vacations[user.username]||{}).forEach(([dt,type])=>{
       if(dt>=todayStr && dt<=in30 && type!=='wfh') {
         const key=dt+'|'+dept;
@@ -2098,7 +2105,7 @@ function exportPayroll() {
         else if(type==='half')halfDays++;
       }
     });
-    if(fullDays+halfDays>0) rows.push({id:user.username,name:user.fullName,dept:user.dept?.[0]||'',fullDays,halfDays,total:fullDays+halfDays*0.5});
+    if(fullDays+halfDays>0) rows.push({id:user.username,name:user.fullName,dept:getUserDept(user)||'',fullDays,halfDays,total:fullDays+halfDays*0.5});
   });
 
   let csv='';
@@ -2141,7 +2148,7 @@ function exportMonthlyReport() {
   csv+='שם עובד,מחלקה,מכסה שנתית,ניצל,יתרה נוכחית,צפי סוף שנה\n';
   Object.values(db.users).filter(u=>u.role==='employee').forEach(user=>{
     const cb=calcBalance(user.username,year);
-    csv+=`${user.fullName},${user.dept?.[0]||''},${cb.annual},${cb.stats.total},${cb.balance.toFixed(1)},${cb.projectedEndBalance.toFixed(1)}\n`;
+    csv+=`${user.fullName},${getUserDept(user)||''},${cb.annual},${cb.stats.total},${cb.balance.toFixed(1)},${cb.projectedEndBalance.toFixed(1)}\n`;
   });
   const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
   const url=URL.createObjectURL(blob);
@@ -2587,6 +2594,31 @@ function showToast(msg, type = 'success') {
 // ============================================================
 // DEPARTMENT MULTISELECT
 // ============================================================
+
+// Safe dept display — handles both string and array
+function getUserDept(user) {
+  if (!user || !user.dept) return '';
+  if (Array.isArray(user.dept)) return user.dept[0] || '';
+  if (typeof user.dept === 'string') return user.dept;
+  return '';
+}
+// Get all depts for a user as array
+function getUserDepts(user) {
+  if (!user || !user.dept) return [];
+  if (Array.isArray(user.dept)) return user.dept.filter(Boolean);
+  if (typeof user.dept === 'string') return user.dept ? [user.dept] : [];
+  return [];
+}
+// Check if manager manages a given user
+function managerManagesUser(managerUsername, targetUser, db) {
+  const deptManagers = db.deptManagers || {};
+  const myManagedDepts = Object.entries(deptManagers)
+    .filter(([, mgr]) => mgr === managerUsername)
+    .map(([dept]) => dept);
+  if (!myManagedDepts.length) return true; // no dept set → sees all
+  const targetDepts = getUserDepts(targetUser);
+  return targetDepts.some(d => myManagedDepts.includes(d));
+}
 
 function getDepts() {
   const db = getDB();
@@ -3382,7 +3414,7 @@ function renderPermissionsTable() {
             <tr style="border-bottom:1px solid var(--border);" id="permRow_${u.username}">
               <td style="padding:10px 12px;">
                 <div style="font-weight:700;">${u.fullName}</div>
-                <div style="font-size:11px;color:var(--text-muted);">${u.role === 'manager' ? '👔 מנהל' : '👤 עובד'} · ${Array.isArray(u.dept) ? u.dept[0] : u.dept || ''}</div>
+                <div style="font-size:11px;color:var(--text-muted);">${u.role === 'manager' ? '👔 מנהל' : '👤 עובד'} · ${getUserDept(u) || ''}</div>
               </td>
               <td style="padding:10px 8px;text-align:center;">
                 <span style="font-size:11px;padding:3px 8px;border-radius:10px;font-weight:700;background:${hasAny ? 'var(--success-light)' : 'var(--surface2)'};color:${hasAny ? 'var(--success)' : 'var(--text-muted)'};">
@@ -4096,7 +4128,7 @@ function renderWhereIsResults() {
 
   container.innerHTML = users.map(u => {
     const s = getEmployeeStatusToday(u.username);
-    const dept = Array.isArray(u.dept) ? u.dept[0] : u.dept || '';
+    const dept = getUserDept(u) || '';
     return `<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:${s.bg};border-radius:12px;border:1px solid ${s.color}22;">
       <div style="width:38px;height:38px;border-radius:50%;background:${s.color}22;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">${s.label.split(' ')[0]}</div>
       <div style="flex:1;min-width:0;">
@@ -4562,7 +4594,7 @@ function deleteImportedEmployees() {
   // Remove departments that are now empty
   const remainingDepts = new Set(
     Object.values(db.users)
-      .map(u => Array.isArray(u.dept) ? u.dept[0] : u.dept)
+      .map(u => getUserDept(u))
       .filter(Boolean)
   );
   const deptsBefore = (db.departments || []).length;
@@ -4802,7 +4834,11 @@ function renderAIStaffingForecast() {
   if (!el) return;
   const db  = getDB();
   const today = new Date();
-  const depts = db.departments || [];
+  const isAdmin = currentUser.role === 'admin' || currentUser.role === 'accountant';
+  // Scope depts to what this manager manages
+  const myManagedDepts = isAdmin ? null : Object.entries(db.deptManagers || {})
+    .filter(([, mgr]) => mgr === currentUser.username).map(([dept]) => dept);
+  const depts = (db.departments || []).filter(d => !myManagedDepts || myManagedDepts.length === 0 || myManagedDepts.includes(d));
 
   // Build next 8 weeks map: week → dept → count absent
   const weeks = [];
@@ -4826,8 +4862,8 @@ function renderAIStaffingForecast() {
     const deptCounts = {};
     depts.forEach(dept => {
       const deptUsers = Object.values(db.users).filter(u => {
-        const d = Array.isArray(u.dept) ? u.dept[0] : u.dept;
-        return d === dept && u.role !== 'admin';
+        const d = getUserDept(u);
+        return d === dept && u.role !== 'admin' && isUserActive(u);
       });
       if (!deptUsers.length) return;
       let maxAbsent = 0;
@@ -4908,7 +4944,12 @@ function renderEmployeeScores() {
   if (!el) return;
   const db = getDB();
   const year = new Date().getFullYear();
-  const users = Object.values(db.users).filter(u => u.role !== 'admin' && u.role !== 'accountant' && isUserActive(u));
+  const isAdmin = currentUser.role === 'admin' || currentUser.role === 'accountant';
+  const users = Object.values(db.users).filter(u => {
+    if (!isUserActive(u) || u.role === 'admin' || u.role === 'accountant') return false;
+    if (isAdmin) return true;
+    return managerManagesUser(currentUser.username, u, db);
+  });
 
   const scores = users.map(u => {
     const vacs   = db.vacations[u.username] || {};
@@ -5032,7 +5073,6 @@ function openAIFromSelector() {
   if (messages && !messages.querySelector('.ai-msg')) {
     messages.innerHTML = '<div class="ai-welcome"><div class="ai-welcome-icon">🤖</div><p>שלום! אני Dazura AI.<br>שאל אותי כל שאלה הקשורה לחופשות, נוכחות ומידע ארגוני.</p></div>';
   }
-  renderAIQuickBtns();
   setTimeout(() => {
     document.getElementById('aiInput')?.focus();
     scrollAIToBottom();
@@ -5413,7 +5453,7 @@ function suggestNextVacation(vacs, db, year) {
   const today = new Date();
   const dept = Array.isArray(currentUser.dept) ? currentUser.dept[0] : currentUser.dept;
   const deptUsers = Object.values(db.users).filter(u => {
-    const d = Array.isArray(u.dept) ? u.dept[0] : u.dept;
+    const d = getUserDept(u);
     return d === dept && u.username !== currentUser.username;
   });
   let bestWeek = null, bestScore = 999;
@@ -6361,53 +6401,6 @@ window.addEventListener('load', function() {
 
 
 // ============================================================
-// AI QUICK SUGGESTION BUTTONS — role-aware
-// ============================================================
-function renderAIQuickBtns() {
-  const el = document.getElementById('aiQuickBtns');
-  if (!el || !currentUser) return;
-
-  const db = getDB();
-  const isAdmin   = currentUser.role === 'admin' || currentUser.role === 'accountant';
-  const isDeptMgr = Object.values(db.deptManagers || {}).includes(currentUser.username);
-  const isManager = isAdmin || currentUser.role === 'manager' || isDeptMgr;
-
-  // Base questions for everyone
-  const btns = [
-    { label: '📊 היתרה שלי', q: 'כמה ימי חופשה נשארו לי?' },
-    { label: '📅 מי בחופשה היום', q: 'מי בחופשה היום?' },
-    { label: '🔮 תחזית שנה', q: 'כמה ימים יישאר לי בסוף השנה?' },
-  ];
-
-  // Manager / admin extras
-  if (isManager) {
-    btns.push(
-      { label: '⏳ בקשות ממתינות', q: 'כמה בקשות חופשה ממתינות לאישור?' },
-      { label: '🏖️ מי בחופשה השבוע', q: 'מי בחופשה השבוע?' },
-      { label: '⚠️ עומסים קרובים', q: 'האם יש עומסים צפויים בשבועות הקרובים?' }
-    );
-  }
-  if (isAdmin) {
-    btns.push(
-      { label: '💰 עלות חופשות', q: 'מה עלות החופשות הצבורות?' },
-      { label: '🔥 סיכון שחיקה', q: 'מי בסיכון שחיקה גבוה?' }
-    );
-  }
-
-  el.innerHTML = btns.map(b =>
-    `<button class="ai-quick-btn" onclick="aiQuickSend(${JSON.stringify(b.q)})">${b.label}</button>`
-  ).join('');
-}
-
-function aiQuickSend(question) {
-  const input = document.getElementById('aiInput');
-  if (!input) return;
-  input.value = question;
-  // Use setTimeout(0) to ensure DOM updates before sendAIMessage reads input.value
-  setTimeout(() => sendAIMessage(), 0);
-}
-
-// ============================================================
 // AI PANEL FUNCTIONS
 // ============================================================
 let _aiPanelOpen = false;
@@ -6419,8 +6412,7 @@ function toggleAIPanel() {
   _aiPanelOpen = !_aiPanelOpen;
   panel.classList.toggle('open', _aiPanelOpen);
   if (_aiPanelOpen) {
-    renderAIQuickBtns();
-    setTimeout(() => { document.getElementById('aiInput')?.focus(); }, 300);
+      setTimeout(() => { document.getElementById('aiInput')?.focus(); }, 300);
     scrollAIToBottom();
   }
 }
@@ -6435,10 +6427,6 @@ async function sendAIMessage() {
   // Hide welcome screen on first message
   const welcomeEl = document.querySelector('#aiMessages .ai-welcome');
   if (welcomeEl) welcomeEl.remove();
-  // Hide quick buttons while waiting for response
-  const quickBtns = document.getElementById('aiQuickBtns');
-  if (quickBtns) quickBtns.style.display = 'none';
-
   appendAIMessage(msg, 'user');
   showAITyping();
 
@@ -6455,8 +6443,6 @@ async function sendAIMessage() {
         hideAITyping();
         appendAIMessage(resp, 'ai');
         scrollAIToBottom();
-        const qb = document.getElementById('aiQuickBtns');
-        if (qb) qb.style.display = '';
       }, delay);
     } else {
       // Fallback ל-DazuraAI בלבד
@@ -6470,8 +6456,6 @@ async function sendAIMessage() {
         }
         appendAIMessage(response, 'ai');
         scrollAIToBottom();
-        const qb = document.getElementById('aiQuickBtns');
-        if (qb) qb.style.display = '';
       }, delay);
     }
   } catch(e) {
@@ -6530,7 +6514,6 @@ function clearAIChat() {
   }
   if (typeof DazuraAI !== 'undefined') DazuraAI.clearHistory();
   if (typeof DazuraFuse !== 'undefined') DazuraFuse.clearHistory();
-  renderAIQuickBtns();
 }
 
 // Show AI button after login

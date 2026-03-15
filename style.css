@@ -2336,35 +2336,6 @@ tbody tr:hover { background: var(--surface2); }
 .ai-send-btn:hover { filter:brightness(1.1); transform:scale(1.05); }
 .ai-send-btn:active { transform:scale(0.95); }
 
-/* AI Quick suggestion buttons */
-.ai-quick-btns {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 8px;
-  min-height: 0;
-}
-.ai-quick-btn {
-  background: var(--surface2);
-  border: 1.5px solid var(--border-strong);
-  border-radius: 20px;
-  padding: 5px 12px;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-family: 'Heebo', sans-serif;
-  transition: all 0.15s;
-  white-space: nowrap;
-  direction: rtl;
-}
-.ai-quick-btn:hover {
-  background: var(--primary-light);
-  border-color: var(--primary);
-  color: var(--primary-dark);
-}
-.ai-quick-btn:active { transform: scale(0.95); }
-
 /* Splash option cards */
 .splash-option {
   cursor: pointer;
