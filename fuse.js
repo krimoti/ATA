@@ -171,19 +171,47 @@ const DazuraFuse = (() => {
     const empUsername = smartExtractEmployee(text, db);
     if (empUsername && db?.users?.[empUsername]) {
       const u = db.users[empUsername];
-      const type = db?.vacations?.[empUsername]?.[today];
-      const statusMap = { full:'בחופשה 🏖️', half:'בחצי יום 🌅', wfh:'עובד/ת מהבית 🏠', sick:'ביום מחלה 🤒' };
-      const year = new Date().getFullYear();
-      const vacs = db.vacations?.[empUsername] || {};
-      let used = 0;
-      Object.entries(vacs).forEach(([dt, tp]) => {
-        if (dt.startsWith(String(year))) used += tp === 'full' ? 1 : tp === 'half' ? 0.5 : 0;
-      });
-      const q = u.quotas?.[year];
-      const annual = q?.annual || 0;
-      const initBal = q?.knownBalance ?? q?.initialBalance ?? 0;
-      const balance = annual ? (initBal - used).toFixed(1) : '?';
-      return `**${u.fullName}** — היום: ${statusMap[type] || 'במשרד 📍'}\nיתרת חופשה ${year}: **${balance} ימים**`;
+      // אם שאלת על עצמך — הצג יתרה
+      if (empUsername === currentUser?.username) {
+        const type = db?.vacations?.[empUsername]?.[today];
+        const statusMap = { full:'בחופשה 🏖️', half:'בחצי יום 🌅', wfh:'עובד/ת מהבית 🏠', sick:'ביום מחלה 🤒' };
+        const year = new Date().getFullYear();
+        const vacs = db.vacations?.[empUsername] || {};
+        let used = 0;
+        Object.entries(vacs).forEach(([dt, tp]) => {
+          if (dt.startsWith(String(year))) used += tp === 'full' ? 1 : tp === 'half' ? 0.5 : 0;
+        });
+        const q = u.quotas?.[year];
+        const annual = q?.annual || 0;
+        const initBal = q?.knownBalance ?? q?.initialBalance ?? 0;
+        const balance = annual ? (initBal - used).toFixed(1) : '?';
+        return `**${u.fullName}** — היום: ${statusMap[type] || 'במשרד 📍'}\nיתרת חופשה ${year}: **${balance} ימים**`;
+      }
+      // עובד שאל על אחר — רק מנהל/אדמין יכול לראות יתרה
+      const isPrivileged = currentUser && (
+        currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'accountant' ||
+        Object.values(db?.deptManagers||{}).includes(currentUser.username)
+      );
+      if (isPrivileged) {
+        const type = db?.vacations?.[empUsername]?.[today];
+        const statusMap = { full:'בחופשה 🏖️', half:'בחצי יום 🌅', wfh:'עובד/ת מהבית 🏠', sick:'ביום מחלה 🤒' };
+        const year = new Date().getFullYear();
+        const vacs = db.vacations?.[empUsername] || {};
+        let used = 0;
+        Object.entries(vacs).forEach(([dt, tp]) => {
+          if (dt.startsWith(String(year))) used += tp === 'full' ? 1 : tp === 'half' ? 0.5 : 0;
+        });
+        const q = u.quotas?.[year];
+        const annual = q?.annual || 0;
+        const initBal = q?.knownBalance ?? q?.initialBalance ?? 0;
+        const balance = annual ? (initBal - used).toFixed(1) : '?';
+        return `**${u.fullName}** — היום: ${statusMap[type] || 'במשרד 📍'}\nיתרת חופשה ${year}: **${balance} ימים**`;
+      }
+      // עובד רגיל ששאל על עמית — הצג שם + סטטוס יום (ללא יתרות)
+      const type2 = db?.vacations?.[empUsername]?.[today];
+      const sm2 = { full:'בחופשה 🏖️', half:'בחצי יום 🌅', wfh:'עובד/ת מהבית 🏠', sick:'ביום מחלה 🤒' };
+      const dept2 = Array.isArray(u.dept) ? u.dept[0] : (u.dept || '');
+      return `**${u.fullName}**${dept2 ? ` (${dept2})` : ''} — היום: ${sm2[type2] || 'במשרד 📍'}`;
     }
 
     const deptName = fuzzyFindDept(text, db);

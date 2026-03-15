@@ -450,27 +450,22 @@ const DazuraAI = (() => {
     const label=dateInfo.label;
     const allStats=getStatsForDate(db,dateStr);
 
-    // עובד — הצג נעדרים מכל החברה כולל עצמו
+    // עובד — רואה נעדרים מכל החברה (שמות + סטטוס יום בלבד, ללא יתרות)
     if (!isAdmin&&!isManager) {
-      const dept=Array.isArray(currentUser.dept)?currentUser.dept[0]:currentUser.dept;
-      // כלול גם את המשתמש הנוכחי
-      const allAbsent = Object.values(db.users).filter(u => {
-        if (u.status==='pending') return false;
+      const allUsers = Object.values(db.users).filter(u => u.status !== 'pending' && u.fullName);
+      const absent = allUsers.filter(u => {
         const t=(db.vacations?.[u.username]||{})[dateStr];
         return t==='full'||t==='half'||t==='sick'||t==='wfh';
       });
-      const myStatus = (db.vacations?.[currentUser.username]||{})[dateStr];
-      const iAmAbsent = myStatus==='full'||myStatus==='half'||myStatus==='sick'||myStatus==='wfh';
-
-      if (!allAbsent.length) return `כולם במשרד ${label} 📍`;
+      if (!absent.length) return `כולם במשרד ${label} ✅`;
       const lines=[];
-      const vacSick = allAbsent.filter(u=>{const t=(db.vacations?.[u.username]||{})[dateStr];return t==='full'||t==='half';});
-      const wfhArr  = allAbsent.filter(u=>{const t=(db.vacations?.[u.username]||{})[dateStr];return t==='wfh';});
-      const sickArr = allAbsent.filter(u=>{const t=(db.vacations?.[u.username]||{})[dateStr];return t==='sick';});
-      if(vacSick.length) lines.push(`🏖️ **בחופשה (${vacSick.length}):**\n${vacSick.map(u=>fmtWithHandover(db,u.username,u.fullName,dateStr)).join('\n')}`);
+      const vacArr  = absent.filter(u=>{const t=(db.vacations?.[u.username]||{})[dateStr];return t==='full'||t==='half';});
+      const wfhArr  = absent.filter(u=>{const t=(db.vacations?.[u.username]||{})[dateStr];return t==='wfh';});
+      const sickArr = absent.filter(u=>{const t=(db.vacations?.[u.username]||{})[dateStr];return t==='sick';});
+      if(vacArr.length)  lines.push(`🏖️ **בחופשה (${vacArr.length}):** ${vacArr.map(u=>u.fullName).join(', ')}`);
       if(wfhArr.length)  lines.push(`🏠 **מהבית (${wfhArr.length}):** ${wfhArr.map(u=>u.fullName).join(', ')}`);
       if(sickArr.length) lines.push(`🤒 **מחלה (${sickArr.length}):** ${sickArr.map(u=>u.fullName).join(', ')}`);
-      return lines.length?`**מצב ${label}:**\n${lines.join('\n')}`:`כולם במשרד ${label} 📍`;
+      return `**נעדרים ${label} (${absent.length}):**\n${lines.join('\n')}`;
     }
 
     const stats=isAdmin?allStats:filterToDept(allStats,db,currentUser);
@@ -527,7 +522,8 @@ const DazuraAI = (() => {
         };
         ['vacation','wfh','sick'].forEach(k=>{seen[k]=new Set([...seen[k]].filter(inMyDept));});
       } else if (!isManager) {
-        // plain employee — keep existing behaviour (show all absences for awareness)
+        // עובד רגיל — רואה נעדרים מכל החברה (סטטוס יום בלבד, ללא יתרות)
+        // אין סינון — כל הנעדרים נראים
       }
     }
     const refDate=dateToKey(dateInfo.dateStart||dateInfo.date||new Date());
@@ -1679,14 +1675,24 @@ const DazuraAI = (() => {
 
       // Admin/Manager
       case 'emp_balance': {
-        if(!isManager){response='מידע על עובדים אחרים זמין למנהלים בלבד.';break;}
+        if(!isManager){response='מידע על יתרות עובדים אחרים זמין למנהלים בלבד. לצפייה ביתרה שלך — שאל/י "מה היתרה שלי?"';break;}
         const uname=extractEmployeeName(rawInput,db);
         if(!uname){response='לא זיהיתי שם עובד. נסה עם שם מלא.';break;}
+        // Verify manager can see this employee
+        if(!hasAdminAccess(currentUser)) {
+          const targetUser = db.users[uname];
+          const deptMgrs = db.deptManagers||{};
+          const myDepts = Object.entries(deptMgrs).filter(([,v])=>v===currentUser.username).map(([k])=>k);
+          if(myDepts.length && targetUser) {
+            const tDept = Array.isArray(targetUser.dept)?targetUser.dept[0]:targetUser.dept;
+            if(!myDepts.includes(tDept)) { response='עובד זה אינו במחלקות שבניהולך.'; break; }
+          }
+        }
         lastContext={intent,subject:uname};
         response=respondEmpBalance(db.users[uname],db,year); break;
       }
       case 'emp_vacation': {
-        if(!isManager){response='מידע על עובדים אחרים זמין למנהלים בלבד.';break;}
+        if(!isManager){response='מידע על חופשות עובדים אחרים זמין למנהלים בלבד.';break;}
         const uname=extractEmployeeName(rawInput,db);
         if(!uname){response='לא זיהיתי שם עובד.';break;}
         lastContext={intent,subject:uname,dateInfo};
@@ -1755,8 +1761,12 @@ const DazuraAI = (() => {
         const teamLines = team.map(u => {
           const tp = (db.vacations?.[u.username]||{})[today];
           const status = statusMap[tp] || '📍';
-          const cb2 = calcBalanceAI(u.username, new Date().getFullYear(), db);
-          const bal = cb2 ? ` | יתרה: ${cb2.balance.toFixed(1)}י` : '';
+          // יתרות — רק למנהלים ואדמין
+          let bal = '';
+          if (isManager || isAdmin) {
+            const cb2 = calcBalanceAI(u.username, new Date().getFullYear(), db);
+            if (cb2) bal = ` | יתרה: ${cb2.balance.toFixed(1)}י`;
+          }
           return `• **${u.fullName}** ${status}${bal}`;
         });
         lastContext={intent,dept:teamDept,resultList:team.map(u=>u.fullName)};
