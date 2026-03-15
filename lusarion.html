@@ -63,7 +63,7 @@
   </div>
 
   <!-- Admin Content -->
-  <div class="main-content" style="padding:20px;">
+  <div class="main-content" style="padding:20px;overflow-y:auto;height:calc(100vh - 56px);">
         <div id="tab-admin" class="tab-content active">
 
       <!-- Audit Log — Admin only -->
@@ -440,6 +440,51 @@
       </div>
 
       <!-- ===== PERMISSIONS MANAGEMENT — ADMIN ONLY ===== -->
+<div class="admin-section" id="allVacationsSection">
+        <div class="section-title"><span class="section-title-icon">📋</span> כל בקשות החופשה</div>
+        <div class="filter-bar">
+          <div class="form-group-inline">
+            <label>סינון לפי מחלקה</label>
+            <select id="adminFilterDept" onchange="renderAdminVacations()" dir="rtl">
+              <option value="">כל המחלקות</option>
+            </select>
+          </div>
+          <div class="form-group-inline">
+            <label>סינון לפי עובד</label>
+            <select id="adminFilterEmp" onchange="renderAdminVacations()" dir="rtl">
+              <option value="">כל העובדים</option>
+            </select>
+          </div>
+          <div class="form-group-inline">
+            <label>סינון לפי שנה</label>
+            <select id="adminFilterYear" onchange="renderAdminVacations()" dir="rtl">
+              <option value="2026">2026</option>
+              <option value="2027">2027</option>
+              <option value="2028">2028</option>
+              <option value="2029">2029</option>
+              <option value="2030">2030</option>
+            </select>
+          </div>
+          <button class="btn btn-outline" onclick="clearAdminFilters()" style="align-self:flex-end;">🔄 נקה סינון</button>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>עובד</th>
+                <th>מחלקה</th>
+                <th>חודש</th>
+                <th>ימים</th>
+                <th>חצאי ימים</th>
+                <th>סה"כ ניצול</th>
+                <th>מחזור תשלום</th>
+              </tr>
+            </thead>
+            <tbody id="adminVacTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
       <div class="admin-section" id="permissionsSection">
         <div class="section-title"><span class="section-title-icon">🔒</span> ניהול הרשאות גישה לניהול</div>
         <div style="background:var(--primary-light);border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:var(--primary-dark);">
@@ -714,7 +759,7 @@ function doAdminLogout() {
   currentUser = null;
   ensureFirebaseAuth().then(a => a.signOut()).catch(()=>{});
   document.getElementById('adminAppScreen').style.display = 'none';
-  document.getElementById('adminLoginScreen').style.display = 'block';
+  document.getElementById('adminLoginScreen').style.display = 'flex';
   document.getElementById('adminPassword').value = '';
 }
 // Auto-init Firebase on load

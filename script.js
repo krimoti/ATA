@@ -758,9 +758,7 @@ function showApp(skipModuleSelector) {
   });
   
   // Firebase button: admin only
-  // כפתור Admin Panel — רק לאדמין
-  const adminLink = document.getElementById('adminPanelLink');
-  if (adminLink) adminLink.style.display = (currentUser.role === 'admin' || currentUser.role === 'accountant') ? '' : 'none';
+  document.getElementById('firebaseBadge').style.display = currentUser.role === 'admin' ? '' : 'none';
   
   // Init calendar
   const now = new Date();
@@ -774,6 +772,10 @@ function showApp(skipModuleSelector) {
   applyBranding();
   loadTheme();
   
+
+  // כפתור Admin Panel
+  const adminBtn = document.getElementById('adminPanelBtn');
+  if (adminBtn) adminBtn.style.display = (currentUser.role === 'admin' || currentUser.role === 'accountant') ? '' : 'none';
   buildCalendarSelects();
   showTab('dashboard');
   setTimeout(renderAnnouncements, 800);
@@ -1519,20 +1521,7 @@ function renderAIForecast() {
   const db = getDB();
   const year = new Date().getFullYear();
   const MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
-
-  // סינון לפי scope של המשתמש
-  const _isAdminAF = currentUser.role === 'admin' || currentUser.role === 'accountant';
-  const _isSeniorAF = currentUser.role === 'senior_manager' || currentUser.username === CEO_USERNAME;
-  const _seeAllAF = _isAdminAF || _isSeniorAF;
-  const _deptMgrsAF = db.deptManagers || {};
-  const _myDeptsAF = _seeAllAF ? null : new Set(Object.keys(_deptMgrsAF).filter(d => _deptMgrsAF[d] === currentUser.username));
-  function _inScopeAF(u) {
-    if (_seeAllAF || !_myDeptsAF || _myDeptsAF.size === 0) return true;
-    const ud = Array.isArray(u.dept) ? u.dept[0] : u.dept;
-    return _myDeptsAF.has(ud);
-  }
-
-  const employees = Object.values(db.users).filter(u => (u.role === 'employee' || u.role === 'manager') && _inScopeAF(u));
+  const employees = Object.values(db.users).filter(u => u.role === 'employee' || u.role === 'manager');
   const totalEmp = Math.max(employees.length, 1);
 
   // Build week-by-week map: weekKey → count of vacation days
@@ -1540,7 +1529,7 @@ function renderAIForecast() {
   const monthMap = new Array(12).fill(0); // month index → total days
   const deptMonthMap = {}; // dept → [12 months]
 
-  employees.forEach(user => {
+  Object.values(db.users).forEach(user => {
     const dept = Array.isArray(user.dept) ? user.dept[0] : user.dept || 'כללי';
     if (!deptMonthMap[dept]) deptMonthMap[dept] = new Array(12).fill(0);
 
@@ -4848,17 +4837,7 @@ function renderAIStaffingForecast() {
   if (!el) return;
   const db  = getDB();
   const today = new Date();
-
-  // סינון מחלקות לפי scope
-  const _isAdminSF = currentUser.role === 'admin' || currentUser.role === 'accountant';
-  const _isSeniorSF = currentUser.role === 'senior_manager' || currentUser.username === CEO_USERNAME;
-  const _seeAllSF = _isAdminSF || _isSeniorSF;
-  const _deptMgrsSF = db.deptManagers || {};
-  const _myDeptsSF = _seeAllSF ? null : new Set(Object.keys(_deptMgrsSF).filter(d => _deptMgrsSF[d] === currentUser.username));
-  const allDepts = db.departments || [];
-  const depts = _seeAllSF || !_myDeptsSF || _myDeptsSF.size === 0
-    ? allDepts
-    : allDepts.filter(d => _myDeptsSF.has(d));
+  const depts = db.departments || [];
 
   // Build next 8 weeks map: week → dept → count absent
   const weeks = [];
