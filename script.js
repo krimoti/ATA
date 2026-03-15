@@ -6007,6 +6007,7 @@ async function pullFromFirebase() {
         handoverPending:  JSON.parse(data.handoverPending  || '{}'),
         orgTree:          JSON.parse(data.orgTree          || '{}'),
         timeClockRecords: JSON.parse(data.timeClockRecords || '{}'),
+        customQA:         JSON.parse(data.customQA         || '[]'),
       };
       // Always guarantee admin exists even if Firebase was wiped
       ensureAdminExists(cloudDB);
@@ -6047,6 +6048,7 @@ async function pushToFirebase() {
       handoverPending:  JSON.stringify(db.handoverPending || {}),
       orgTree:          JSON.stringify(db.orgTree || {}),
       timeClockRecords: JSON.stringify(db.timeClockRecords || {}),
+      customQA:         JSON.stringify(db.customQA || []),
       updatedAt:        new Date().toISOString(),
       updatedBy:        currentUser?.username || 'system'
     });
@@ -6768,9 +6770,6 @@ async function sendAIMessage() {
   if (!currentUser) { showToast('⚠️ יש להתחבר כדי להשתמש ב-AI', 'warning'); return; }
 
   input.value = '';
-
-  const messages = document.getElementById('aiMessages');
-  if (messages) messages.innerHTML = '';
 
   appendAIMessage(msg, 'user');
   showAITyping();
