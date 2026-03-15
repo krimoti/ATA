@@ -1366,12 +1366,37 @@ const DazuraAI = (() => {
     if (/^(ומה איתו|ומה איתה|ומה עם|מה הסטטוס שלו|כמה ימים יש לו|כמה יש לה)\??/.test(t)) return 'about_subject';
     if (/בהקשר|בנוגע לזה|על זה|אותו דבר|אותה שאלה/.test(t)) return 'same_context';
     if (/^(מי מהצוות|מי מהמחלקה|מי עוד מ)/.test(t)) return 'more_dept';
+    // Broader follow-up patterns — reference previous answer
+    if (/^(ולמה|למה זה|למה כך|איך זה|מה זה אומר|מה הכוונה|תסביר|תפרט|תרחיב)\??/.test(t)) return 'explain_last';
+    if (/^(ומה ב|ומה לגבי|מה לגבי|ומה עם|ואיך ב)\s/.test(t)) return 'pivot';
+    if (/^(כן|אוקי|בסדר|הבנתי|אחד|שניים|שלוש|ראשון|שני|שלישי)\s*[,.]?\s*/.test(t) && t.length < 20) return 'short_confirm';
     return null;
+  }
+
+  // Returns last N items from conversation history that match a role
+  function getRecentHistory(n) {
+    return conversationHistory.slice(-n * 2);
+  }
+
+  // Get the last AI response text
+  function getLastAIResponse() {
+    for (let i = conversationHistory.length - 1; i >= 0; i--) {
+      if (conversationHistory[i].role === 'ai') return conversationHistory[i].text;
+    }
+    return null;
+  }
+
+  // Get last N user questions (excluding current)
+  function getLastUserQuestions(n) {
+    return conversationHistory
+      .filter(h => h.role === 'user')
+      .slice(-n)
+      .map(h => h.text);
   }
 
   function handleFollowUp(followUpType, currentUser, db) {
     const ctx = lastContext;
-    if (!ctx.intent) return null;
+    const firstName = currentUser.fullName.split(' ')[0];
 
     if (followUpType === 'more_results') {
       if (ctx.resultList && ctx.resultList.length > 0) {
@@ -1387,8 +1412,7 @@ const DazuraAI = (() => {
     }
 
     if (followUpType === 'same_context') {
-      // Re-run last intent with same date
-      if (ctx.intent && ctx.dateInfo) return null; // will fall through to normal flow
+      if (ctx.intent && ctx.dateInfo) return null; // fall through to normal flow
     }
 
     if (followUpType === 'more_dept' && ctx.dept) {
@@ -1398,6 +1422,24 @@ const DazuraAI = (() => {
         return d===dept && u.status!=='pending';
       });
       return `כל עובדי מחלקת **${dept}** (${team.length}):\n${team.map(u=>'• '+u.fullName).join('\n')}`;
+    }
+
+    if (followUpType === 'explain_last') {
+      const lastAI = getLastAIResponse();
+      if (!lastAI) return null;
+      // Give context about what was answered
+      return `להסבר: ${lastAI}\n\nאם יש שאלה ספציפית על הנתונים האלה — שאל/י ואפרט יותר 😊`;
+    }
+
+    if (followUpType === 'pivot') {
+      // e.g. "ומה לגבי מחר?" — fall through to normal intent detection
+      return null;
+    }
+
+    if (followUpType === 'short_confirm' && ctx.intent) {
+      // Short affirmation — recap last answer
+      const lastAI = getLastAIResponse();
+      if (lastAI) return `בסדר ${firstName} 😊 אם יש שאלה נוספת — אני כאן.`;
     }
 
     return null;
@@ -1523,6 +1565,14 @@ const DazuraAI = (() => {
     const intent=detectIntent(rawInput);
     const dateInfo=parseTargetDate(rawInput);
     const year=dateInfo.year||extractYear(rawInput);
+
+    // ── Context enrichment from history (up to 10 messages back) ──
+    // If the question references "הוא/היא/זה" without a clear subject,
+    // try to resolve from the last context
+    const hasVagueRef = /הוא|היא|הם|שלו|שלה|איתו|איתה/.test(rawInput) && !lastContext.subject;
+    if (hasVagueRef && lastContext.subject) {
+      // subject is already set in lastContext — handleFollowUp will use it
+    }
 
     let response='';
     switch(intent) {

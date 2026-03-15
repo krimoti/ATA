@@ -1170,17 +1170,30 @@
       <!-- Department Management -->
       <div class="admin-section" id="deptMgmtSection">
         <div class="section-title"><span class="section-title-icon">🏢</span> ניהול מחלקות ומנהלים</div>
-        
+
+        <!-- Explainer banner -->
+        <div style="background:var(--primary-light);border:1px solid var(--primary);border-radius:12px;padding:14px 16px;margin-bottom:18px;font-size:13px;line-height:1.7;">
+          <div style="font-weight:800;font-size:14px;color:var(--primary-dark);margin-bottom:6px;">📋 איך מגדירים מנהל מחלקה?</div>
+          <ol style="margin:0;padding-right:18px;color:var(--text);">
+            <li>בטבלה למטה — מצא את שם המחלקה</li>
+            <li>בעמודה <strong>"מנהל/ת אחראי/ת"</strong> — בחר את העובד מהרשימה</li>
+            <li>השינוי נשמר <strong>אוטומטית</strong> עם הבחירה</li>
+          </ol>
+          <div style="margin-top:8px;padding:8px 12px;background:rgba(255,255,255,0.6);border-radius:8px;font-size:12px;color:var(--primary-dark);">
+            ✅ <strong>מה מנהל מחלקה יכול לעשות:</strong> לאשר/לדחות בקשות חופשה של עובדי המחלקה, לראות נוכחות ויתרות, לקבל גישה ל-AI ברמת מנהל
+          </div>
+        </div>
+
         <!-- Add department -->
-        <div style="display:flex;gap:8px;max-width:400px;margin-bottom:20px;">
-          <input type="text" id="newDeptInput" class="form-input" placeholder="שם מחלקה חדשה" style="flex:1;" dir="rtl">
-          <button class="btn btn-success" onclick="addDepartment()">➕ הוסף</button>
+        <div style="display:flex;gap:8px;max-width:400px;margin-bottom:16px;align-items:center;">
+          <input type="text" id="newDeptInput" class="form-input" placeholder="שם מחלקה חדשה..." style="flex:1;" dir="rtl">
+          <button class="btn btn-success" onclick="addDepartment()">➕ הוסף מחלקה</button>
         </div>
 
         <!-- Dept + Manager table -->
         <div id="deptManagerTable" style="max-width:700px;"></div>
-        <div style="font-size:12px;color:var(--text-muted);margin-top:8px;">
-          💡 כל עובד שיגיש בקשת חופשה — היא תועבר אוטומטית למנהל המחלקה שלו
+        <div style="font-size:12px;color:var(--text-muted);margin-top:10px;">
+          💡 בקשות חופשה מועברות אוטומטית למנהל המחלקה · מנהל ללא מחלקה מוגדרת — יראה את כל הבקשות
         </div>
       </div>
 

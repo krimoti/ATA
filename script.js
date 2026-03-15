@@ -6403,7 +6403,8 @@ function aiQuickSend(question) {
   const input = document.getElementById('aiInput');
   if (!input) return;
   input.value = question;
-  sendAIMessage();
+  // Use setTimeout(0) to ensure DOM updates before sendAIMessage reads input.value
+  setTimeout(() => sendAIMessage(), 0);
 }
 
 // ============================================================
