@@ -1,5 +1,5 @@
 // ============================================================
-// DAZURA AI ENGINE v6.0 + FUSE — שדרוג מלא
+// DAZURA AI ENGINE v7.0 — Context Memory + Modular KB
 // Built by מוטי קריחלי 🏆
 //
 // ארכיטקטורה — Pipeline של 6 שלבים:
@@ -101,8 +101,8 @@ const DazuraAI = (() => {
     }
 
     // ── מילות מפתח שמאפסות הקשר — לא להמשיך ──
-    const ctxBreakers = /^(מחלקות|עובדים|ברכות|שלום|תודה|עזרה|help)$/;
-    if (ctxBreakers.test(t)) {
+    const ctxBreakers = /^(מחלקות|עובדים|ברכות|שלום|תודה|עזרה|help|שבת|חג|שנה טובה|מזל טוב|יום הולדת|להתראות|ביי|bye|בוקר|ערב|לילה)$/;
+    if (ctxBreakers.test(t) || /^(שבת שלום|חג שמח|בוקר טוב|ערב טוב|לילה טוב)/.test(t)) {
       return { expanded: raw, usedCtx: false };
     }
 
@@ -447,6 +447,7 @@ const DazuraAI = (() => {
       if (adm) out += `  "רשימת עובדים" · "עלויות חופשות"\n`;
     }
     out += `\n💡 כתוב בחופשיות — אני מבין עברית טבעית. ניתן לשאול גם שמות עובדים ספציפיים.`;
+    out += `\n🔗 **המשך שיחה:** אחרי כל תשובה, אפשר לשאול "והשבוע?" / "ומחר?" / "ומה לגבי [שם]?" / "ואני?" — אזכור את ההקשר!`;
     return out;
   }
 
@@ -559,6 +560,12 @@ const DazuraAI = (() => {
 
     { test: t => /^(ממש|ממש ממש|מה זאת אומרת|לא מאמין|וואו|וואלה|וואלק|וואלה אחי)[\s?!.]*$/.test(t),
       reply: () => rand([`כן, ממש! 😄 מה הפריע?`, `גם אני ממש 😊 ספר/י יותר.`]) },
+
+    { test: t => /שאלה טיפשי|שאלה קטנה|שאלה פשוטה|שאלה מטופשת/.test(t),
+      reply: () => `אין שאלות טיפשיות כאן! 🤗 שאל/י — זה בדיוק למה אני כאן.` },
+
+    { test: t => /לא יודע מה לשאול|לא בטוח מה לשאול|מה כדאי לשאול/.test(t),
+      reply: () => `הנה כמה רעיונות: יתרת החופשה שלי / מי בחופשה היום? / מתי כדאי לי לקחת חופש? / מה תחזית היתרה שלי?` },
 
     { test: t => /אני צריך עזרה|תעזור לי|צריך עזרה/.test(t),
       reply: (t,u) => `כאן! 🤖 **${fn(u)}**, ספר/י מה קורה ואנסה לעזור. אין שאלה קטנה מדי.` },
@@ -1361,18 +1368,27 @@ const DazuraAI = (() => {
 
       // ── "ואני?" / "ואתה?" — עצמי לפני כל דבר ──────────
       const selfPatterns = /^(ו?אני|ואתה|ומה אתה|ומה לגביי|לגביי|ואני)[?!\s]*$/;
-      if (effectiveSubject === 'balance' && selfPatterns.test(norm(rawInput))) {
+      if (selfPatterns.test(norm(rawInput))) {
         ctx.targetUser = null;
-        r = respondBalance(currentUser, db, year);
-        ctx.lastAnswer = r;
-        history.push({role:'ai', text:r});
-        return r;
-      }
-      if ((effectiveSubject === 'forecast') && selfPatterns.test(norm(rawInput))) {
-        r = respondForecast(currentUser, db, year);
-        ctx.lastAnswer = r;
-        history.push({role:'ai', text:r});
-        return r;
+        const presenceMe = ['sick','vacation','wfh','office'];
+        if (presenceMe.includes(effectiveSubject) && ctxResolved.effectiveTime) {
+          const diMe = ctxResolved.effectiveTime;
+          const keyMe = diMe.single ? dateKey(diMe.date || new Date()) : null;
+          if (keyMe) {
+            const tpMe = (db.vacations?.[currentUser.username]||{})[keyMe];
+            const wordMe = {full:'בחופשה 🏖️',half:'חצי יום 🌅',wfh:'WFH 🏠',sick:'מחלה 🤒'}[tpMe] || 'במשרד 📍';
+            r = `**${fn(currentUser)}** — ${diMe.label||'היום'}: **${wordMe}** 😊`;
+            ctx.lastAnswer = r; history.push({role:'ai', text:r}); return r;
+          }
+        }
+        if (effectiveSubject === 'balance' || !presenceMe.includes(effectiveSubject)) {
+          r = respondBalance(currentUser, db, year);
+          ctx.lastAnswer = r; history.push({role:'ai', text:r}); return r;
+        }
+        if (effectiveSubject === 'forecast') {
+          r = respondForecast(currentUser, db, year);
+          ctx.lastAnswer = r; history.push({role:'ai', text:r}); return r;
+        }
       }
 
       // ── זיהוי עובד ספציפי בשאלת המשך ──────────────────
@@ -1479,7 +1495,48 @@ const DazuraAI = (() => {
     const intent = classifyIntent(rawInput, currentUser, db);
     const todayDi = {date: new Date(), label:'היום', single:true};
 
-    if (intent === 'help')               r = respondHelp(currentUser, db);
+    // ── Context intents: __ctx_time__ / __ctx_mine__ / __ctx_count__ ──
+    if (intent === '__ctx_time__') {
+      // שאלת המשך עם זמן בלבד — עבד לפי resolveContext
+      if (ctxResolved.effectiveSubject && ctxResolved.effectiveTime) {
+        const s = ctxResolved.effectiveSubject, di = ctxResolved.effectiveTime;
+        const presenceSubjects = ['sick','vacation','wfh','office'];
+        if (presenceSubjects.includes(s)) {
+          r = di.single
+            ? respondWhoAt(db, di, currentUser, ctxResolved.effectiveFilter || s)
+            : respondWhoAtRange(db, di, currentUser, ctxResolved.effectiveFilter || s);
+        } else if (s === 'balance')  r = respondBalance(currentUser, db, year);
+        else if (s === 'forecast')   r = respondForecast(currentUser, db, year);
+        else if (s === 'used')       r = respondUsed(currentUser, db, year);
+      }
+    }
+    else if (intent === '__ctx_mine__') {
+      // "ואני?" — לפי הנושא: נוכחות=סטטוס יומי, יתרה=balance
+      ctx.targetUser = null;
+      const presenceS2 = ['sick','vacation','wfh','office'];
+      if (presenceS2.includes(ctx.subject) && ctx.dateInfo) {
+        const di2 = ctx.dateInfo;
+        const key2 = di2.single ? dateKey(di2.date || new Date()) : null;
+        if (key2) {
+          const tp2 = (db.vacations?.[currentUser.username]||{})[key2];
+          const word2 = {full:'בחופשה 🏖️',half:'חצי יום 🌅',wfh:'WFH 🏠',sick:'מחלה 🤒'}[tp2] || 'במשרד 📍';
+          r = `**${fn(currentUser)}** — ${di2.label||'היום'}: **${word2}** 😊`;
+        } else {
+          r = respondBalance(currentUser, db, year);
+        }
+      } else {
+        r = respondBalance(currentUser, db, year);
+      }
+    }
+    else if (intent === '__ctx_count__') {
+      // "כמה?" — ספור את resultList הקודם
+      if (ctx.resultList && ctx.resultList.length) {
+        r = `**${ctx.resultList.length}** אנשים (${ctx.resultList.join(', ')})`;
+      } else {
+        r = respondBalance(currentUser, db, year);
+      }
+    }
+    else if (intent === 'help')               r = respondHelp(currentUser, db);
     else if (intent === 'balance')       r = respondBalance(currentUser, db, year);
     else if (intent === 'used')          r = respondUsed(currentUser, db, year);
     else if (intent === 'forecast')      r = respondForecast(currentUser, db, year);
