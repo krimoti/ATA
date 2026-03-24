@@ -2535,16 +2535,7 @@ function saveNewEmployee() {
 
 async function deleteEmployee(username) {
   if (username === 'admin') return;
-// בתוך deleteEmployee
-delete db.users[username];
-delete db.vacations[username];
 
-saveDB(db); // שומר ל-Disk
-
-// שורת המחץ: עדכון המשתנה הגלובלי בזיכרון
-if (typeof window.db !== 'undefined') window.db = db; 
-
-await pushToFirebase();
   const db = getDB();
   const name = db.users[username]?.fullName || username;
 
@@ -2556,7 +2547,16 @@ await pushToFirebase();
 
   // 2. שמירה ל-LocalStorage (גיבוי מקומי מהיר)
   saveDB(db);
+// בתוך deleteEmployee
+delete db.users[username];
+delete db.vacations[username];
 
+saveDB(db); // שומר ל-Disk
+
+// שורת המחץ: עדכון המשתנה הגלובלי בזיכרון
+if (typeof window.db !== 'undefined') window.db = db; 
+
+await pushToFirebase();
   try {
     // 3. סנכרון לענן - השלב שחסר לך
     // אני מניח שקיימת אצלך פונקציה בשם pushToFirebase (כפי שמופיע בחלקים אחרים בקוד שלך)
