@@ -6160,9 +6160,18 @@ function updateFirebaseBadge(connected) {
 }
 
 // Override saveDB — every save goes to cloud automatically
-function saveDB(db) {
+async function saveDB(db) {
   _saveDBLocal(db);
-  if (firebaseConnected) pushToFirebase().catch(e => console.warn('saveDB push error:', e));
+  if (firebaseConnected) {
+    try {
+      // הוספנו await - עכשיו הפונקציה תעצור ותחכה לאישור מהשרת
+      await pushToFirebase(); 
+      console.log('Push to Firebase succeeded');
+    } catch(e) {
+      console.error('saveDB push error:', e);
+      throw e; // חשוב לזרוק את השגיאה כדי שפונקציית המחיקה תדע שהיה כשל
+    }
+  }
 }
 
 // Firebase admin modal (for manual ops like reset)
