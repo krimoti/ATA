@@ -2533,30 +2533,23 @@ function saveNewEmployee() {
   });
 }
 
-async function deleteEmployee(username) {
+function deleteEmployee(username) {
   if (username === 'admin') return;
   const db = getDB();
   const name = db.users[username]?.fullName || username;
-  
   if (!confirm(`למחוק את העובד ${name}? הפעולה בלתי הפיכה.`)) return;
-
-  // מחיקה מהאובייקט המקומי
   delete db.users[username];
   if (db.vacations) delete db.vacations[username];
-
-  try {
-    // חשוב: להוסיף await לפני saveDB
-    await saveDB(db); 
-    
-    if (typeof auditLog === 'function') auditLog('employee_deleted', `עובד נמחק: ${name}`);
-    showToast('🗑️ העובד נמחק בהצלחה', 'success');
-    renderAdmin();
-  } catch (error) {
-    console.error("המחיקה נכשלה בשרת:", error);
-    showToast('⚠️ שגיאה: המחיקה לא נשמרה ב-Firebase', 'error');
-    // טעינה מחדש כדי להחזיר את המצב הקיים בשרת למסך
-    setTimeout(() => location.reload(), 2000);
+  if (db.timeClockRecords) delete db.timeClockRecords[username];
+  if (db.timeclock) delete db.timeclock[username];
+  if (db.sick) {
+    Object.keys(db.sick).forEach(k => { if (k.startsWith(username + '_')) delete db.sick[k]; });
   }
+  saveDB(db);
+  pushToFirebase().catch(e => console.warn('deleteEmployee push error:', e));
+  auditLog('employee_deleted', `עובד נמחק: ${name}`);
+  showToast('🗑️ העובד נמחק', 'success');
+  renderAdmin();
 }
 
 // ============================================================
@@ -6160,18 +6153,9 @@ function updateFirebaseBadge(connected) {
 }
 
 // Override saveDB — every save goes to cloud automatically
-async function saveDB(db) {
+function saveDB(db) {
   _saveDBLocal(db);
-  if (firebaseConnected) {
-    try {
-      // הוספנו await - עכשיו הפונקציה תעצור ותחכה לאישור מהשרת
-      await pushToFirebase(); 
-      console.log('Push to Firebase succeeded');
-    } catch(e) {
-      console.error('saveDB push error:', e);
-      throw e; // חשוב לזרוק את השגיאה כדי שפונקציית המחיקה תדע שהיה כשל
-    }
-  }
+  if (firebaseConnected) pushToFirebase().catch(e => console.warn('saveDB push error:', e));
 }
 
 // Firebase admin modal (for manual ops like reset)
