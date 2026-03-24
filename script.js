@@ -2535,7 +2535,16 @@ function saveNewEmployee() {
 
 async function deleteEmployee(username) {
   if (username === 'admin') return;
+// בתוך deleteEmployee
+delete db.users[username];
+delete db.vacations[username];
 
+saveDB(db); // שומר ל-Disk
+
+// שורת המחץ: עדכון המשתנה הגלובלי בזיכרון
+if (typeof window.db !== 'undefined') window.db = db; 
+
+await pushToFirebase();
   const db = getDB();
   const name = db.users[username]?.fullName || username;
 
@@ -6065,28 +6074,11 @@ async function pushToFirebase() {
   if (!firebaseConnected || !firebaseDB) return;
   
   try {
-    // ודא שאנחנו מושכים את הנתונים מה-localStorage שנכתבו הרגע ב-saveDB
+    // במקום להסתמך על משתנה גלובלי, אנחנו לוקחים את המידע שנכתב הרגע ל-Disk
     const rawData = localStorage.getItem(DB_KEY);
     if (!rawData) return;
     const db = JSON.parse(rawData); 
 
-    await firebaseDB.collection('vacationSystem').doc('data').set({
-      users:            JSON.stringify(db.users || {}),
-      vacations:        JSON.stringify(db.vacations || {}),
-      // ... שאר השורות שלך כפי שהן ...
-      updatedAt:        new Date().toISOString(),
-      updatedBy:        currentUser?.username || 'system'
-    });
-    console.log("סנכרון סופי לענן בוצע ✅");
-  } catch(err) {
-    console.error('Push error:', err.message);
-    throw err;
-  }
-}
-  
-  try {
-    const db = getDB();
-    // כאן מתבצעת הדריסה המלאה של המסמך בענן
     await firebaseDB.collection('vacationSystem').doc('data').set({
       users:            JSON.stringify(db.users || {}),
       vacations:        JSON.stringify(db.vacations || {}),
@@ -6106,12 +6098,13 @@ async function pushToFirebase() {
       timeClockRecords: JSON.stringify(db.timeClockRecords || {}),
       customQA:         JSON.stringify(db.customQA || []),
       updatedAt:        new Date().toISOString(),
-      updatedBy:        currentUser?.username || 'system'
+      updatedBy:        typeof currentUser !== 'undefined' ? currentUser?.username : 'system'
     });
-    console.log("סנכרון לענן הצליח ✅"); // חשוב לדיבאגינג
+    
+    console.log("סנכרון סופי לענן בוצע בהצלחה ✅");
   } catch(err) {
-    console.error('שגיאת סנכרון לענן:', err.message); // שנה ל-error כדי שתראה את זה אדום ב-Console
-    throw err; // מאפשר לפונקציית המחיקה לדעת שהסנכרון נכשל
+    console.error('Push error:', err.message);
+    throw err; // חשוב כדי שה-Toast ידע להציג שגיאה אם זה נכשל באמת
   }
 }
 // Real-time listener — updates UI when any other device saves
